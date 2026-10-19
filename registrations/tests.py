@@ -183,6 +183,25 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 2)
 
+    def test_company_user_can_reach_admin_login_to_switch_accounts(self):
+        self.client.force_login(self.user_a)
+
+        response = self.client.get("/admin/")
+
+        self.assertRedirects(
+            response,
+            "/admin/login/?next=%2Fadmin%2F",
+            fetch_redirect_response=False,
+        )
+
+    def test_dbgi_admin_can_open_django_administration(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/admin/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Site administration")
+
     def test_session_and_product_options(self):
         self.client.force_login(self.user_a)
         session = self.client.get("/api/v1/session")

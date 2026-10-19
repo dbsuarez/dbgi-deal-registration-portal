@@ -56,10 +56,10 @@
               <form method="post" action="{% url 'development-login' %}">
                 {% csrf_token %}
                 <input type="hidden" name="username" value="{{ account.username }}">
-                <input type="hidden" name="next" value="{{ next }}">
+                <input type="hidden" name="next" value="{% if next %}{{ next }}{% else %}/admin/{% endif %}">
                 <button class="debug-account" type="submit">
                   <strong>{{ account.get_full_name|default:account.username }}</strong>
-                  <span>DBGI administration · {{ account.username }}</span>
+                  <span>Open Django administration · {{ account.username }}</span>
                 </button>
               </form>
             {% endfor %}
