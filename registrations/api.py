@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Literal
 
 from django.conf import settings
+from django.contrib.auth import logout as django_logout
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -192,6 +193,12 @@ def session(request):
         "is_dbgi_admin": request.user.is_dbgi_admin,
         "csrf_token": get_token(request),
     }
+
+
+@api.post("/session/logout", auth=django_auth, response={204: None})
+def logout_session(request):
+    django_logout(request)
+    return Status(204, None)
 
 
 def _company_id(user):

@@ -9,7 +9,7 @@ import {
 import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
-import { getSession, type Session } from "./api";
+import { getSession, logoutSession, type Session } from "./api";
 import { SessionContext } from "./session";
 
 const RegistrationListPage = lazy(() => import("./pages/RegistrationListPage"));
@@ -20,6 +20,7 @@ const RegistrationFormPage = lazy(() => import("./pages/RegistrationFormPage"));
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,6 +37,16 @@ function App() {
       </Box>
     );
   }
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logoutSession(session.csrf_token);
+      window.location.assign("/accounts/login/");
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <SessionContext.Provider value={session}>
@@ -57,16 +68,13 @@ function App() {
                 Administration
               </Button>
             )}
-            <Box component="form" method="post" action="/accounts/logout/">
-              <input
-                type="hidden"
-                name="csrfmiddlewaretoken"
-                value={session.csrf_token}
-              />
-              <Button color="inherit" type="submit">
-                Log out
-              </Button>
-            </Box>
+            <Button
+              color="inherit"
+              disabled={isLoggingOut}
+              onClick={handleLogout}
+            >
+              {isLoggingOut ? "Logging out..." : "Log out"}
+            </Button>
           </Toolbar>
         </AppBar>
         <Suspense

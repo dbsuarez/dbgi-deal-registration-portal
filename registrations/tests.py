@@ -144,6 +144,15 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(products.status_code, 200)
         self.assertIn(self.product.code, {item["code"] for item in products.json()})
 
+    def test_logout_ends_authenticated_session(self):
+        self.client.force_login(self.user_a)
+
+        response = self.client.post("/api/v1/session/logout")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(self.client.get("/api/v1/session").status_code, 401)
+
     def test_create_registration_saves_scope_children_and_audit(self):
         self.client.force_login(self.user_a)
         response = self.client.post(

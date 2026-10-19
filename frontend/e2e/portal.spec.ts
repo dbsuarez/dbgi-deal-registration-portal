@@ -25,6 +25,22 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test("authenticated user can log out", async ({ page }) => {
+  await page.route("**/api/v1/registrations?**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 25 } }),
+  );
+  await page.route("**/api/v1/session/logout", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().headers()["x-csrftoken"]).toBe("test-token");
+    await route.fulfill({ status: 204 });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Log out" }).click();
+
+  await expect(page).toHaveURL(/\/accounts\/login\/$/);
+});
+
 test("company user can open the React registration form", async ({ page }) => {
   await page.route("**/api/v1/registrations?**", (route) =>
     route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 25 } }),

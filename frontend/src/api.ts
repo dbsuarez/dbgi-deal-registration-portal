@@ -174,6 +174,10 @@ export function getSession(signal?: AbortSignal) {
   return request<Session>("/api/v1/session", signal);
 }
 
+export function logoutSession(csrfToken: string) {
+  return mutation<void>("/api/v1/session/logout", "POST", csrfToken);
+}
+
 export function getRegistrations(
   page: number,
   pageSize: number,
