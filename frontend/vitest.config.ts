@@ -3,6 +3,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __BUILD_TIME__: JSON.stringify("2026-10-19 16:00"),
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./src/setupTests.ts"],

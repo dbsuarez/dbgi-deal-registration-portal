@@ -55,5 +55,8 @@ describe("App", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("DBGI-000001")).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Build: \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+    ).toBeInTheDocument();
   });
 });

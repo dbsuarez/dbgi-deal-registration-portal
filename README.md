@@ -42,6 +42,18 @@ Administrators should compare proposals with an authoritative source, correct th
 
 Migration `registrations.0009_seed_common_philgeps_end_users` provides a starter catalog based on the top procuring entities by bid and award notice volume in the PhilGEPS 2023 Statistical Bulletin. It also consolidates active duplicates only when both the normalized name and normalized address match, moves transaction links to the canonical record, and archives the redundant record for recovery.
 
+## Visible build time
+
+The portal footer displays the frontend build time as `YYYY-MM-DD HH:mm`. Vite stamps the current local time automatically when the frontend is built. A release pipeline can provide an explicit value through the `BUILD_TIME` environment variable. For example, in PowerShell:
+
+```powershell
+$buildTime = Get-Date -Format 'yyyy-MM-dd HH:mm'
+$env:BUILD_TIME = $buildTime
+npm run build
+```
+
+Docker builds accept the same value with `--build-arg BUILD_TIME="YYYY-MM-DD HH:mm"`. If no value is supplied, the Docker build uses its current local build time.
+
 Multiple user accounts may belong to the same company. Manage them under **Master data > Users** in Django admin. These users share company-scoped records and count as one company in opportunity rankings.
 
 Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Production partner and administrator accounts are never seeded automatically.

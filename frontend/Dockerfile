@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+ARG BUILD_TIME
+ENV BUILD_TIME=${BUILD_TIME}
 RUN npm run build
 
 FROM nginx:1.29-alpine

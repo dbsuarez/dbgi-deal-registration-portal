@@ -54,59 +54,75 @@ function App() {
   return (
     <SessionContext.Provider value={session}>
       <BrowserRouter>
-        <AppBar position="static">
-          <Toolbar>
-            <Typography
-              variant="h6"
-              component="a"
-              href="/"
-              color="inherit"
-              sx={{ flexGrow: 1 }}
-            >
-              DBGI Project Registration
-            </Typography>
-            <Typography sx={{ mr: 2 }}>{session.display_name}</Typography>
-            <Button color="inherit" href="/rankings/">
-              Rankings
-            </Button>
-            {session.is_dbgi_admin && (
-              <Button color="inherit" href="/admin/">
-                Administration
-              </Button>
-            )}
-            <Button
-              color="inherit"
-              disabled={isLoggingOut}
-              onClick={handleLogout}
-            >
-              {isLoggingOut ? "Logging out..." : "Log out"}
-            </Button>
-          </Toolbar>
-        </AppBar>
-        <Suspense
-          fallback={
-            <Box sx={{ display: "grid", minHeight: 400, placeItems: "center" }}>
-              <CircularProgress aria-label="Loading page" />
-            </Box>
-          }
+        <Box
+          sx={{ display: "flex", minHeight: "100vh", flexDirection: "column" }}
         >
-          <Routes>
-            <Route path="/" element={<RegistrationListPage />} />
-            <Route
-              path="/registrations/new/"
-              element={<RegistrationFormPage />}
-            />
-            <Route
-              path="/registrations/:id/"
-              element={<RegistrationDetailPage />}
-            />
-            <Route
-              path="/registrations/:id/edit/"
-              element={<RegistrationFormPage />}
-            />
-            <Route path="/rankings/" element={<OpportunityRankingsPage />} />
-          </Routes>
-        </Suspense>
+          <AppBar position="static">
+            <Toolbar>
+              <Typography
+                variant="h6"
+                component="a"
+                href="/"
+                color="inherit"
+                sx={{ flexGrow: 1 }}
+              >
+                DBGI Project Registration
+              </Typography>
+              <Typography sx={{ mr: 2 }}>{session.display_name}</Typography>
+              <Button color="inherit" href="/rankings/">
+                Rankings
+              </Button>
+              {session.is_dbgi_admin && (
+                <Button color="inherit" href="/admin/">
+                  Administration
+                </Button>
+              )}
+              <Button
+                color="inherit"
+                disabled={isLoggingOut}
+                onClick={handleLogout}
+              >
+                {isLoggingOut ? "Logging out..." : "Log out"}
+              </Button>
+            </Toolbar>
+          </AppBar>
+          <Box component="main" sx={{ flexGrow: 1 }}>
+            <Suspense
+              fallback={
+                <Box
+                  sx={{ display: "grid", minHeight: 400, placeItems: "center" }}
+                >
+                  <CircularProgress aria-label="Loading page" />
+                </Box>
+              }
+            >
+              <Routes>
+                <Route path="/" element={<RegistrationListPage />} />
+                <Route
+                  path="/registrations/new/"
+                  element={<RegistrationFormPage />}
+                />
+                <Route
+                  path="/registrations/:id/"
+                  element={<RegistrationDetailPage />}
+                />
+                <Route
+                  path="/registrations/:id/edit/"
+                  element={<RegistrationFormPage />}
+                />
+                <Route
+                  path="/rankings/"
+                  element={<OpportunityRankingsPage />}
+                />
+              </Routes>
+            </Suspense>
+          </Box>
+          <Box component="footer" sx={{ px: 3, py: 1.5, textAlign: "center" }}>
+            <Typography variant="caption" color="text.secondary">
+              Build: {__BUILD_TIME__}
+            </Typography>
+          </Box>
+        </Box>
       </BrowserRouter>
     </SessionContext.Provider>
   );
