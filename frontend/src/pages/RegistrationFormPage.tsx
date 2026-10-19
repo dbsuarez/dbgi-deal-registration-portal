@@ -426,7 +426,7 @@ export default function RegistrationFormPage() {
                 onChange={(e) => updateMain("project_title", e.target.value)}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 required
@@ -437,7 +437,7 @@ export default function RegistrationFormPage() {
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 required
