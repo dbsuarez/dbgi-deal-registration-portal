@@ -40,6 +40,8 @@ If a company cannot find the organization, it can use **Add missing End-user** o
 
 Administrators should compare proposals with an authoritative source, correct the official name and address if necessary, add useful aliases, and use **Verify selected End-users**. Business records are archived with `is_active` instead of being deleted. Existing registration and opportunity text is retained as an audit snapshot even though records are linked to the directory.
 
+Migration `registrations.0009_seed_common_philgeps_end_users` provides a starter catalog based on the top procuring entities by bid and award notice volume in the PhilGEPS 2023 Statistical Bulletin. It also consolidates active duplicates only when both the normalized name and normalized address match, moves transaction links to the canonical record, and archives the redundant record for recovery.
+
 Multiple user accounts may belong to the same company. Manage them under **Master data > Users** in Django admin. These users share company-scoped records and count as one company in opportunity rankings.
 
 Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Production partner and administrator accounts are never seeded automatically.
