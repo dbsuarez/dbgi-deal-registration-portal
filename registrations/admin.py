@@ -5,6 +5,7 @@ from django.contrib.auth.models import Group
 from django.db.models import F, OuterRef, Subquery, Window
 from django.db.models.functions import Rank
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
@@ -13,6 +14,8 @@ from .audit import registration_snapshot
 from .models import (
     Company,
     CompetitorItem,
+    EndUser,
+    EndUserAlias,
     MatchingSuggestion,
     Opportunity,
     OpportunityRanking,
@@ -57,6 +60,106 @@ class ProductAdmin(ModelAdmin):
     list_display = ("code", "name", "category", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
+
+
+class EndUserAliasInline(TabularInline):
+    model = EndUserAlias
+    extra = 0
+
+
+@admin.register(EndUser)
+class EndUserAdmin(ModelAdmin):
+    list_display = (
+        "official_name",
+        "acronym",
+        "city_municipality",
+        "status",
+        "proposed_by_company",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("status", "is_active", "government_branch", "region", "province")
+    search_fields = (
+        "official_name",
+        "acronym",
+        "aliases__name",
+        "city_municipality",
+        "province",
+        "philgeps_reference",
+    )
+    readonly_fields = (
+        "normalized_name",
+        "normalized_address",
+        "proposed_by_company",
+        "created_by",
+        "verified_by",
+        "verified_at",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        ("Identity", {"fields": ("official_name", "acronym", "parent", "status", "is_active")}),
+        (
+            "Organization classification",
+            {"fields": ("government_branch", "organization_type", "sector")},
+        ),
+        (
+            "Address",
+            {
+                "fields": (
+                    "region",
+                    "province",
+                    "city_municipality",
+                    "street_address",
+                    "postal_code",
+                )
+            },
+        ),
+        ("Source", {"fields": ("philgeps_reference", "source_url")}),
+        (
+            "Audit",
+            {
+                "classes": ("collapse",),
+                "fields": (
+                    "proposed_by_company",
+                    "created_by",
+                    "verified_by",
+                    "verified_at",
+                    "normalized_name",
+                    "normalized_address",
+                    "created_at",
+                    "updated_at",
+                ),
+            },
+        ),
+    )
+    inlines = (EndUserAliasInline,)
+    actions = ("verify_selected", "archive_selected", "restore_selected")
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk and not obj.created_by_id:
+            obj.created_by = request.user
+        if obj.status == EndUser.Status.VERIFIED and not obj.verified_at:
+            obj.verified_by = request.user
+            obj.verified_at = timezone.now()
+        elif obj.status != EndUser.Status.VERIFIED:
+            obj.verified_by = None
+            obj.verified_at = None
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="Verify selected End-users")
+    def verify_selected(self, request, queryset):
+        queryset.update(
+            status=EndUser.Status.VERIFIED, verified_by=request.user, verified_at=timezone.now()
+        )
+
+    @admin.action(description="Archive selected End-users")
+    def archive_selected(self, request, queryset):
+        queryset.update(is_active=False)
+
+    @admin.action(description="Restore selected End-users")
+    def restore_selected(self, request, queryset):
+        queryset.update(is_active=True)
 
 
 class OpportunityScopeInline(TabularInline):

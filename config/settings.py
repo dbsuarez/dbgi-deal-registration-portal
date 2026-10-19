@@ -127,6 +127,12 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {
+                        "title": "End-users",
+                        "icon": "account_balance",
+                        "link": reverse_lazy("admin:registrations_enduser_changelist"),
+                        "permission": "config.admin_navigation.can_view_end_users",
+                    },
+                    {
                         "title": "Companies",
                         "icon": "business",
                         "link": reverse_lazy("admin:registrations_company_changelist"),

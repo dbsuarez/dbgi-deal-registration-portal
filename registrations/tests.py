@@ -14,6 +14,7 @@ from .matching import generate_matching_suggestion
 from .models import (
     Company,
     CompetitorItem,
+    EndUser,
     Opportunity,
     OpportunityScope,
     Product,
@@ -45,6 +46,14 @@ class RegistrationApiTests(TestCase):
         cls.product = Product.objects.create(
             code="TEST-001", name="Test item", category="Test category"
         )
+        cls.end_user = EndUser.objects.create(
+            official_name="TEST End-user",
+            city_municipality="Test City",
+            street_address="Test address",
+            status=EndUser.Status.VERIFIED,
+            created_by=cls.admin,
+            verified_by=cls.admin,
+        )
         cls.registration_a = cls.make_registration(
             cls.company_a, cls.user_a, "Company A secret project"
         )
@@ -57,6 +66,7 @@ class RegistrationApiTests(TestCase):
         registration = Registration.objects.create(
             company=company,
             submitted_by=user,
+            end_user=cls.end_user,
             end_user_name=f"{title} end user",
             end_user_address="Test address",
             project_title=title,
@@ -85,8 +95,7 @@ class RegistrationApiTests(TestCase):
 
     def payload(self, **overrides):
         payload = {
-            "end_user_name": "TEST end user",
-            "end_user_address": "TEST address",
+            "end_user_id": self.end_user.pk,
             "project_title": "TEST opportunity",
             "bid_date": "2026-11-30",
             "delivery_date": "2027-01-30",
@@ -122,6 +131,81 @@ class RegistrationApiTests(TestCase):
         response = self.client.get("/api/v1/registrations")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["code"], "authentication_required")
+
+    def test_company_can_propose_and_select_a_pending_end_user(self):
+        self.client.force_login(self.user_a)
+        proposal = {
+            "official_name": "City of Sample Procurement Office",
+            "acronym": "CSPO",
+            "government_branch": "Local government",
+            "organization_type": "City",
+            "sector": "Government",
+            "region": "National Capital Region",
+            "province": "Metro Manila",
+            "city_municipality": "Sample City",
+            "street_address": "123 Public Service Street",
+            "postal_code": "1000",
+            "philgeps_reference": "TEST-PHILGEPS-001",
+            "source_url": "https://notices.philgeps.gov.ph/",
+        }
+
+        response = self.client.post(
+            "/api/v1/end-users",
+            data=json.dumps(proposal),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        created = response.json()
+        self.assertEqual(created["status"], EndUser.Status.PENDING)
+        registration_response = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload(end_user_id=created["id"])),
+            content_type="application/json",
+        )
+        self.assertEqual(registration_response.status_code, 201, registration_response.content)
+        registration = Registration.objects.get(pk=registration_response.json()["id"])
+        suggestion = registration.matching_suggestions.get(is_current=True)
+        self.assertTrue(registration.needs_review)
+        self.assertEqual(suggestion.outcome, "clarify")
+        self.assertIn("awaiting administrator verification", suggestion.conflicting_factors[0])
+
+    def test_company_cannot_see_another_company_pending_end_user(self):
+        pending = EndUser.objects.create(
+            official_name="Private pending End-user",
+            city_municipality="Test City",
+            street_address="Pending Street",
+            proposed_by_company=self.company_a,
+            created_by=self.user_a,
+        )
+        self.client.force_login(self.user_b)
+
+        response = self.client.get("/api/v1/end-users")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(pending.pk, {item["id"] for item in response.json()})
+
+    def test_admin_can_verify_end_user_from_django_admin(self):
+        pending = EndUser.objects.create(
+            official_name="Pending End-user",
+            city_municipality="Test City",
+            street_address="Pending Street",
+            proposed_by_company=self.company_a,
+            created_by=self.user_a,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("admin:registrations_enduser_changelist"),
+            {"action": "verify_selected", "_selected_action": [pending.pk]},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, EndUser.Status.VERIFIED)
+        self.assertEqual(pending.verified_by, self.admin)
+        self.assertIsNotNone(pending.verified_at)
 
     @override_settings(DEBUG=True)
     def test_development_login_lists_grouped_accounts_and_signs_in(self):
@@ -200,6 +284,7 @@ class RegistrationApiTests(TestCase):
         lexmark = Registration.objects.get(company__name="Lexmark")
         competing_opportunity = Opportunity.objects.create(
             title="A second possible procurement",
+            end_user=lexmark.end_user,
             end_user_name=lexmark.end_user_name,
             end_user_address=lexmark.end_user_address,
             created_by=self.admin,

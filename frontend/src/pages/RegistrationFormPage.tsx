@@ -3,6 +3,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import {
   Alert,
+  Autocomplete,
   Box,
   Breadcrumbs,
   Button,
@@ -28,16 +29,26 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import {
   createRegistration,
+  createEndUser,
   deleteAttachment,
+  getEndUsers,
   getProducts,
   getRegistration,
   type Attachment,
   type CompetitorItem,
+  type EndUser,
+  type EndUserCreatePayload,
   type ProductOption,
   type RegistrationPayload,
   type RequestedItem,
@@ -53,8 +64,7 @@ type MainFields = Omit<
 type PendingAttachment = { file: File; description: string };
 
 const emptyMain: MainFields = {
-  end_user_name: "",
-  end_user_address: "",
+  end_user_id: 0,
   project_title: "",
   bid_date: "",
   delivery_date: "",
@@ -65,6 +75,21 @@ const emptyMain: MainFields = {
   evidence_description: "",
   evidence_url: "",
   evidence_sharing_confirmed: false,
+};
+
+const emptyEndUser: EndUserCreatePayload = {
+  official_name: "",
+  acronym: "",
+  government_branch: "",
+  organization_type: "",
+  sector: "",
+  region: "",
+  province: "",
+  city_municipality: "",
+  street_address: "",
+  postal_code: "",
+  philgeps_reference: "",
+  source_url: "",
 };
 
 const emptyCompetitor: CompetitorItem = {
@@ -98,6 +123,11 @@ export default function RegistrationFormPage() {
   const [competitors, setCompetitors] = useState<CompetitorItem[]>([]);
   const [items, setItems] = useState<RequestedItem[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
+  const [endUsers, setEndUsers] = useState<EndUser[]>([]);
+  const [endUserDialogOpen, setEndUserDialogOpen] = useState(false);
+  const [endUserDraft, setEndUserDraft] =
+    useState<EndUserCreatePayload>(emptyEndUser);
+  const [savingEndUser, setSavingEndUser] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachmentIdsToDelete, setAttachmentIdsToDelete] = useState<number[]>(
     [],
@@ -124,14 +154,18 @@ export default function RegistrationFormPage() {
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       });
+    getEndUsers(controller.signal)
+      .then(setEndUsers)
+      .catch((reason: Error) => {
+        if (reason.name !== "AbortError") setError(reason.message);
+      });
     if (registrationId) {
       getRegistration(registrationId, controller.signal)
         .then((registration) => {
           if (!registration.can_edit)
             throw new Error("This account cannot edit registrations.");
           setMain({
-            end_user_name: registration.end_user_name,
-            end_user_address: registration.end_user_address,
+            end_user_id: registration.end_user_id ?? 0,
             project_title: registration.project_title,
             bid_date: registration.bid_date,
             delivery_date: registration.delivery_date,
@@ -169,6 +203,29 @@ export default function RegistrationFormPage() {
     () => new Map(products.map((product) => [product.id, product])),
     [products],
   );
+  const selectedEndUser =
+    endUsers.find((endUser) => endUser.id === main.end_user_id) ?? null;
+
+  const saveEndUser = async () => {
+    setSavingEndUser(true);
+    setError("");
+    try {
+      const created = await createEndUser(endUserDraft, session.csrf_token);
+      setEndUsers((current) => [...current, created]);
+      setMain((current) => ({ ...current, end_user_id: created.id }));
+      setEndUserDraft(emptyEndUser);
+      setEndUserDialogOpen(false);
+      setDirty(true);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The End-user could not be added.",
+      );
+    } finally {
+      setSavingEndUser(false);
+    }
+  };
 
   const updateMain = (field: keyof MainFields, value: string | boolean) => {
     setMain((current) => ({ ...current, [field]: value }));
@@ -314,15 +371,52 @@ export default function RegistrationFormPage() {
             Opportunity and contact
           </Typography>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Autocomplete
                 fullWidth
-                required
-                label="End user name"
-                value={main.end_user_name}
-                onChange={(e) => updateMain("end_user_name", e.target.value)}
+                options={endUsers}
+                value={selectedEndUser}
+                getOptionLabel={(option) =>
+                  `${option.official_name}${option.acronym ? ` (${option.acronym})` : ""}`
+                }
+                onChange={(_, value) => {
+                  setMain((current) => ({
+                    ...current,
+                    end_user_id: value?.id ?? 0,
+                  }));
+                  setDirty(true);
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} required label="End-user" />
+                )}
               />
             </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                sx={{ height: "100%" }}
+                onClick={() => setEndUserDialogOpen(true)}
+              >
+                Add missing End-user
+              </Button>
+            </Grid>
+            {selectedEndUser && (
+              <Grid size={12}>
+                <Alert
+                  severity={
+                    selectedEndUser.status === "verified"
+                      ? "success"
+                      : "warning"
+                  }
+                >
+                  {selectedEndUser.full_address}. {selectedEndUser.status_label}
+                  .
+                  {selectedEndUser.status !== "verified" &&
+                    " This registration can be submitted, but matching and ranking wait for administrator verification."}
+                </Alert>
+              </Grid>
+            )}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -330,17 +424,6 @@ export default function RegistrationFormPage() {
                 label="Project opportunity title"
                 value={main.project_title}
                 onChange={(e) => updateMain("project_title", e.target.value)}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                required
-                multiline
-                rows={3}
-                label="Complete address"
-                value={main.end_user_address}
-                onChange={(e) => updateMain("end_user_address", e.target.value)}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -647,6 +730,14 @@ export default function RegistrationFormPage() {
         onClose={() => setItemEditor(null)}
         onSave={saveItem}
       />
+      <EndUserDialog
+        open={endUserDialogOpen}
+        value={endUserDraft}
+        saving={savingEndUser}
+        onChange={setEndUserDraft}
+        onClose={() => setEndUserDialogOpen(false)}
+        onSave={saveEndUser}
+      />
       <Dialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
@@ -878,6 +969,133 @@ function ItemDialog({
           }
         >
           Save item
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function EndUserDialog({
+  open,
+  value,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  value: EndUserCreatePayload;
+  saving: boolean;
+  onChange: (value: EndUserCreatePayload) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const field = (name: keyof EndUserCreatePayload) => ({
+    value: value[name],
+    onChange: (event: ChangeEvent<HTMLInputElement>) =>
+      onChange({ ...value, [name]: event.target.value }),
+  });
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle>Add missing End-user</DialogTitle>
+      <DialogContent>
+        <Alert severity="info" sx={{ mt: 1, mb: 2 }}>
+          Use the official organization name and address. The new End-user is
+          immediately selectable, but an administrator must verify it before
+          automatic matching or ranking can occur.
+        </Alert>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 8 }}>
+            <TextField
+              fullWidth
+              required
+              label="Official name"
+              {...field("official_name")}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField fullWidth label="Acronym" {...field("acronym")} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="Government branch"
+              {...field("government_branch")}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="Organization type"
+              {...field("organization_type")}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField fullWidth label="Sector" {...field("sector")} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField fullWidth label="Region" {...field("region")} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField fullWidth label="Province" {...field("province")} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              required
+              label="City / municipality"
+              {...field("city_municipality")}
+            />
+          </Grid>
+          <Grid size={12}>
+            <TextField
+              fullWidth
+              required
+              multiline
+              rows={2}
+              label="Street address"
+              {...field("street_address")}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="Postal code"
+              {...field("postal_code")}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="PhilGEPS reference"
+              {...field("philgeps_reference")}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              type="url"
+              label="Source URL"
+              {...field("source_url")}
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={onSave}
+          disabled={
+            saving ||
+            !value.official_name.trim() ||
+            !value.city_municipality.trim() ||
+            !value.street_address.trim()
+          }
+        >
+          {saving ? "Adding..." : "Add End-user"}
         </Button>
       </DialogActions>
     </Dialog>

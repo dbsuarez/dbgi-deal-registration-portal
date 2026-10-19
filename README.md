@@ -28,9 +28,17 @@ Open `http://127.0.0.1:5173/`. The React development server proxies API, authent
 
 The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`. See the development-only login policy in [`SECURITY_STANDARDS.md`](SECURITY_STANDARDS.md).
 
-`seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized end-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
+`seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized End-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
 
 Django superusers can open **Administration > Scenario Lab** in Django admin while `DEBUG=True`. The lab explains and loads automatic-match, ambiguous-match, and material-edit scenarios. It can optionally clear transactional registrations, opportunities, scopes, items, attachments, events, suggestions, and review decisions after the user types `CLEAR TRANSACTIONS`. Companies, users, products, permissions, and login accounts are always preserved. The panel is hidden from ordinary administrators and unavailable when `DEBUG=False`.
+
+## End-user directory
+
+Registrations select an End-user from shared master data instead of entering a new name and address each time. DBGI administrators maintain the directory in Django Admin under **Master data > End-users**. Records include organization classification, address, PhilGEPS reference details, aliases, verification status, source, and audit fields.
+
+If a company cannot find the organization, it can use **Add missing End-user** on the registration form. The proposal is immediately available to that company with **Pending verification** status. Its registration can be submitted, but it cannot be automatically matched or ranked until an administrator verifies the End-user. Pending proposals from one company are not visible to other companies.
+
+Administrators should compare proposals with an authoritative source, correct the official name and address if necessary, add useful aliases, and use **Verify selected End-users**. Business records are archived with `is_active` instead of being deleted. Existing registration and opportunity text is retained as an audit snapshot even though records are linked to the directory.
 
 Multiple user accounts may belong to the same company. Manage them under **Master data > Users** in Django admin. These users share company-scoped records and count as one company in opportunity rankings.
 

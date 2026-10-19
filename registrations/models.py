@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -77,7 +78,107 @@ class Product(models.Model):
         return f"{self.code} - {self.name}"
 
 
+def normalize_end_user_value(value):
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", value.lower()).split())
+
+
+class EndUser(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending verification"
+        VERIFIED = "verified", "Verified"
+        REJECTED = "rejected", "Rejected"
+
+    official_name = models.CharField(max_length=240)
+    acronym = models.CharField(max_length=80, blank=True)
+    parent = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="sub_organizations"
+    )
+    government_branch = models.CharField(max_length=120, blank=True)
+    organization_type = models.CharField(max_length=160, blank=True)
+    sector = models.CharField(max_length=160, blank=True)
+    region = models.CharField(max_length=160, blank=True)
+    province = models.CharField(max_length=160, blank=True)
+    city_municipality = models.CharField(max_length=160)
+    street_address = models.TextField()
+    postal_code = models.CharField(max_length=20, blank=True)
+    philgeps_reference = models.CharField(max_length=120, blank=True)
+    source_url = models.URLField(blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    is_active = models.BooleanField(default=True)
+    proposed_by_company = models.ForeignKey(
+        Company, on_delete=models.SET_NULL, null=True, blank=True, related_name="proposed_end_users"
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_end_users"
+    )
+    verified_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="verified_end_users"
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    normalized_name = models.CharField(max_length=240, editable=False)
+    normalized_address = models.TextField(editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["official_name", "id"]
+        indexes = [
+            models.Index(fields=["status", "is_active"]),
+            models.Index(fields=["normalized_name"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["normalized_name", "normalized_address"],
+                condition=models.Q(is_active=True),
+                name="unique_active_normalized_end_user",
+            )
+        ]
+        verbose_name = "End-user"
+        verbose_name_plural = "End-users"
+
+    @property
+    def full_address(self):
+        return ", ".join(
+            part
+            for part in (
+                self.street_address,
+                self.city_municipality,
+                self.province,
+                self.region,
+                self.postal_code,
+            )
+            if part
+        )
+
+    def save(self, *args, **kwargs):
+        self.normalized_name = normalize_end_user_value(self.official_name)
+        self.normalized_address = normalize_end_user_value(self.full_address)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.official_name
+
+
+class EndUserAlias(models.Model):
+    end_user = models.ForeignKey(EndUser, on_delete=models.CASCADE, related_name="aliases")
+    name = models.CharField(max_length=240)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["end_user", "name"], name="unique_end_user_alias")
+        ]
+        verbose_name = "End-user alias"
+        verbose_name_plural = "End-user aliases"
+
+    def __str__(self):
+        return self.name
+
+
 class Opportunity(models.Model):
+    end_user = models.ForeignKey(
+        EndUser, on_delete=models.PROTECT, null=True, blank=True, related_name="opportunities"
+    )
     title = models.CharField(max_length=240)
     end_user_name = models.CharField(max_length=240)
     end_user_address = models.TextField()
@@ -131,6 +232,9 @@ class Registration(models.Model):
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="registrations")
     submitted_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="registrations")
+    end_user = models.ForeignKey(
+        EndUser, on_delete=models.PROTECT, null=True, blank=True, related_name="registrations"
+    )
     end_user_name = models.CharField(max_length=240)
     end_user_address = models.TextField()
     project_title = models.CharField(max_length=240)

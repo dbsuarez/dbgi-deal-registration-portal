@@ -372,7 +372,7 @@ export default function RegistrationDetailPage() {
                 <Detail label="Partner">{registration.company_name}</Detail>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Detail label="End user">{registration.end_user_name}</Detail>
+                <Detail label="End-user">{registration.end_user_name}</Detail>
               </Grid>
               <Grid size={12}>
                 <Detail label="Address">{registration.end_user_address}</Detail>

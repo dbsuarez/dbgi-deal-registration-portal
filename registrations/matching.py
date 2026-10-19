@@ -4,7 +4,7 @@ from difflib import SequenceMatcher
 from django.db import transaction
 
 from .audit import registration_snapshot
-from .models import MatchingSuggestion, OpportunityScope, Registration, RegistrationEvent
+from .models import EndUser, MatchingSuggestion, OpportunityScope, Registration, RegistrationEvent
 
 RULE_VERSION = "matching-v2"
 ADDRESS_ALIASES = {
@@ -29,8 +29,26 @@ def _similarity(left, right):
 
 
 def generate_matching_suggestion(registration):
+    if not registration.end_user_id or registration.end_user.status != EndUser.Status.VERIFIED:
+        with transaction.atomic():
+            MatchingSuggestion.objects.filter(registration=registration, is_current=True).update(
+                is_current=False
+            )
+            return MatchingSuggestion.objects.create(
+                registration=registration,
+                outcome=MatchingSuggestion.Outcome.CLARIFY,
+                confidence=MatchingSuggestion.Confidence.LOW,
+                score=0,
+                supporting_factors=[],
+                conflicting_factors=[
+                    "The selected End-user is awaiting administrator verification."
+                ],
+                rule_version=RULE_VERSION,
+            )
     scopes = OpportunityScope.objects.filter(
-        is_active=True, opportunity__is_active=True
+        is_active=True,
+        opportunity__is_active=True,
+        opportunity__end_user__status=EndUser.Status.VERIFIED,
     ).select_related("opportunity")
     requested_products = set(
         registration.items.exclude(product_id=None).values_list("product_id", flat=True)

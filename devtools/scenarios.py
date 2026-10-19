@@ -11,6 +11,7 @@ from registrations.matching import generate_matching_suggestion
 from registrations.models import (
     Company,
     CompetitorItem,
+    EndUser,
     Opportunity,
     OpportunityScope,
     Product,
@@ -35,7 +36,7 @@ SCENARIOS = {
         key="automatic_exact",
         title="Automatic exact match",
         summary=(
-            "IT Avenue submits first and Lexmark later submits the same normalized end user, "
+            "IT Avenue submits first and Lexmark later submits the same normalized End-user, "
             "address, and complete product set."
         ),
         expected_result=(
@@ -47,7 +48,7 @@ SCENARIOS = {
         key="ambiguous_match",
         title="Ambiguous exact match",
         summary=(
-            "Two active scopes have the same normalized end user, address, and product evidence "
+            "Two active scopes have the same normalized End-user, address, and product evidence "
             "before Lexmark submits."
         ),
         expected_result=(
@@ -100,11 +101,26 @@ def _product(code):
 
 
 def _opportunity(actor, *, title, end_user_name, address, scope_name):
+    end_user, _ = EndUser.objects.update_or_create(
+        normalized_name=" ".join(end_user_name.lower().split()),
+        normalized_address=" ".join(address.lower().split()),
+        defaults={
+            "official_name": end_user_name,
+            "city_municipality": "Development scenario",
+            "street_address": address,
+            "status": EndUser.Status.VERIFIED,
+            "is_active": True,
+            "created_by": actor,
+            "verified_by": actor,
+            "verified_at": timezone.now(),
+        },
+    )
     opportunity, _ = Opportunity.objects.update_or_create(
         title=title,
         defaults={
             "end_user_name": end_user_name,
             "end_user_address": address,
+            "end_user": end_user,
             "is_active": True,
             "created_by": actor,
         },
@@ -129,6 +145,7 @@ def _registration(
     address,
     product,
     submitted_at,
+    end_user,
 ):
     registration = Registration.objects.filter(
         company=company_user.company,
@@ -141,6 +158,7 @@ def _registration(
         )
     values = {
         "submitted_by": company_user,
+        "end_user": end_user,
         "end_user_name": end_user_name,
         "end_user_address": address,
         "bid_date": date(2027, 1, 15),
@@ -233,6 +251,7 @@ def _base_pair(
         address=address,
         scope_name=scope_name,
     )
+    end_user = scope.opportunity.end_user
     now = timezone.now()
     first = _registration(
         company_user=it_avenue,
@@ -241,6 +260,7 @@ def _base_pair(
         address=address,
         product=product,
         submitted_at=now - timedelta(hours=2),
+        end_user=end_user,
     )
     _confirm_reference_registration(first, scope, actor)
     second = _registration(
@@ -250,6 +270,7 @@ def _base_pair(
         address=address.replace("Street", "St."),
         product=product,
         submitted_at=now - timedelta(hours=1),
+        end_user=end_user,
     )
     return first, second, scope, product
 
@@ -314,6 +335,7 @@ def load_scenario(key, actor):
             address="Caruncho Avenue, Pasig City",
             product=product,
             submitted_at=timezone.now() - timedelta(hours=3),
+            end_user=alternative_scope.opportunity.end_user,
         )
         _confirm_reference_registration(alternative, alternative_scope, actor)
         suggestion = generate_matching_suggestion(second)

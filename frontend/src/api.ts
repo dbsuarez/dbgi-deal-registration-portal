@@ -17,6 +17,9 @@ export type RegistrationListItem = {
   project_title: string;
   company_name: string;
   end_user_name: string;
+  end_user_id: number | null;
+  end_user_status: string | null;
+  end_user_status_label: string | null;
   status: string;
   status_label: string;
   needs_review: boolean;
@@ -37,6 +40,30 @@ export type ProductOption = {
   name: string;
   category: string;
 };
+
+export type EndUser = {
+  id: number;
+  official_name: string;
+  acronym: string;
+  full_address: string;
+  government_branch: string;
+  organization_type: string;
+  sector: string;
+  region: string;
+  province: string;
+  city_municipality: string;
+  street_address: string;
+  postal_code: string;
+  philgeps_reference: string;
+  source_url: string;
+  status: string;
+  status_label: string;
+};
+
+export type EndUserCreatePayload = Omit<
+  EndUser,
+  "id" | "full_address" | "status" | "status_label"
+>;
 
 export type CompetitorItem = {
   id?: number;
@@ -149,8 +176,7 @@ export type RegistrationDetail = RegistrationListItem & {
 
 export type RegistrationPayload = {
   version?: number;
-  end_user_name: string;
-  end_user_address: string;
+  end_user_id: number;
   project_title: string;
   bid_date: string;
   delivery_date: string;
@@ -255,6 +281,23 @@ export function getRegistration(id: number, signal?: AbortSignal) {
 
 export function getProducts(signal?: AbortSignal) {
   return request<ProductOption[]>("/api/v1/products", signal);
+}
+
+export function getEndUsers(signal?: AbortSignal) {
+  return request<EndUser[]>("/api/v1/end-users", signal);
+}
+
+export function createEndUser(
+  payload: EndUserCreatePayload,
+  csrfToken: string,
+) {
+  return mutation<EndUser>(
+    "/api/v1/end-users",
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
 }
 
 export function createRegistration(

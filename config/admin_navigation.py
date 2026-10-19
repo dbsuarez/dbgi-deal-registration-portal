@@ -33,6 +33,10 @@ def can_view_products(request):
     return request.user.has_perm("registrations.view_product")
 
 
+def can_view_end_users(request):
+    return request.user.has_perm("registrations.view_enduser")
+
+
 def can_view_users(request):
     return request.user.has_perm("registrations.view_user")
 

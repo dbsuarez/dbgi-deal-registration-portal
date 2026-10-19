@@ -11,6 +11,7 @@ from registrations.matching import generate_matching_suggestion
 from registrations.models import (
     Company,
     CompetitorItem,
+    EndUser,
     Opportunity,
     OpportunityScope,
     Product,
@@ -44,11 +45,25 @@ class Command(BaseCommand):
         it_avenue = self._company_user("IT Avenue", "deals@itavenue.ph")
         lexmark = self._company_user("Lexmark", "deals@lexmark.com")
 
+        end_user, _ = EndUser.objects.update_or_create(
+            official_name="Quezon City Schools Division Office",
+            defaults={
+                "city_municipality": "Quezon City",
+                "street_address": "Nueva Ecija Street, Bago Bantay",
+                "status": EndUser.Status.VERIFIED,
+                "is_active": True,
+                "created_by": admin,
+                "verified_by": admin,
+                "verified_at": timezone.now(),
+            },
+        )
+
         opportunity, _ = Opportunity.objects.update_or_create(
             title="Quezon City Public Schools Printer Procurement 2027",
             defaults={
                 "end_user_name": "Quezon City Schools Division Office",
                 "end_user_address": "Nueva Ecija Street, Bago Bantay, Quezon City",
+                "end_user": end_user,
                 "is_active": True,
                 "created_by": admin,
             },
@@ -73,6 +88,7 @@ class Command(BaseCommand):
             address="Nueva Ecija Street, Bago Bantay, Quezon City",
             product=product,
             submitted_at=first_time,
+            end_user=end_user,
         )
         first.status = Registration.Status.ELIGIBLE_MATCHED
         first.opportunity_scope = scope
@@ -97,6 +113,7 @@ class Command(BaseCommand):
             address="Nueva Ecija St., Bago Bantay, Quezon City",
             product=product,
             submitted_at=second_time,
+            end_user=end_user,
         )
         second.status = Registration.Status.SUBMITTED
         second.opportunity_scope = None
@@ -142,12 +159,14 @@ class Command(BaseCommand):
         address,
         product,
         submitted_at,
+        end_user,
     ):
         registration, created = Registration.objects.get_or_create(
             company=company,
             project_title=title,
             defaults={
                 "submitted_by": user,
+                "end_user": end_user,
                 "end_user_name": end_user_name,
                 "end_user_address": address,
                 "bid_date": date(2027, 1, 15),

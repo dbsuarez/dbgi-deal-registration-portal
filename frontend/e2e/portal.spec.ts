@@ -23,6 +23,30 @@ test.beforeEach(async ({ page }) => {
       ],
     }),
   );
+  await page.route("**/api/v1/end-users", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 7,
+          official_name: "Sample municipality",
+          acronym: "SM",
+          full_address: "Test address, Sample City",
+          government_branch: "Local government",
+          organization_type: "City",
+          sector: "Government",
+          region: "",
+          province: "",
+          city_municipality: "Sample City",
+          street_address: "Test address",
+          postal_code: "",
+          philgeps_reference: "",
+          source_url: "",
+          status: "verified",
+          status_label: "Verified",
+        },
+      ],
+    }),
+  );
 });
 
 test("authenticated user can log out", async ({ page }) => {
@@ -66,6 +90,7 @@ test("company user can submit a complete registration", async ({ page }) => {
     const payload = route.request().postDataJSON();
     expect(payload.competitor_items).toHaveLength(1);
     expect(payload.items).toHaveLength(1);
+    expect(payload.end_user_id).toBe(7);
     await route.fulfill({
       status: 201,
       json: {
@@ -73,7 +98,10 @@ test("company user can submit a complete registration", async ({ page }) => {
         reference: "DBGI-000021",
         project_title: payload.project_title,
         company_name: "North Dealer",
-        end_user_name: payload.end_user_name,
+        end_user_name: "Sample municipality",
+        end_user_id: 7,
+        end_user_status: "verified",
+        end_user_status_label: "Verified",
         status: "submitted",
         status_label: "Submitted",
         needs_review: false,
@@ -90,6 +118,9 @@ test("company user can submit a complete registration", async ({ page }) => {
         project_title: "Municipal printer project",
         company_name: "North Dealer",
         end_user_name: "Sample municipality",
+        end_user_id: 7,
+        end_user_status: "verified",
+        end_user_status_label: "Verified",
         end_user_address: "Test address",
         bid_date: "2026-11-30",
         delivery_date: "2027-01-30",
@@ -135,11 +166,11 @@ test("company user can submit a complete registration", async ({ page }) => {
   );
 
   await page.goto("/registrations/new/");
-  await page.getByLabel("End user name").fill("Sample municipality");
+  await page.getByLabel("End-user").click();
+  await page.getByRole("option", { name: /Sample municipality/ }).click();
   await page
     .getByLabel("Project opportunity title")
     .fill("Municipal printer project");
-  await page.getByLabel("Complete address").fill("Test address");
   await page.getByLabel("Bid date").fill("2026-11-30");
   await page.getByLabel("Delivery date").fill("2027-01-30");
   await page.getByLabel("Contact person").fill("Test person");

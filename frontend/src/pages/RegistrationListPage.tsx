@@ -120,7 +120,7 @@ export default function RegistrationListPage() {
         : []),
       {
         field: "end_user_name",
-        headerName: "End user",
+        headerName: "End-user",
         minWidth: 200,
         flex: 1,
       },

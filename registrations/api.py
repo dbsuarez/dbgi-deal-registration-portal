@@ -6,7 +6,7 @@ from typing import Literal
 from django.conf import settings
 from django.contrib.auth import logout as django_logout
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
@@ -19,6 +19,7 @@ from .audit import registration_snapshot
 from .matching import generate_matching_suggestion
 from .models import (
     CompetitorItem,
+    EndUser,
     Opportunity,
     OpportunityScope,
     Product,
@@ -65,8 +66,7 @@ class RegistrationItemInput(Schema):
 
 
 class RegistrationInput(Schema):
-    end_user_name: str
-    end_user_address: str
+    end_user_id: int
     project_title: str
     bid_date: date
     delivery_date: date
@@ -91,6 +91,9 @@ class RegistrationListItem(Schema):
     project_title: str
     company_name: str
     end_user_name: str
+    end_user_id: int | None
+    end_user_status: str | None
+    end_user_status_label: str | None
     status: str
     status_label: str
     needs_review: bool
@@ -173,6 +176,40 @@ class ProductOption(Schema):
     code: str
     name: str
     category: str
+
+
+class EndUserOutput(Schema):
+    id: int
+    official_name: str
+    acronym: str
+    full_address: str
+    government_branch: str
+    organization_type: str
+    sector: str
+    region: str
+    province: str
+    city_municipality: str
+    street_address: str
+    postal_code: str
+    philgeps_reference: str
+    source_url: str
+    status: str
+    status_label: str
+
+
+class EndUserCreateInput(Schema):
+    official_name: str = Field(min_length=2, max_length=240)
+    acronym: str = Field(default="", max_length=80)
+    government_branch: str = Field(default="", max_length=120)
+    organization_type: str = Field(default="", max_length=160)
+    sector: str = Field(default="", max_length=160)
+    region: str = Field(default="", max_length=160)
+    province: str = Field(default="", max_length=160)
+    city_municipality: str = Field(min_length=2, max_length=160)
+    street_address: str = Field(min_length=2)
+    postal_code: str = Field(default="", max_length=20)
+    philgeps_reference: str = Field(default="", max_length=120)
+    source_url: str = ""
 
 
 class SessionResponse(Schema):
@@ -279,7 +316,7 @@ def _company_id(user):
 
 def _registration_queryset(user):
     company_id = _company_id(user)
-    queryset = Registration.objects.select_related("company", "submitted_by")
+    queryset = Registration.objects.select_related("company", "submitted_by", "end_user")
     if company_id is False:
         return queryset.none()
     if company_id is not None:
@@ -294,6 +331,11 @@ def _serialize_registration(registration):
         "project_title": registration.project_title,
         "company_name": registration.company.name,
         "end_user_name": registration.end_user_name,
+        "end_user_id": registration.end_user_id,
+        "end_user_status": registration.end_user.status if registration.end_user_id else None,
+        "end_user_status_label": (
+            registration.end_user.get_status_display() if registration.end_user_id else None
+        ),
         "status": registration.status,
         "status_label": registration.get_status_display(),
         "needs_review": registration.needs_review,
@@ -406,6 +448,92 @@ def _serialize_matching_suggestion(suggestion):
 
 def _require_admin(request):
     return request.user.is_dbgi_admin
+
+
+def _serialize_end_user(end_user):
+    return {
+        "id": end_user.pk,
+        "official_name": end_user.official_name,
+        "acronym": end_user.acronym,
+        "full_address": end_user.full_address,
+        "government_branch": end_user.government_branch,
+        "organization_type": end_user.organization_type,
+        "sector": end_user.sector,
+        "region": end_user.region,
+        "province": end_user.province,
+        "city_municipality": end_user.city_municipality,
+        "street_address": end_user.street_address,
+        "postal_code": end_user.postal_code,
+        "philgeps_reference": end_user.philgeps_reference,
+        "source_url": end_user.source_url,
+        "status": end_user.status,
+        "status_label": end_user.get_status_display(),
+    }
+
+
+def _visible_end_users(user):
+    queryset = EndUser.objects.filter(is_active=True).prefetch_related("aliases")
+    if user.is_dbgi_admin:
+        return queryset
+    company_id = _company_id(user)
+    if company_id is False:
+        return queryset.none()
+    return queryset.filter(
+        Q(status=EndUser.Status.VERIFIED)
+        | Q(status=EndUser.Status.PENDING, proposed_by_company_id=company_id)
+    )
+
+
+@api.get("/end-users", auth=django_auth, response=list[EndUserOutput])
+def list_end_users(request, search: str = ""):
+    queryset = _visible_end_users(request.user)
+    if search.strip():
+        term = search.strip()
+        queryset = queryset.filter(
+            Q(official_name__icontains=term)
+            | Q(acronym__icontains=term)
+            | Q(aliases__name__icontains=term)
+            | Q(city_municipality__icontains=term)
+            | Q(province__icontains=term)
+        ).distinct()
+    return [_serialize_end_user(item) for item in queryset.order_by("official_name")[:100]]
+
+
+@api.post(
+    "/end-users",
+    auth=django_auth,
+    response={201: EndUserOutput, 400: ErrorResponse, 403: ErrorResponse, 409: ErrorResponse},
+)
+def create_end_user(request, payload: EndUserCreateInput):
+    company_id = _company_id(request.user)
+    if company_id in (None, False):
+        return Status(
+            403, {"code": "company_access_required", "message": "A company account is required."}
+        )
+    candidate = EndUser(
+        **payload.model_dump(),
+        proposed_by_company_id=company_id,
+        created_by=request.user,
+        status=EndUser.Status.PENDING,
+    )
+    candidate.normalized_name = candidate.official_name
+    candidate.normalized_address = candidate.full_address
+    try:
+        with transaction.atomic():
+            candidate.save()
+    except IntegrityError:
+        return Status(
+            409,
+            {
+                "code": "duplicate_end_user",
+                "message": "An active End-user with the same name and address already exists.",
+            },
+        )
+    return Status(201, _serialize_end_user(candidate))
+
+
+def _selected_end_user(user, end_user_id):
+    return get_object_or_404(_visible_end_users(user), pk=end_user_id)
 
 
 @api.get(
@@ -569,11 +697,16 @@ def create_registration(request, payload: RegistrationInput):
                 "details": details,
             },
         )
-    values = payload.model_dump(exclude={"competitor_items", "items"})
+    end_user = _selected_end_user(request.user, payload.end_user_id)
+    values = payload.model_dump(exclude={"competitor_items", "items", "end_user_id"})
     with transaction.atomic():
         registration = Registration.objects.create(
             company_id=company_id,
             submitted_by=request.user,
+            end_user=end_user,
+            end_user_name=end_user.official_name,
+            end_user_address=end_user.full_address,
+            needs_review=end_user.status != EndUser.Status.VERIFIED,
             **values,
         )
         if not _save_children(registration, payload):
@@ -644,10 +777,14 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
                 },
             )
         prior_snapshot = registration_snapshot(registration)
+        end_user = _selected_end_user(request.user, payload.end_user_id)
         for name, value in payload.model_dump(
-            exclude={"competitor_items", "items", "version"}
+            exclude={"competitor_items", "items", "version", "end_user_id"}
         ).items():
             setattr(registration, name, value)
+        registration.end_user = end_user
+        registration.end_user_name = end_user.official_name
+        registration.end_user_address = end_user.full_address
         registration.version += 1
         registration.needs_review = True
         if registration.status == Registration.Status.CHANGES_REQUESTED:
@@ -879,6 +1016,7 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
             if payload.create_new_opportunity:
                 opportunity = Opportunity.objects.create(
                     title=registration.project_title,
+                    end_user=registration.end_user,
                     end_user_name=registration.end_user_name,
                     end_user_address=registration.end_user_address,
                     created_by=request.user,
