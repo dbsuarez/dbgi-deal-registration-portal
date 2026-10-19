@@ -103,7 +103,9 @@ export default function RegistrationDetailPage() {
   useEffect(() => {
     if (!session.is_dbgi_admin) return;
     const controller = new AbortController();
-    getOpportunityScopes(controller.signal).then(setScopes).catch(() => undefined);
+    getOpportunityScopes(controller.signal)
+      .then(setScopes)
+      .catch(() => undefined);
     return () => controller.abort();
   }, [session.is_dbgi_admin]);
 
@@ -131,7 +133,9 @@ export default function RegistrationDetailPage() {
       setRegistration(updated);
       setRationale("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The review action failed.");
+      setError(
+        reason instanceof Error ? reason.message : "The review action failed.",
+      );
     } finally {
       setReviewing(false);
     }
@@ -200,6 +204,15 @@ export default function RegistrationDetailPage() {
 
       {session.is_dbgi_admin && (
         <Paper sx={{ mb: 3, p: 3 }}>
+          {registration.status === "eligible_matched" &&
+            registration.matching_suggestion?.rule_version ===
+              "matching-v2" && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Automatically matched. The system found one exact normalized
+                end-user and address match with complete product overlap and no
+                conflicts. No administrator action is required.
+              </Alert>
+            )}
           <Stack
             direction={{ xs: "column", md: "row" }}
             spacing={2}
@@ -218,7 +231,8 @@ export default function RegistrationDetailPage() {
               {registration.matching_suggestion ? (
                 <>
                   <Typography>
-                    Suggested action: {registration.matching_suggestion.outcome_label}
+                    Suggested action:{" "}
+                    {registration.matching_suggestion.outcome_label}
                   </Typography>
                   <Chip
                     size="small"
@@ -232,7 +246,8 @@ export default function RegistrationDetailPage() {
                   />
                   {registration.matching_suggestion.candidate_scope_label && (
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      Candidate: {registration.matching_suggestion.candidate_scope_label}
+                      Candidate:{" "}
+                      {registration.matching_suggestion.candidate_scope_label}
                     </Typography>
                   )}
                 </>
@@ -251,7 +266,8 @@ export default function RegistrationDetailPage() {
                   registration.id,
                   session.csrf_token,
                 );
-                setRegistration({ ...registration, matching_suggestion: suggestion });
+                const updated = await getRegistration(registration.id);
+                setRegistration(updated);
                 if (suggestion.candidate_scope_id)
                   setScopeId(String(suggestion.candidate_scope_id));
               }}
@@ -293,7 +309,9 @@ export default function RegistrationDetailPage() {
                 control={
                   <Checkbox
                     checked={createNewOpportunity}
-                    onChange={(event) => setCreateNewOpportunity(event.target.checked)}
+                    onChange={(event) =>
+                      setCreateNewOpportunity(event.target.checked)
+                    }
                   />
                 }
                 label="Create a new whole opportunity from this registration"
@@ -519,9 +537,9 @@ export default function RegistrationDetailPage() {
         <DialogTitle>Why this match was suggested</DialogTitle>
         <DialogContent>
           <Typography paragraph>
-            The application compares end-user names, addresses, and catalog product
-            overlap. It provides guidance only. A DBGI administrator must confirm every
-            matching decision.
+            The application compares end-user names, addresses, and catalog
+            product overlap. It provides guidance only. A DBGI administrator
+            must confirm every matching decision.
           </Typography>
           <Typography variant="h3">Supporting factors</Typography>
           <List dense>
@@ -540,7 +558,8 @@ export default function RegistrationDetailPage() {
             )}
           </List>
           <Typography variant="caption" color="text.secondary">
-            Rule version: {registration.matching_suggestion?.rule_version ?? "Not available"}
+            Rule version:{" "}
+            {registration.matching_suggestion?.rule_version ?? "Not available"}
           </Typography>
         </DialogContent>
         <DialogActions>

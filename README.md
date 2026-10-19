@@ -28,7 +28,7 @@ Open `http://127.0.0.1:5173/`. The React development server proxies API, authent
 
 The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`. See the development-only login policy in [`SECURITY_STANDARDS.md`](SECURITY_STANDARDS.md).
 
-`seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that receives an explainable same-scope suggestion. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
+`seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized end-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
 
 Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Production partner and administrator accounts are never seeded automatically.
 

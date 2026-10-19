@@ -111,6 +111,11 @@ class Command(BaseCommand):
             f"Suggestion: {suggestion.get_outcome_display()} "
             f"({suggestion.get_confidence_display()}, {suggestion.score}%)"
         )
+        second.refresh_from_db()
+        self.stdout.write(
+            f"Result: {second.get_status_display()} in {second.opportunity_scope} "
+            "without administrator intervention."
+        )
 
     def _company_user(self, company_name, email):
         company, _ = Company.objects.get_or_create(name=company_name)

@@ -10,10 +10,12 @@ from django.core.management.base import CommandError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
+from .matching import generate_matching_suggestion
 from .models import (
     Company,
     CompetitorItem,
     Opportunity,
+    OpportunityScope,
     Product,
     Registration,
     RegistrationAttachment,
@@ -183,6 +185,55 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(suggestion.outcome, "same_scope")
         self.assertEqual(suggestion.confidence, "high")
         self.assertEqual(suggestion.candidate_scope_id, first.opportunity_scope_id)
+        self.assertEqual(suggestion.score, 100)
+        self.assertEqual(second.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertEqual(second.opportunity_scope_id, first.opportunity_scope_id)
+        self.assertFalse(second.needs_review)
+        self.assertTrue(
+            second.events.filter(event_type="Automatically matched", actor=None).exists()
+        )
+
+    @override_settings(DEBUG=True)
+    def test_automatic_matching_stops_when_two_scopes_match_exactly(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        lexmark = Registration.objects.get(company__name="Lexmark")
+        competing_opportunity = Opportunity.objects.create(
+            title="A second possible procurement",
+            end_user_name=lexmark.end_user_name,
+            end_user_address=lexmark.end_user_address,
+            created_by=self.admin,
+        )
+        competing_scope = OpportunityScope.objects.create(
+            opportunity=competing_opportunity,
+            name="Whole opportunity",
+            scope_type=OpportunityScope.ScopeType.WHOLE,
+        )
+        self.registration_a.status = Registration.Status.ELIGIBLE_MATCHED
+        self.registration_a.opportunity_scope = competing_scope
+        self.registration_a.save(update_fields=["status", "opportunity_scope"])
+        competing_item = self.registration_a.items.get()
+        competing_item.product = lexmark.items.get().product
+        competing_item.save(update_fields=["product"])
+        prior_event_count = lexmark.events.filter(event_type="Automatically matched").count()
+        lexmark.status = Registration.Status.SUBMITTED
+        lexmark.opportunity_scope = None
+        lexmark.save(update_fields=["status", "opportunity_scope"])
+
+        suggestion = generate_matching_suggestion(lexmark)
+
+        lexmark.refresh_from_db()
+        self.assertEqual(suggestion.outcome, "clarify")
+        self.assertIn(
+            "More than one opportunity scope is an exact match.",
+            suggestion.conflicting_factors,
+        )
+        self.assertEqual(lexmark.status, Registration.Status.SUBMITTED)
+        self.assertIsNone(lexmark.opportunity_scope_id)
+        self.assertEqual(
+            lexmark.events.filter(event_type="Automatically matched").count(),
+            prior_event_count,
+        )
 
     def test_list_and_detail_are_company_scoped(self):
         self.client.force_login(self.user_a)
