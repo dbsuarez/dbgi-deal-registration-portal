@@ -346,7 +346,26 @@ class RegistrationApiTests(TestCase):
         response = self.client.get("/admin/")
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/static/registrations/admin.css")
         self.assertContains(response, "Site administration")
+
+    @override_settings(DEBUG=True)
+    def test_django_admin_shows_read_only_opportunity_rankings(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        it_avenue = Registration.objects.get(company__name="IT Avenue")
+        lexmark = Registration.objects.get(company__name="Lexmark")
+        self.client.force_login(self.admin)
+
+        index = self.client.get("/admin/")
+        rankings = self.client.get(reverse("admin:registrations_opportunityranking_changelist"))
+
+        self.assertContains(index, "Opportunity rankings")
+        self.assertEqual(rankings.status_code, 200, rankings.content)
+        self.assertContains(rankings, "IT Avenue")
+        self.assertContains(rankings, "Lexmark")
+        self.assertContains(rankings, it_avenue.reference)
+        self.assertContains(rankings, lexmark.reference)
 
     def test_session_and_product_options(self):
         self.client.force_login(self.user_a)

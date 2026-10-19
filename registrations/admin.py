@@ -2,6 +2,10 @@ from django.contrib import admin
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
+from django.db.models import F, OuterRef, Subquery, Window
+from django.db.models.functions import Rank
+from django.urls import reverse
+from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
@@ -11,6 +15,7 @@ from .models import (
     CompetitorItem,
     MatchingSuggestion,
     Opportunity,
+    OpportunityRanking,
     OpportunityScope,
     Product,
     Registration,
@@ -88,6 +93,7 @@ class RegistrationEventInline(TabularInline):
     extra = 0
     can_delete = False
     readonly_fields = ("actor", "event_type", "details", "snapshot", "created_at")
+    classes = ("collapse",)
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -153,6 +159,87 @@ class RegistrationAdmin(ModelAdmin):
                 details="Registration created by DBGI admin.",
                 snapshot=registration_snapshot(form.instance),
             )
+
+
+@admin.register(OpportunityRanking)
+class OpportunityRankingAdmin(ModelAdmin):
+    list_display = (
+        "opportunity_title",
+        "scope_name",
+        "calculated_rank_display",
+        "company",
+        "registration_link",
+        "original_submitted_at",
+    )
+    list_display_links = None
+    list_filter = ("opportunity_scope__opportunity", "opportunity_scope")
+    search_fields = (
+        "opportunity_scope__opportunity__title",
+        "opportunity_scope__name",
+        "company__name",
+        "project_title",
+    )
+    ordering = (
+        "opportunity_scope__opportunity__title",
+        "opportunity_scope__name",
+        "original_submitted_at",
+        "id",
+    )
+    actions = None
+
+    def get_queryset(self, request):
+        earliest_company_registration = (
+            Registration.objects.filter(
+                status=Registration.Status.ELIGIBLE_MATCHED,
+                opportunity_scope_id=OuterRef("opportunity_scope_id"),
+                company_id=OuterRef("company_id"),
+            )
+            .order_by("original_submitted_at", "id")
+            .values("id")[:1]
+        )
+        return (
+            super()
+            .get_queryset(request)
+            .filter(
+                status=Registration.Status.ELIGIBLE_MATCHED,
+                opportunity_scope__isnull=False,
+                id=Subquery(earliest_company_registration),
+            )
+            .select_related("company", "opportunity_scope__opportunity")
+            .annotate(
+                calculated_rank=Window(
+                    expression=Rank(),
+                    partition_by=[F("opportunity_scope_id")],
+                    order_by=F("original_submitted_at").asc(),
+                )
+            )
+        )
+
+    @admin.display(description="Opportunity", ordering="opportunity_scope__opportunity__title")
+    def opportunity_title(self, obj):
+        return obj.opportunity_scope.opportunity.title
+
+    @admin.display(description="Ranking scope", ordering="opportunity_scope__name")
+    def scope_name(self, obj):
+        return obj.opportunity_scope.name
+
+    @admin.display(description="Rank", ordering="calculated_rank")
+    def calculated_rank_display(self, obj):
+        return obj.calculated_rank
+
+    @admin.display(description="Registration")
+    def registration_link(self, obj):
+        url = reverse("admin:registrations_registration_change", args=(obj.pk,))
+        return format_html('<a href="{}">{}</a>', url, obj.reference)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(RegistrationEvent)

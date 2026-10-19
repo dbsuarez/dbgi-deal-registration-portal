@@ -183,6 +183,13 @@ class Registration(models.Model):
         return f"{self.reference} - {self.project_title}"
 
 
+class OpportunityRanking(Registration):
+    class Meta:
+        proxy = True
+        verbose_name = "opportunity ranking"
+        verbose_name_plural = "opportunity rankings"
+
+
 class MatchingSuggestion(models.Model):
     class Outcome(models.TextChoices):
         SAME_SCOPE = "same_scope", "Same opportunity and scope"

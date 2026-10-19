@@ -74,6 +74,7 @@ UNFOLD = {
     "SITE_URL": "/",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": True,
+    "STYLES": ["/static/registrations/admin.css"],
 }
 
 MIDDLEWARE = [
