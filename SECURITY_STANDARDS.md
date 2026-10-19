@@ -7,6 +7,20 @@
 - Use secure, HttpOnly cookies where applicable and appropriate SameSite settings.
 - Apply session expiry, login throttling, and secure recovery flows.
 
+### Development-only login accounts
+
+Projects may provide a password-free account chooser to make local development and role testing faster. When provided, use the following starter-kit convention:
+
+- Keep development authentication utilities in a dedicated `devtools` Django app, separate from business-domain apps.
+- Show accounts grouped by meaningful role or account type, such as company users and administrators.
+- Keep the normal username and password form available and provide an obvious Django Admin link when the project uses Django Admin.
+- Provision predictable local accounts through an idempotent `seed_development_accounts` management command. Document the usernames and shared local password in the project README.
+- Gate the chooser, its login endpoint, and the seeding command with `settings.DEBUG`. The endpoint and command must fail closed when `DEBUG=False`.
+- Require POST and CSRF protection for password-free login. Accept only active users and validate any redirect destination as a local, allowed URL.
+- Never create development accounts in a schema or data migration, container startup, deployment script, or production database.
+- Never reuse development passwords for staging or production accounts. Treat a deployment with `DEBUG=True` as a release-blocking security defect.
+- Test successful development login, role grouping, redirect validation, and denial when `DEBUG=False`.
+
 ## Authorization
 - Enforce role and object-level permissions in backend endpoints and querysets.
 - Default to least privilege and prevent cross-tenant or cross-branch access.
@@ -28,6 +42,7 @@
 
 ## Review checklist
 - [ ] Authentication and CSRF/session design verified
+- [ ] Development login is absent or fails closed when `DEBUG=False`
 - [ ] Object-level access and data isolation tested
 - [ ] Production security settings reviewed
 - [ ] Uploads, secrets, logs, and rate limits reviewed

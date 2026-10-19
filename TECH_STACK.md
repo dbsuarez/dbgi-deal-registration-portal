@@ -38,6 +38,8 @@ Keep the React + MUI interface as the primary user-facing application. Django Ad
 
 Organize backend features into focused Django apps. Keep API schemas, endpoints, services, selectors/query logic, permissions, and models separate when complexity warrants it. Do not create abstractions without a practical need.
 
+Development-only authentication helpers belong in a dedicated `devtools` Django app. Follow the mandatory safeguards in `SECURITY_STANDARDS.md`; do not place debug login behavior inside a business-domain app.
+
 ## Deployment and scaling
 Start with a single correctly configured deployment when appropriate. Configure `ALLOWED_HOSTS`, CSRF trusted origins, secure cookies, proxy headers, static/media storage, database connections, and HTTPS carefully. Do not use Django's development server in production.
 
