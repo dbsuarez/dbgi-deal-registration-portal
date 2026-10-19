@@ -98,6 +98,34 @@ export type OpportunityScope = {
   label: string;
 };
 
+export type RankingEntry = {
+  rank: number;
+  is_tied: boolean;
+  registration_id: number;
+  reference: string;
+  company_name: string;
+  project_title: string;
+  original_submitted_at: string;
+};
+
+export type OpportunityRanking = {
+  opportunity_id: number;
+  opportunity_title: string;
+  end_user_name: string;
+  scope_id: number;
+  scope_name: string;
+  scope_type: string;
+  participant_count: number;
+  entries: RankingEntry[];
+};
+
+export type OpportunityRankingPage = {
+  items: OpportunityRanking[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type RegistrationDetail = RegistrationListItem & {
   end_user_address: string;
   bid_date: string;
@@ -284,6 +312,20 @@ export function getOpportunityScopes(signal?: AbortSignal) {
   );
 }
 
+export function getOpportunityRankings(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    page: String(page + 1),
+    page_size: String(pageSize),
+  });
+  if (search) params.set("search", search);
+  return request<OpportunityRankingPage>(`/api/v1/rankings?${params}`, signal);
+}
+
 export function refreshMatchingSuggestion(
   registrationId: number,
   csrfToken: string,
@@ -299,11 +341,7 @@ export function reviewRegistration(
   registrationId: number,
   payload: {
     version: number;
-    decision:
-      | "start_review"
-      | "request_changes"
-      | "confirm_match"
-      | "reject";
+    decision: "start_review" | "request_changes" | "confirm_match" | "reject";
     rationale: string;
     opportunity_scope_id?: number | null;
     create_new_opportunity?: boolean;

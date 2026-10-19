@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 from io import StringIO
 from tempfile import TemporaryDirectory
 
@@ -233,6 +233,81 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(
             lexmark.events.filter(event_type="Automatically matched").count(),
             prior_event_count,
+        )
+
+    @override_settings(DEBUG=True)
+    def test_admin_ranking_orders_companies_by_original_eligible_time(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/api/v1/rankings")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        ranking = response.json()["items"][0]
+        self.assertEqual(ranking["participant_count"], 2)
+        self.assertEqual(
+            [(entry["rank"], entry["company_name"]) for entry in ranking["entries"]],
+            [(1, "IT Avenue"), (2, "Lexmark")],
+        )
+
+    @override_settings(DEBUG=True)
+    def test_company_ranking_exposes_only_its_own_position(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        lexmark_user = User.objects.get(username="deals@lexmark.com")
+        self.client.force_login(lexmark_user)
+
+        response = self.client.get("/api/v1/rankings")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        ranking = response.json()["items"][0]
+        self.assertEqual(ranking["participant_count"], 2)
+        self.assertEqual(len(ranking["entries"]), 1)
+        self.assertEqual(ranking["entries"][0]["rank"], 2)
+        self.assertEqual(ranking["entries"][0]["company_name"], "Lexmark")
+        self.assertNotContains(response, "IT Avenue")
+
+    @override_settings(DEBUG=True)
+    def test_exact_timestamp_tie_shares_rank(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        first = Registration.objects.get(company__name="IT Avenue")
+        second = Registration.objects.get(company__name="Lexmark")
+        second.original_submitted_at = first.original_submitted_at
+        second.save(update_fields=["original_submitted_at"])
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/api/v1/rankings")
+
+        entries = response.json()["items"][0]["entries"]
+        self.assertEqual([entry["rank"] for entry in entries], [1, 1])
+        self.assertTrue(all(entry["is_tied"] for entry in entries))
+
+    @override_settings(DEBUG=True)
+    def test_ranking_counts_each_company_once_per_scope(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        lexmark = Registration.objects.get(company__name="Lexmark")
+        duplicate = self.make_registration(
+            lexmark.company,
+            lexmark.submitted_by,
+            "Another employee submission",
+        )
+        duplicate.status = Registration.Status.ELIGIBLE_MATCHED
+        duplicate.opportunity_scope = lexmark.opportunity_scope
+        duplicate.original_submitted_at = lexmark.original_submitted_at + timedelta(minutes=1)
+        duplicate.save(update_fields=["status", "opportunity_scope", "original_submitted_at"])
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/api/v1/rankings")
+
+        ranking = response.json()["items"][0]
+        self.assertEqual(ranking["participant_count"], 2)
+        self.assertEqual(len(ranking["entries"]), 2)
+        self.assertEqual(
+            [entry["company_name"] for entry in ranking["entries"]],
+            ["IT Avenue", "Lexmark"],
         )
 
     def test_list_and_detail_are_company_scoped(self):

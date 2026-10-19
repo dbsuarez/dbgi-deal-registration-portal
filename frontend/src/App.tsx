@@ -17,6 +17,9 @@ const RegistrationDetailPage = lazy(
   () => import("./pages/RegistrationDetailPage"),
 );
 const RegistrationFormPage = lazy(() => import("./pages/RegistrationFormPage"));
+const OpportunityRankingsPage = lazy(
+  () => import("./pages/OpportunityRankingsPage"),
+);
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -63,6 +66,9 @@ function App() {
               DBGI Project Registration
             </Typography>
             <Typography sx={{ mr: 2 }}>{session.display_name}</Typography>
+            <Button color="inherit" href="/rankings/">
+              Rankings
+            </Button>
             {session.is_dbgi_admin && (
               <Button color="inherit" href="/admin/">
                 Administration
@@ -98,6 +104,7 @@ function App() {
               path="/registrations/:id/edit/"
               element={<RegistrationFormPage />}
             />
+            <Route path="/rankings/" element={<OpportunityRankingsPage />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

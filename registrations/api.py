@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
@@ -196,6 +197,34 @@ class OpportunityScopeOutput(Schema):
     name: str
     scope_type: str
     label: str
+
+
+class RankingEntryOutput(Schema):
+    rank: int
+    is_tied: bool
+    registration_id: int
+    reference: str
+    company_name: str
+    project_title: str
+    original_submitted_at: datetime
+
+
+class OpportunityRankingOutput(Schema):
+    opportunity_id: int
+    opportunity_title: str
+    end_user_name: str
+    scope_id: int
+    scope_name: str
+    scope_type: str
+    participant_count: int
+    entries: list[RankingEntryOutput]
+
+
+class OpportunityRankingPage(Schema):
+    items: list[OpportunityRankingOutput]
+    total: int
+    page: int
+    page_size: int
 
 
 @api.exception_handler(AuthenticationError)
@@ -644,6 +673,109 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
         )
         generate_matching_suggestion(registration)
     return _serialize_registration(registration)
+
+
+@api.get(
+    "/rankings",
+    auth=django_auth,
+    response={200: OpportunityRankingPage, 400: ErrorResponse, 403: ErrorResponse},
+)
+def list_rankings(request, page: int = 1, page_size: int = 25, search: str = ""):
+    if page < 1 or page_size < 1 or page_size > 100:
+        return Status(
+            400,
+            {
+                "code": "invalid_pagination",
+                "message": "Page must be at least 1 and page size must be between 1 and 100.",
+            },
+        )
+    company_id = _company_id(request.user)
+    if company_id is False:
+        return Status(
+            403,
+            {
+                "code": "company_access_required",
+                "message": "A valid company account is required.",
+            },
+        )
+
+    scopes = OpportunityScope.objects.filter(
+        is_active=True,
+        opportunity__is_active=True,
+    ).select_related("opportunity")
+    if company_id is None:
+        scopes = scopes.filter(registrations__status=Registration.Status.ELIGIBLE_MATCHED)
+    else:
+        scopes = scopes.filter(
+            registrations__status=Registration.Status.ELIGIBLE_MATCHED,
+            registrations__company_id=company_id,
+        )
+    if search.strip():
+        term = search.strip()
+        scopes = scopes.filter(
+            Q(opportunity__title__icontains=term)
+            | Q(opportunity__end_user_name__icontains=term)
+            | Q(name__icontains=term)
+        )
+    scopes = scopes.distinct().order_by("opportunity__title", "name", "id")
+    total = scopes.count()
+    start = (page - 1) * page_size
+    page_scopes = list(scopes[start : start + page_size])
+    scope_ids = [scope.pk for scope in page_scopes]
+
+    registrations = (
+        Registration.objects.filter(
+            status=Registration.Status.ELIGIBLE_MATCHED,
+            opportunity_scope_id__in=scope_ids,
+        )
+        .select_related("company")
+        .order_by("opportunity_scope_id", "original_submitted_at", "id")
+    )
+    registrations_by_scope = defaultdict(list)
+    seen_companies = set()
+    for registration in registrations:
+        company_key = (registration.opportunity_scope_id, registration.company_id)
+        if company_key in seen_companies:
+            continue
+        seen_companies.add(company_key)
+        registrations_by_scope[registration.opportunity_scope_id].append(registration)
+
+    items = []
+    for scope in page_scopes:
+        ranked = registrations_by_scope[scope.pk]
+        timestamp_counts = Counter(item.original_submitted_at for item in ranked)
+        entries = []
+        current_rank = 0
+        prior_timestamp = None
+        for position, registration in enumerate(ranked, start=1):
+            if registration.original_submitted_at != prior_timestamp:
+                current_rank = position
+                prior_timestamp = registration.original_submitted_at
+            if company_id is None or registration.company_id == company_id:
+                entries.append(
+                    {
+                        "rank": current_rank,
+                        "is_tied": timestamp_counts[registration.original_submitted_at] > 1,
+                        "registration_id": registration.pk,
+                        "reference": registration.reference,
+                        "company_name": registration.company.name,
+                        "project_title": registration.project_title,
+                        "original_submitted_at": registration.original_submitted_at,
+                    }
+                )
+        items.append(
+            {
+                "opportunity_id": scope.opportunity_id,
+                "opportunity_title": scope.opportunity.title,
+                "end_user_name": scope.opportunity.end_user_name,
+                "scope_id": scope.pk,
+                "scope_name": scope.name,
+                "scope_type": scope.scope_type,
+                "participant_count": len(ranked),
+                "entries": entries,
+            }
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @api.get(

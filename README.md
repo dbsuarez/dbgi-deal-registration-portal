@@ -85,4 +85,4 @@ npm run build
 
 ## Current scope
 
-This is the initial registration and DBGI review foundation. Workflow states, ranking/approval transitions, conditional required-field rules, VAT/rounding, discount validity, catalog data, notifications, backup automation, and production operating procedures still need DBGI decisions or implementation. Do not treat the starter statuses or this setup as production approval of those policies.
+This implementation includes registration intake, DBGI review, strict automatic matching for unambiguous exact matches, and permission-scoped opportunity rankings. Withdrawal, merge and split workflows, pricing and discount approvals, conditional required-field rules, VAT and rounding policy, catalog pricing, notifications, backup automation, and production operating procedures still need DBGI decisions or implementation. Do not treat the starter statuses or this setup as production approval of those remaining policies.

@@ -6,9 +6,9 @@
 
 ## Executive conclusion
 
-The current application is a secure registration-intake foundation, not yet the complete deal-registration workflow described by the specification. Company-scoped submission, editing, evidence attachments, audit events, and administrative maintenance are working. Opportunity matching, ranking, pricing, discount approval, reorders, renewals, notifications, disputes, and reporting are not yet modeled.
+The current application includes the secure registration-intake foundation, opportunity matching and review, strict automatic matching for unambiguous exact matches, and computed company rankings within confirmed opportunity scopes. Pricing, discount approval, withdrawals, merge and split workflows, reorders, renewals, notifications, disputes, and reporting are not yet modeled.
 
-The next implementation should establish opportunity matching and the DBGI review lifecycle. Ranking depends on confirmed opportunity or lot membership, so discounts and reorders must not be built before that foundation.
+The next implementation should complete ranking exceptions, withdrawals, and opportunity merge or split controls before pricing, discounts, and reorders are added.
 
 ## Implemented foundation
 
@@ -23,6 +23,12 @@ The next implementation should establish opportunity matching and the DBGI revie
 - Attachment extension and size validation plus permission-scoped downloads.
 - Submission and edit audit events with snapshots.
 - Material edits marked for DBGI review.
+- Versioned, explainable opportunity-matching suggestions.
+- Strict automatic matching when one scope has exact normalized end-user and address values, complete product overlap, and no conflicts.
+- DBGI review decisions for ambiguous or partial matches.
+- Company-level ranking by immutable original eligible timestamp.
+- DBGI full-ranking visibility and company-scoped own-rank visibility.
+- Shared rank display for exact timestamp ties.
 - DBGI maintenance through Django Unfold.
 - Authentication, CSRF protection, secure session handling, and debug-only accounts.
 - Backend, frontend, browser, Docker, migration, and static-asset verification.
@@ -31,15 +37,15 @@ The next implementation should establish opportunity matching and the DBGI revie
 
 ### Registration status
 
-The database has Submitted, Under review, Approved, and Rejected values. There are no dedicated transition endpoints, required decision reasons, review ownership, changes-requested flow, or transition rules. Status can currently be changed through Django Admin as a general record edit.
+The database and API enforce the initial submitted, review, changes-requested, resubmitted, eligible-and-matched, review-required, and rejected transitions with required reasons and optimistic concurrency. Withdrawal, dispute, merge, split, and pricing approval transitions remain unimplemented.
 
 ### Audit history
 
-Registration submission, company edits, and general admin edits create events. The system does not yet store structured before-and-after differences, matching decisions, rank decisions, withdrawals, disputes, notification delivery, or immutable pricing snapshots.
+Registration submission, company edits, general admin edits, review decisions, and automatic matches create events or structured decision records. Rankings are calculated from authoritative scope membership and immutable eligible timestamps rather than stored as editable rank records. Structured field-level differences, withdrawals, disputes, notification delivery, and immutable pricing snapshots remain unimplemented.
 
 ### Admin review interface
 
-DBGI administrators can see all registrations and use Django Admin. The React interface has no purpose-built review queue, evidence decision controls, matching workspace, ranking view, or decision forms.
+DBGI administrators can review registration details, inspect explained matching suggestions, record decisions, and view full opportunity rankings in React. More specialized queue filters, merge and split controls, and ranking-impact previews remain unimplemented.
 
 ### Product catalog
 
@@ -60,16 +66,11 @@ Products and initial examples exist. Product price versions, VAT basis, schedule
 9. Prevent company edits from silently changing reviewed matching or eligibility.
 10. Add a DBGI React review queue and review page.
 
-### P1: Ranking and withdrawal
+### P1: Remaining ranking and withdrawal work
 
-1. Calculate company-level rank only inside a DBGI-confirmed opportunity or lot scope.
-2. Count multiple employees from one company as one company position.
-3. Use the original eligible server timestamp, not review time or user-entered dates.
-4. Expose only a company's own confirmed rank to company users.
-5. Keep provisional and full ranking data DBGI-only.
-6. Handle tie and concurrency rules.
-7. Support merge and split decisions with reasons and rank impact review.
-8. Support company withdrawal requests and DBGI confirmation.
+1. Support merge and split decisions with reasons and rank impact review.
+2. Support company withdrawal requests and DBGI confirmation.
+3. Add persisted rank-decision snapshots if later pricing approvals require immutable historical rank evidence.
 
 ### P2: Price and discount approval
 
@@ -121,7 +122,7 @@ The following matching-assistance behavior was approved on 2026-10-19:
 - It recommends one of four outcomes: same opportunity and scope, same opportunity with a new scope, different opportunity, or request clarification.
 - Every recommendation displays a confidence level, supporting factors, conflicting factors, and a plain-language explanation through accessible information popovers.
 - The DBGI administrator may accept the suggestion, choose another opportunity or scope, create a scope, create a separate opportunity, or request clarification.
-- The application must not automatically merge opportunities, assign final rank, or make a consequential matching decision. A DBGI administrator must confirm it.
+- The application automatically links a registration only when exactly one scope has identical normalized end-user and address values, complete requested-product overlap, and no conflicts. All ambiguous, partial, or conflicting matches require a DBGI administrator decision.
 - Overrides require an administrator reason.
 - Audit history preserves the original suggestion, rule version, factors, confidence, administrator decision, override reason, actor, timestamp, and resulting ranking impact.
 - Matching details about other companies remain DBGI-only. Company users see only their own confirmed outcome and clarification requests.
@@ -156,7 +157,7 @@ Build a reviewable vertical slice called **Opportunity Matching and Evidence Rev
 8. Show company users the current review state and actionable change request without exposing other companies.
 9. Add permission, transition, concurrency, audit, and tenant-isolation tests.
 
-This slice produces a usable DBGI review loop and creates the data relationships required for ranking. Ranking should be the following slice.
+This review slice and the initial read-only opportunity ranking slice are implemented. Rankings are computed from confirmed scope membership and original eligible timestamps.
 
 ## Approved initial registration lifecycle
 

@@ -173,6 +173,67 @@ test("company user can submit a complete registration", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("DBGI administrator can view opportunity rankings", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  await page.route("**/api/v1/rankings?**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            opportunity_id: 1,
+            opportunity_title:
+              "Quezon City Public Schools Printer Procurement 2027",
+            end_user_name: "Quezon City Schools Division Office",
+            scope_id: 1,
+            scope_name: "Lot 1: Monochrome laser printers",
+            scope_type: "lot",
+            participant_count: 2,
+            entries: [
+              {
+                rank: 1,
+                is_tied: false,
+                registration_id: 2,
+                reference: "DBGI-000002",
+                company_name: "IT Avenue",
+                project_title: "QCS Division Office laser printer acquisition",
+                original_submitted_at: "2026-10-19T03:22:55Z",
+              },
+              {
+                rank: 2,
+                is_tied: false,
+                registration_id: 3,
+                reference: "DBGI-000003",
+                company_name: "Lexmark",
+                project_title: "Quezon City SDO monochrome printer project",
+                original_submitted_at: "2026-10-19T04:22:55Z",
+              },
+            ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 25,
+      },
+    }),
+  );
+
+  await page.goto("/rankings/");
+
+  await expect(
+    page.getByRole("heading", { name: "Opportunity rankings" }),
+  ).toBeVisible();
+  await expect(page.getByText("IT Avenue", { exact: true })).toBeVisible();
+  await expect(page.getByText("Lexmark", { exact: true })).toBeVisible();
+  await page.getByLabel("Explain opportunity rankings").click();
+  await expect(
+    page.getByRole("heading", { name: "How ranking works" }),
+  ).toBeVisible();
+});
+
 test("DBGI administrator can inspect a suggestion and start review", async ({
   page,
 }) => {
@@ -230,19 +291,22 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
   await page.route("**/api/v1/registrations/1", (route) =>
     route.fulfill({ json: detail }),
   );
-  await page.route("**/api/v1/review/registrations/1/decision", async (route) => {
-    const payload = route.request().postDataJSON();
-    expect(payload.decision).toBe("start_review");
-    expect(payload.rationale).toBe("Evidence review started.");
-    await route.fulfill({
-      json: {
-        ...detail,
-        status: "under_review",
-        status_label: "Under review",
-        version: 2,
-      },
-    });
-  });
+  await page.route(
+    "**/api/v1/review/registrations/1/decision",
+    async (route) => {
+      const payload = route.request().postDataJSON();
+      expect(payload.decision).toBe("start_review");
+      expect(payload.rationale).toBe("Evidence review started.");
+      await route.fulfill({
+        json: {
+          ...detail,
+          status: "under_review",
+          status_label: "Under review",
+          version: 2,
+        },
+      });
+    },
+  );
 
   await page.goto("/registrations/1/");
   await page.getByLabel("Explain matching suggestion").click();
