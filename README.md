@@ -1,13 +1,13 @@
 # DBGI Project Registration Portal
 
-Company-scoped project registration portal built with Django Ninja, React, TypeScript, MUI, and PostgreSQL. Nginx serves the React application and proxies authenticated Django operations.
+Company-scoped project registration portal built with Django Ninja, Django Unfold, React, TypeScript, MUI, and PostgreSQL. Nginx serves the React application and proxies authenticated Django operations.
 
 ## Run locally
 
 Requires Python 3.13 and Node.js 24 for the selected starter-kit stack.
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 python manage.py migrate

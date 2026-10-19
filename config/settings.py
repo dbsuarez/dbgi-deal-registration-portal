@@ -56,6 +56,7 @@ if DEBUG:
 # Application definition
 
 INSTALLED_APPS = [
+    "unfold",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -65,6 +66,15 @@ INSTALLED_APPS = [
     "registrations.apps.RegistrationsConfig",
     "devtools.apps.DevtoolsConfig",
 ]
+
+UNFOLD = {
+    "SITE_TITLE": "DBGI Administration",
+    "SITE_HEADER": "DBGI Project Registration",
+    "SITE_SUBHEADER": "Administration",
+    "SITE_URL": "/",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

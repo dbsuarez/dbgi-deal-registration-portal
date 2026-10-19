@@ -15,6 +15,7 @@ Default stack for AI-built business management systems with optional consumer-fa
 | Database | PostgreSQL 17 or a supported PostgreSQL release |
 | Web frontend | React + TypeScript, PWA |
 | UI | MUI, MUI X Data Grid where appropriate |
+| Django administration | Django Unfold |
 | Barcode / QR | Browser camera API with ZXing JS where required |
 | Charts | Recharts where required |
 | Background jobs | Scheduler or task worker selected to fit deployment; Celery + Redis for distributed processing when justified |
@@ -35,6 +36,8 @@ Pin exact package versions after checking current support and compatibility. Do 
 Cloudflare -> Nginx -> React PWA and Django ASGI/WSGI application -> PostgreSQL and object storage.
 
 Keep the React + MUI interface as the primary user-facing application. Django Admin is an optional, restricted maintenance interface, not a replacement for the UI standards.
+
+Use Django Unfold as the default Django Admin theme. Pin its version, place `unfold` before `django.contrib.admin` in `INSTALLED_APPS`, inherit registered admin classes and inlines from Unfold classes, and verify authentication plus static assets after upgrades.
 
 Organize backend features into focused Django apps. Keep API schemas, endpoints, services, selectors/query logic, permissions, and models separate when complexity warrants it. Do not create abstractions without a practical need.
 

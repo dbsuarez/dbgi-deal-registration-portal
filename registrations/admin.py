@@ -1,5 +1,9 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import Group
+from unfold.admin import ModelAdmin, TabularInline
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .audit import registration_snapshot
 from .models import (
@@ -15,17 +19,20 @@ from .models import (
 
 
 @admin.register(Company)
-class CompanyAdmin(admin.ModelAdmin):
+class CompanyAdmin(ModelAdmin):
     list_display = ("name", "partner_code", "is_active", "created_at")
     list_filter = ("is_active",)
     search_fields = ("name", "partner_code")
 
 
 @admin.register(User)
-class PortalUserAdmin(UserAdmin):
-    fieldsets = (*UserAdmin.fieldsets, ("Portal access", {"fields": ("company", "role")}))
+class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
+    fieldsets = (*BaseUserAdmin.fieldsets, ("Portal access", {"fields": ("company", "role")}))
     add_fieldsets = (
-        *UserAdmin.add_fieldsets,
+        *BaseUserAdmin.add_fieldsets,
         (
             "Portal access",
             {"fields": ("company", "role", "is_staff", "is_superuser", "is_active")},
@@ -37,23 +44,23 @@ class PortalUserAdmin(UserAdmin):
 
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(ModelAdmin):
     list_display = ("code", "name", "category", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
 
 
-class CompetitorItemInline(admin.TabularInline):
+class CompetitorItemInline(TabularInline):
     model = CompetitorItem
     extra = 0
 
 
-class RegistrationItemInline(admin.TabularInline):
+class RegistrationItemInline(TabularInline):
     model = RegistrationItem
     extra = 0
 
 
-class RegistrationEventInline(admin.TabularInline):
+class RegistrationEventInline(TabularInline):
     model = RegistrationEvent
     extra = 0
     can_delete = False
@@ -63,7 +70,7 @@ class RegistrationEventInline(admin.TabularInline):
         return False
 
 
-class RegistrationAttachmentInline(admin.TabularInline):
+class RegistrationAttachmentInline(TabularInline):
     model = RegistrationAttachment
     extra = 0
     readonly_fields = ("file", "original_name", "description", "uploaded_by", "uploaded_at")
@@ -74,7 +81,7 @@ class RegistrationAttachmentInline(admin.TabularInline):
 
 
 @admin.register(Registration)
-class RegistrationAdmin(admin.ModelAdmin):
+class RegistrationAdmin(ModelAdmin):
     list_display = (
         "reference",
         "project_title",
@@ -120,7 +127,7 @@ class RegistrationAdmin(admin.ModelAdmin):
 
 
 @admin.register(RegistrationEvent)
-class RegistrationEventAdmin(admin.ModelAdmin):
+class RegistrationEventAdmin(ModelAdmin):
     list_display = ("registration", "event_type", "actor", "created_at")
     list_filter = ("event_type", "created_at")
     search_fields = ("registration__project_title", "details")
@@ -134,3 +141,11 @@ class RegistrationEventAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+admin.site.unregister(Group)
+
+
+@admin.register(Group)
+class GroupAdmin(BaseGroupAdmin, ModelAdmin):
+    pass

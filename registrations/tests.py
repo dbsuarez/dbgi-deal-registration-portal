@@ -1,6 +1,6 @@
 import json
-from io import StringIO
 from datetime import date
+from io import StringIO
 from tempfile import TemporaryDirectory
 
 from django.core.exceptions import ValidationError

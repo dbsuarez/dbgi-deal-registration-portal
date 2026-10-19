@@ -21,8 +21,8 @@ from django.db import connection
 from django.http import JsonResponse
 from django.urls import include, path
 
-from registrations.api import api
 from devtools.views import DevelopmentLoginView, development_login
+from registrations.api import api
 
 
 def health_check(request):
