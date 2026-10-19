@@ -142,9 +142,9 @@ Build a reviewable vertical slice called **Opportunity Matching and Evidence Rev
 
 This slice produces a usable DBGI review loop and creates the data relationships required for ranking. Ranking should be the following slice.
 
-## Proposed minimal transition draft
+## Approved initial registration lifecycle
 
-This is a recommendation for confirmation, not an approved business rule:
+The following initial lifecycle was approved on 2026-10-19:
 
 ```text
 Submitted -> Under review
