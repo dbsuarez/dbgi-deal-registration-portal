@@ -112,6 +112,22 @@ Products and initial examples exist. Product price versions, VAT basis, schedule
 - Whether DBGI may return a registration for changes more than once.
 - Required reasons for evidence rejection, matching, and status decisions.
 
+## Approved matching assistant
+
+The following matching-assistance behavior was approved on 2026-10-19:
+
+- The application analyzes new and materially edited registrations using transparent business rules.
+- It compares normalized end-user names, office and address details, product or SKU overlap, purchase descriptions, dates, evidence, locations, and existing opportunity scopes.
+- It recommends one of four outcomes: same opportunity and scope, same opportunity with a new scope, different opportunity, or request clarification.
+- Every recommendation displays a confidence level, supporting factors, conflicting factors, and a plain-language explanation through accessible information popovers.
+- The DBGI administrator may accept the suggestion, choose another opportunity or scope, create a scope, create a separate opportunity, or request clarification.
+- The application must not automatically merge opportunities, assign final rank, or make a consequential matching decision. A DBGI administrator must confirm it.
+- Overrides require an administrator reason.
+- Audit history preserves the original suggestion, rule version, factors, confidence, administrator decision, override reason, actor, timestamp, and resulting ranking impact.
+- Matching details about other companies remain DBGI-only. Company users see only their own confirmed outcome and clarification requests.
+
+Start with deterministic, versioned rules. Machine-learning or external AI matching may be evaluated later only if it preserves explainability, authorization boundaries, and administrator control.
+
 ### Defer until pricing work
 
 - Initial discount validity duration.
@@ -136,7 +152,7 @@ Build a reviewable vertical slice called **Opportunity Matching and Evidence Rev
 4. Add transactional services for start review, request changes, resubmit, match, reject, and confirm eligibility.
 5. Add DBGI-only APIs with explicit input and output schemas.
 6. Add a DBGI review queue with search, filters, pagination, and review-needed indicators.
-7. Add a review page showing registration data, evidence, edit history, and matching controls.
+7. Add a review page showing registration data, evidence, edit history, matching suggestions, accessible explanations, and confirmation controls.
 8. Show company users the current review state and actionable change request without exposing other companies.
 9. Add permission, transition, concurrency, audit, and tenant-isolation tests.
 
