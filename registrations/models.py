@@ -88,6 +88,7 @@ class Opportunity(models.Model):
     class Meta:
         ordering = ["title", "id"]
         indexes = [models.Index(fields=["is_active", "end_user_name"])]
+        verbose_name_plural = "opportunities"
 
     def __str__(self):
         return self.title
