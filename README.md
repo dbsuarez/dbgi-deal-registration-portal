@@ -30,6 +30,10 @@ The debug login shows the `preview` company account and `admin-preview` DBGI adm
 
 `seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized end-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
 
+Django superusers can open **Administration > Scenario Lab** in Django admin while `DEBUG=True`. The lab explains and loads automatic-match, ambiguous-match, and material-edit scenarios. It can optionally clear transactional registrations, opportunities, scopes, items, attachments, events, suggestions, and review decisions after the user types `CLEAR TRANSACTIONS`. Companies, users, products, permissions, and login accounts are always preserved. The panel is hidden from ordinary administrators and unavailable when `DEBUG=False`.
+
+Multiple user accounts may belong to the same company. Manage them under **Master data > Users** in Django admin. These users share company-scoped records and count as one company in opportunity rankings.
+
 Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Production partner and administrator accounts are never seeded automatically.
 
 ## Run with Docker

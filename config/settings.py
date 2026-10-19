@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from django.urls import reverse_lazy
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -75,6 +76,96 @@ UNFOLD = {
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": True,
     "STYLES": ["/static/registrations/admin.css"],
+    "SIDEBAR": {
+        "show_search": True,
+        "navigation": [
+            {
+                "title": "Transactions",
+                "items": [
+                    {
+                        "title": "Registrations",
+                        "icon": "assignment",
+                        "link": reverse_lazy("admin:registrations_registration_changelist"),
+                        "permission": "config.admin_navigation.can_view_registrations",
+                    },
+                    {
+                        "title": "Opportunity rankings",
+                        "icon": "leaderboard",
+                        "link": reverse_lazy("admin:registrations_opportunityranking_changelist"),
+                        "permission": "config.admin_navigation.can_view_rankings",
+                    },
+                    {
+                        "title": "Opportunities",
+                        "icon": "work",
+                        "link": reverse_lazy("admin:registrations_opportunity_changelist"),
+                        "permission": "config.admin_navigation.can_view_opportunities",
+                    },
+                    {
+                        "title": "Matching suggestions",
+                        "icon": "difference",
+                        "link": reverse_lazy("admin:registrations_matchingsuggestion_changelist"),
+                        "permission": ("config.admin_navigation.can_view_matching_suggestions"),
+                    },
+                    {
+                        "title": "Review decisions",
+                        "icon": "fact_check",
+                        "link": reverse_lazy(
+                            "admin:registrations_registrationreviewdecision_changelist"
+                        ),
+                        "permission": "config.admin_navigation.can_view_review_decisions",
+                    },
+                    {
+                        "title": "Registration events",
+                        "icon": "history",
+                        "link": reverse_lazy("admin:registrations_registrationevent_changelist"),
+                        "permission": "config.admin_navigation.can_view_registration_events",
+                    },
+                ],
+            },
+            {
+                "title": "Master data",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Companies",
+                        "icon": "business",
+                        "link": reverse_lazy("admin:registrations_company_changelist"),
+                        "permission": "config.admin_navigation.can_view_companies",
+                    },
+                    {
+                        "title": "Products",
+                        "icon": "inventory_2",
+                        "link": reverse_lazy("admin:registrations_product_changelist"),
+                        "permission": "config.admin_navigation.can_view_products",
+                    },
+                    {
+                        "title": "Users",
+                        "icon": "group",
+                        "link": reverse_lazy("admin:registrations_user_changelist"),
+                        "permission": "config.admin_navigation.can_view_users",
+                    },
+                ],
+            },
+            {
+                "title": "Administration",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Groups",
+                        "icon": "admin_panel_settings",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                        "permission": "config.admin_navigation.can_view_groups",
+                    },
+                    {
+                        "title": "Scenario Lab",
+                        "icon": "science",
+                        "link": reverse_lazy("admin:devtools_scenariolab_changelist"),
+                        "permission": "config.admin_navigation.can_use_scenario_lab",
+                    },
+                ],
+            },
+        ],
+    },
 }
 
 MIDDLEWARE = [

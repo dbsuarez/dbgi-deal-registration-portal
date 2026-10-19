@@ -367,6 +367,96 @@ class RegistrationApiTests(TestCase):
         self.assertContains(rankings, it_avenue.reference)
         self.assertContains(rankings, lexmark.reference)
 
+    @override_settings(DEBUG=True)
+    def test_superuser_scenario_lab_loads_each_documented_scenario(self):
+        self.client.force_login(self.admin)
+        url = reverse("admin:devtools_scenariolab_changelist")
+
+        index = self.client.get("/admin/")
+        lab = self.client.get(url)
+
+        self.assertContains(index, "Transactions")
+        self.assertContains(index, "Master data")
+        self.assertContains(index, "Administration")
+        self.assertContains(index, "Scenario Lab")
+        self.assertContains(lab, "Automatic exact match")
+        self.assertContains(lab, "Ambiguous exact match")
+        self.assertContains(lab, "Material edit after matching")
+
+        expectations = {
+            "automatic_exact": (
+                "QCS printer lot later registration",
+                Registration.Status.ELIGIBLE_MATCHED,
+            ),
+            "ambiguous_match": (
+                "Pasig printer ambiguity later registration",
+                Registration.Status.SUBMITTED,
+            ),
+            "material_edit": (
+                "Makati printer edit later registration",
+                Registration.Status.REVIEW_REQUIRED,
+            ),
+        }
+        for scenario, (title, status) in expectations.items():
+            with self.subTest(scenario=scenario):
+                response = self.client.post(
+                    url,
+                    {
+                        "scenario": scenario,
+                        "clear_transactional": "on",
+                        "confirmation": "CLEAR TRANSACTIONS",
+                    },
+                )
+                self.assertEqual(response.status_code, 200, response.content)
+                registration = Registration.objects.get(project_title=title)
+                self.assertEqual(registration.status, status)
+                self.assertContains(response, "Scenario loaded")
+
+        self.assertTrue(Company.objects.filter(pk=self.company_a.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertTrue(User.objects.filter(pk=self.user_a.pk).exists())
+
+    @override_settings(DEBUG=True)
+    def test_scenario_lab_requires_exact_clear_confirmation(self):
+        self.client.force_login(self.admin)
+        url = reverse("admin:devtools_scenariolab_changelist")
+
+        response = self.client.post(
+            url,
+            {
+                "scenario": "automatic_exact",
+                "clear_transactional": "on",
+                "confirmation": "clear",
+            },
+        )
+
+        self.assertContains(response, "Type CLEAR TRANSACTIONS exactly")
+        self.assertTrue(Registration.objects.filter(pk=self.registration_a.pk).exists())
+
+    @override_settings(DEBUG=True)
+    def test_scenario_lab_is_hidden_from_non_superuser_admin(self):
+        reviewer = User.objects.create_user(
+            username="reviewer",
+            password="example-password",
+            role=User.Role.DBGI_ADMIN,
+            is_staff=True,
+        )
+        self.client.force_login(reviewer)
+
+        index = self.client.get("/admin/")
+        lab = self.client.get(reverse("admin:devtools_scenariolab_changelist"))
+
+        self.assertNotContains(index, "Scenario Lab")
+        self.assertEqual(lab.status_code, 404)
+
+    @override_settings(DEBUG=False)
+    def test_scenario_lab_is_unavailable_outside_debug_mode(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("admin:devtools_scenariolab_changelist"))
+
+        self.assertEqual(response.status_code, 404)
+
     def test_session_and_product_options(self):
         self.client.force_login(self.user_a)
         session = self.client.get("/api/v1/session")

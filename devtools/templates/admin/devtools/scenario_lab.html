@@ -1,0 +1,99 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div class="scenario-lab">
+    <section class="scenario-panel">
+      <h2>What this tool does</h2>
+      <p>
+        Scenario Lab creates repeatable local test data and explains the expected workflow result.
+        It is available only to Django superusers while development mode is enabled.
+      </p>
+      <p>
+        Users, companies, products, permissions, and login accounts are master data and are always
+        preserved. Optional clearing removes registrations and their items, attachments, events,
+        suggestions, review decisions, opportunities, and opportunity scopes.
+      </p>
+    </section>
+
+    <form method="post" class="scenario-form">
+      {% csrf_token %}
+      <fieldset>
+        <legend>Choose a scenario</legend>
+        <div class="scenario-grid">
+          {% for scenario in scenarios %}
+            <label class="scenario-card">
+              <span>
+                <input
+                  type="radio"
+                  name="scenario"
+                  value="{{ scenario.key }}"
+                  {% if selected == scenario.key %}checked{% endif %}
+                >
+                <strong>{{ scenario.title }}</strong>
+              </span>
+              <span>{{ scenario.summary }}</span>
+              <span class="scenario-expected"><strong>Expected:</strong> {{ scenario.expected_result }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <fieldset class="scenario-danger">
+        <legend>Optional clean start</legend>
+        <label>
+          <input
+            type="checkbox"
+            name="clear_transactional"
+            {% if clear_requested %}checked{% endif %}
+          >
+          Clear all transactional records before loading this scenario
+        </label>
+        <p>
+          This removes every registration, opportunity, scope, review decision, suggestion, event,
+          item, and attachment. Uploaded attachment files are deleted after the transaction commits.
+        </p>
+        <label for="id_confirmation">Type <strong>CLEAR TRANSACTIONS</strong> to confirm:</label>
+        <input id="id_confirmation" type="text" name="confirmation" autocomplete="off">
+      </fieldset>
+
+      <button type="submit" class="scenario-submit">Load selected scenario</button>
+    </form>
+
+    {% if cleared %}
+      <section class="scenario-panel">
+        <h2>Cleared records</h2>
+        <ul>
+          <li>{{ cleared.registrations }} registrations</li>
+          <li>{{ cleared.review_decisions }} review decisions</li>
+          <li>{{ cleared.opportunity_scopes }} opportunity scopes</li>
+          <li>{{ cleared.opportunities }} opportunities</li>
+        </ul>
+      </section>
+    {% endif %}
+
+    {% if result %}
+      <section class="scenario-panel scenario-result">
+        <h2>Scenario loaded</h2>
+        <dl>
+          <dt>First registration</dt><dd>{{ result.first_reference }}</dd>
+          <dt>Later registration</dt><dd>{{ result.second_reference }}</dd>
+          <dt>Later status</dt><dd>{{ result.second_status }}</dd>
+          <dt>Assigned scope</dt><dd>{{ result.scope }}</dd>
+          <dt>Suggestion</dt><dd>{{ result.suggestion }}</dd>
+          <dt>Confidence</dt><dd>{{ result.confidence }} at {{ result.score }}%</dd>
+          <dt>Conflicts</dt>
+          <dd>
+            {% if result.conflicts %}{{ result.conflicts|join:", " }}{% else %}None{% endif %}
+          </dd>
+        </dl>
+        <p><strong>Expected result:</strong> {{ result.scenario.expected_result }}</p>
+        <p>
+          Continue with
+          <a href="{% url 'admin:registrations_registration_changelist' %}">Registrations</a>
+          or
+          <a href="{% url 'admin:registrations_opportunityranking_changelist' %}">Opportunity rankings</a>.
+        </p>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

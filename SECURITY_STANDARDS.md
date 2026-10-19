@@ -21,6 +21,20 @@ Projects may provide a password-free account chooser to make local development a
 - Never reuse development passwords for staging or production accounts. Treat a deployment with `DEBUG=True` as a release-blocking security defect.
 - Test successful development login, role grouping, redirect validation, and denial when `DEBUG=False`.
 
+### Development-only scenario controls
+
+Projects may provide a repeatable scenario loader for local workflow testing. When provided:
+
+- Keep it inside the dedicated `devtools` app and require both `settings.DEBUG` and a true Django superuser.
+- Hide its navigation entry and return not found when either condition is absent.
+- Require POST and CSRF protection for every scenario load.
+- Explain expected records and workflow outcomes before execution.
+- Make data clearing optional and require an exact typed confirmation phrase before deleting records.
+- Define transactional and preserved master-data boundaries explicitly. Preserve users, companies, products, permissions, and login accounts unless a separate approved tool states otherwise.
+- Perform clearing and scenario creation in one database transaction so partial scenarios are not left behind after an error.
+- Delete attachment files through the application storage lifecycle rather than direct filesystem operations.
+- Test superuser access, ordinary administrator denial, production denial, confirmation failure, scenario outcomes, and preserved master data.
+
 ## Authorization
 - Enforce role and object-level permissions in backend endpoints and querysets.
 - Default to least privilege and prevent cross-tenant or cross-branch access.
