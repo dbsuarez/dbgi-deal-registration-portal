@@ -1,0 +1,223 @@
+from pathlib import Path
+from uuid import uuid4
+
+from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator, MinValueValidator
+from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+
+def registration_upload_path(instance, filename):
+    extension = Path(filename).suffix.lower()
+    return f"private/registrations/{uuid4().hex}{extension}"
+
+
+def validate_attachment_size(upload):
+    max_bytes = 10 * 1024 * 1024
+    if upload.size > max_bytes:
+        raise ValidationError("Attachments must be no larger than 10 MB.")
+
+
+class Company(models.Model):
+    name = models.CharField(max_length=200, unique=True)
+    partner_code = models.CharField(max_length=40, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "companies"
+
+    def __str__(self):
+        return self.name
+
+
+class User(AbstractUser):
+    class Role(models.TextChoices):
+        COMPANY = "company", "Company user"
+        DBGI_ADMIN = "dbgi_admin", "DBGI admin"
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="users",
+    )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.COMPANY)
+
+    @property
+    def is_dbgi_admin(self):
+        return self.is_superuser or (self.is_staff and self.role == self.Role.DBGI_ADMIN)
+
+    def clean(self):
+        super().clean()
+        if self.role == self.Role.COMPANY and not self.company_id and not self.is_superuser:
+            raise ValidationError({"company": "Company users must belong to a company."})
+        if self.role == self.Role.DBGI_ADMIN and self.company_id:
+            raise ValidationError({"company": "DBGI admins must not be assigned to a company."})
+        if self.role == self.Role.DBGI_ADMIN and not self.is_staff:
+            raise ValidationError({"is_staff": "DBGI admins must have staff access."})
+
+
+class Product(models.Model):
+    code = models.CharField(max_length=80, unique=True)
+    name = models.CharField(max_length=240)
+    category = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["code", "name"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Registration(models.Model):
+    class Status(models.TextChoices):
+        SUBMITTED = "submitted", "Submitted"
+        UNDER_REVIEW = "under_review", "Under review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="registrations")
+    submitted_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="registrations")
+    end_user_name = models.CharField(max_length=240)
+    end_user_address = models.TextField()
+    project_title = models.CharField(max_length=240)
+    bid_date = models.DateField()
+    delivery_date = models.DateField()
+    contact_person = models.CharField(max_length=200)
+    contact_designation = models.CharField(max_length=160)
+    contact_email = models.EmailField()
+    contact_number = models.CharField(max_length=40)
+    evidence_description = models.TextField(default="")
+    evidence_url = models.URLField(blank=True)
+    evidence_sharing_confirmed = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED)
+    needs_review = models.BooleanField(default=False)
+    version = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def reference(self):
+        return f"DBGI-{self.pk:06d}" if self.pk else "New registration"
+
+    def clean(self):
+        super().clean()
+        if not self.evidence_description.strip():
+            raise ValidationError(
+                {"evidence_description": "Describe the evidence for this opportunity."}
+            )
+        if not self.evidence_sharing_confirmed:
+            raise ValidationError(
+                {
+                    "evidence_sharing_confirmed": (
+                        "Confirm that you are authorized to share this evidence."
+                    )
+                }
+            )
+
+    def __str__(self):
+        return f"{self.reference} - {self.project_title}"
+
+
+class CompetitorItem(models.Model):
+    registration = models.ForeignKey(
+        Registration, on_delete=models.CASCADE, related_name="competitor_items"
+    )
+    brand = models.CharField(max_length=160)
+    item_name = models.CharField(max_length=200)
+    bid_price = models.DecimalField(
+        max_digits=14, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    remarks = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.brand} - {self.item_name}"
+
+
+class RegistrationItem(models.Model):
+    registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, null=True, blank=True, related_name="registration_items"
+    )
+    non_catalog_name = models.CharField(max_length=240, blank=True)
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    requested_unit_price = models.DecimalField(
+        max_digits=14, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    justification = models.TextField(blank=True)
+
+    def clean(self):
+        super().clean()
+        if not self.product_id and not self.non_catalog_name.strip():
+            raise ValidationError(
+                {"non_catalog_name": "Choose a catalog product or enter a product description."}
+            )
+
+    @property
+    def display_name(self):
+        return str(self.product) if self.product_id else self.non_catalog_name
+
+    def __str__(self):
+        return self.display_name
+
+
+class RegistrationEvent(models.Model):
+    registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name="events")
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="registration_events"
+    )
+    event_type = models.CharField(max_length=80)
+    details = models.TextField(blank=True)
+    snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.registration.reference}: {self.event_type}"
+
+
+class RegistrationAttachment(models.Model):
+    registration = models.ForeignKey(
+        Registration, on_delete=models.CASCADE, related_name="attachments"
+    )
+    file = models.FileField(
+        upload_to=registration_upload_path,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=("pdf", "png", "jpg", "jpeg", "docx", "xlsx")
+            ),
+            validate_attachment_size,
+        ],
+    )
+    original_name = models.CharField(max_length=255)
+    description = models.CharField(max_length=240, blank=True)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="registration_attachments"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["uploaded_at"]
+
+    def __str__(self):
+        return self.original_name
+
+
+@receiver(post_delete, sender=RegistrationAttachment)
+def delete_registration_attachment_file(sender, instance, **kwargs):
+    if instance.file:
+        storage = instance.file.storage
+        file_name = instance.file.name
+        transaction.on_commit(lambda: storage.delete(file_name))

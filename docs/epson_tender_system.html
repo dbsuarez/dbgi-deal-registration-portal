@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epson Tender Form Management System - IT Avenue</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            transition: all 0.3s;
+            min-width: 120px;
+        }
+
+        .tab-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .tab-btn.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            padding: 20px;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        label .required {
+            color: #e74c3c;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="phone"],
+        input[type="date"],
+        input[type="number"],
+        select,
+        textarea {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="phone"]:focus,
+        input[type="date"]:focus,
+        input[type="number"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .blue-shaded {
+            background: #e3f2fd;
+        }
+
+        .table-section {
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .add-row-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        .add-row-btn:hover {
+            background: #5568d3;
+        }
+
+        .remove-row-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .remove-row-btn:hover {
+            background: #c0392b;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-submit {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-submit:hover {
+            background: #229954;
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn-reset {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-reset:hover {
+            background: #7f8c8d;
+        }
+
+        .btn-download {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: #2980b9;
+        }
+
+        .notes {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .notes strong {
+            color: #856404;
+        }
+
+        .note-item {
+            margin-bottom: 8px;
+        }
+
+        .info-banner {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .model-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .model-list li {
+            padding: 8px;
+            background: white;
+            border-left: 3px solid #667eea;
+            margin-bottom: 5px;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .tab-btn {
+                min-width: 100px;
+                font-size: 12px;
+                padding: 12px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎯 Epson Tender Form Management System</h1>
+            <p>IT Avenue General Merchandise - Tender Registration & Management Platform</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('form')">📝 Tender Form</button>
+            <button class="tab-btn" onclick="switchTab('submissions')">📊 Submissions</button>
+            <button class="tab-btn" onclick="switchTab('models')">📱 Product Models</button>
+            <button class="tab-btn" onclick="switchTab('instructions')">❓ Instructions</button>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- TAB 1: Tender Form -->
+            <div id="form" class="tab-content active">
+                <div class="success-message" id="successMsg">✓ Tender Form Submitted Successfully!</div>
+
+                <div class="info-banner">
+                    <strong>📌 IMPORTANT:</strong> All <span style="color: #e74c3c;">RED marked (*)</span> fields must be filled. This form requires minimum 3-5 days for local price support approval.
+                </div>
+
+                <form id="tenderForm">
+                    <!-- DEALER PROFILE -->
+                    <div class="form-section">
+                        <div class="section-title">👤 Dealer Profile</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Date of Registration <span class="required">*</span></label>
+                                <input type="date" name="registration_date" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Company Name <span class="required">*</span></label>
+                                <input type="text" name="company_name" class="blue-shaded" value="IT Avenue General Merchandise" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Contact Person / Designation <span class="required">*</span></label>
+                                <input type="text" name="contact_person" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number <span class="required">*</span></label>
+                                <input type="tel" name="phone" class="blue-shaded" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Email Address <span class="required">*</span></label>
+                                <input type="email" name="email" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Preferred Distributor <span class="required">*</span></label>
+                                <input type="text" name="distributor" class="blue-shaded" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- END-USER PROFILE -->
+                    <div class="form-section">
+                        <div class="section-title">🏢 End-User Profile</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Company Name <span class="required">*</span></label>
+                                <input type="text" name="enduser_company" class="blue-shaded" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Address <span class="required">*</span></label>
+                                <input type="text" name="enduser_address" class="blue-shaded" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Contact Person / Designation <span class="required">*</span></label>
+                                <input type="text" name="enduser_contact" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Information / Email <span class="required">*</span></label>
+                                <input type="email" name="enduser_email" class="blue-shaded" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROJECT PROFILE -->
+                    <div class="form-section">
+                        <div class="section-title">📋 Project Profile</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>OPPORTUNITY ID <span class="required">*</span> (excluding CISS/LW/SIDM)</label>
+                                <input type="text" name="opportunity_id" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Epson Account Manager</label>
+                                <input type="text" name="epson_am">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Name of Project <span class="required">*</span></label>
+                                <input type="text" name="project_name" class="blue-shaded" required>
+                            </div>
+                        </div>
+
+                        <!-- Product Selection Table -->
+                        <div class="table-section">
+                            <label style="display: block; margin-bottom: 10px;">
+                                <strong>EPSON MODEL / QUANTITY <span class="required">*</span></strong>
+                            </label>
+                            <table id="modelsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Model</th>
+                                        <th style="width: 100px;">Qty</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modelsBody">
+                                    <tr>
+                                        <td><input type="text" name="model[]" class="blue-shaded" required></td>
+                                        <td><input type="number" name="qty[]" min="1" value="1" class="blue-shaded" required></td>
+                                        <td><button type="button" class="remove-row-btn" onclick="removeRow(this)">Remove</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button type="button" class="add-row-btn" onclick="addModelRow()">+ Add Model</button>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 20px;">
+                            <div class="form-group">
+                                <label>Current Machine Being Used (Brand/Model)</label>
+                                <input type="text" name="current_machine">
+                            </div>
+                            <div class="form-group">
+                                <label>Estimated Monthly Print Volume</label>
+                                <input type="number" name="monthly_volume" min="0">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Deployment Location (e.g. Office, Warehouse) <span class="required">*</span></label>
+                                <input type="text" name="deployment_location" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Application / Intended Use <span class="required">*</span></label>
+                                <input type="text" name="intended_use" class="blue-shaded" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Is This for Replacement or Additional Units <span class="required">*</span></label>
+                                <select name="replacement_type" class="blue-shaded" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="Replacement">Replacement</option>
+                                    <option value="Additional">Additional Units</option>
+                                    <option value="Both">Both</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Have we Won/Lost Similar Projects in the past? Qty?</label>
+                                <input type="text" name="past_projects">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Reason of Requested Price</label>
+                                <input type="text" name="price_reason">
+                            </div>
+                            <div class="form-group">
+                                <label>Coverplus Extended Warranty (please specify)</label>
+                                <input type="text" name="warranty">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Customization Need / Purchase with Solution (please specify)</label>
+                                <textarea name="customization"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COMPETITOR PROFILE -->
+                    <div class="form-section">
+                        <div class="section-title">⚔️ Competitor Profile</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Competitor Model</label>
+                                <input type="text" name="competitor_model" placeholder="e.g., Canon ImageRunner">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Specifications</label>
+                                <textarea name="competitor_specs" placeholder="Enter competitor specifications"></textarea>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Warranty</label>
+                                <input type="text" name="competitor_warranty">
+                            </div>
+                            <div class="form-group">
+                                <label>End-user Price</label>
+                                <input type="number" name="competitor_price" min="0" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SCHEDULE -->
+                    <div class="form-section">
+                        <div class="section-title">📅 Schedule</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Pre-Bid Schedule (for Government Accts.) <span class="required">*</span></label>
+                                <input type="date" name="prebid_date" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Bid Date (mm/dd/yy) <span class="required">*</span></label>
+                                <input type="date" name="bid_date" class="blue-shaded" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Winner Disclosure / Award Date (mm/dd/yy) <span class="required">*</span></label>
+                                <input type="date" name="award_date" class="blue-shaded" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Delivery Sched/Target (mm/dd/yy) <span class="required">*</span></label>
+                                <input type="date" name="delivery_date" class="blue-shaded" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>If Staggered Delivery, Specify the Schedule</label>
+                                <textarea name="staggered_schedule"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NOTES -->
+                    <div class="notes">
+                        <strong>📌 IMPORTANT NOTES:</strong>
+                        <div class="note-item">1. Registrations with NO OPPORTUNITY ID will be sent back to sender.</div>
+                        <div class="note-item">2. Properly fill up all BLUE SHADED portions completely.</div>
+                        <div class="note-item">3. Response time shall be minimum of 3-5 days for local price support and 5-7 days for regional price support.</div>
+                        <div class="note-item">4. This form should be supported by bid documents (for Government Accounts).</div>
+                        <div class="note-item">5. Tender Letters are valid only for 60 days. Please fill a new Form 1A if exceeded.</div>
+                        <div class="note-item">6. Quantity registered will be monitored to ensure tender pricing is properly used.</div>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="button-group">
+                        <button type="reset" class="btn btn-reset">Clear Form</button>
+                        <button type="button" class="btn btn-download" onclick="downloadForm()">📥 Download as Excel</button>
+                        <button type="submit" class="btn btn-submit">✓ Submit Form</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 2: Submissions -->
+            <div id="submissions" class="tab-content">
+                <h2 style="margin-bottom: 20px;">Tender Submissions History</h2>
+                <table id="submissionsTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Project Name</th>
+                            <th>End-User</th>
+                            <th>Opportunity ID</th>
+                            <th>Models</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="submissionsBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px;">No submissions yet. Submit your first tender form above!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TAB 3: Product Models -->
+            <div id="models" class="tab-content">
+                <h2 style="margin-bottom: 20px;">Epson Product Models</h2>
+                
+                <div class="form-section">
+                    <div class="section-title">🖨️ Printers</div>
+                    <ul class="model-list">
+                        <li><strong>WorkForce Pro WF-C5790:</strong> High-volume color business inkjet printer</li>
+                        <li><strong>WorkForce Pro WF-C20600:</strong> Enterprise-level multifunction system</li>
+                        <li><strong>LQ-2090KIICC:</strong> Heavy-duty dot matrix printer</li>
+                        <li><strong>M15140:</strong> Professional engineering printer</li>
+                        <li><strong>SureColor SC-P700:</strong> Professional photo printer</li>
+                    </ul>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">🖥️ Scanners</div>
+                    <ul class="model-list">
+                        <li><strong>ES-500WR:</strong> Wireless desktop scanner</li>
+                        <li><strong>DS-770:</strong> Document capture scanner</li>
+                        <li><strong>GT-S55:</strong> Flatbed scanner for documents</li>
+                        <li><strong>WorkForce DS-30000:</strong> High-speed document scanner</li>
+                    </ul>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">🎟️ POS Systems</div>
+                    <ul class="model-list">
+                        <li><strong>TM-U220B:</strong> Compact receipt printer</li>
+                        <li><strong>TM-m10:</strong> Ethernet thermal printer</li>
+                        <li><strong>TM-L90:</strong> Label printer for retail</li>
+                    </ul>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">📽️ Projectors</div>
+                    <ul class="model-list">
+                        <li><strong>EB-2250U:</strong> Professional 5000-lumen projector</li>
+                        <li><strong>EB-PU1008B:</strong> Ultra-short-throw projector</li>
+                        <li><strong>EF-12:</strong> Portable laser projector</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- TAB 4: Instructions -->
+            <div id="instructions" class="tab-content">
+                <h2 style="margin-bottom: 20px;">📖 System Instructions & Guidelines</h2>
+                
+                <div class="form-section">
+                    <div class="section-title">Getting Started</div>
+                    <p style="margin-bottom: 15px;">Follow these steps to submit a tender form:</p>
+                    <ol style="padding-left: 20px; line-height: 1.8;">
+                        <li><strong>Fill Dealer Profile:</strong> Enter your company details and contact information</li>
+                        <li><strong>Enter End-User Information:</strong> Provide complete customer company details</li>
+                        <li><strong>Project Details:</strong> Most importantly, enter your OPPORTUNITY ID (required!)</li>
+                        <li><strong>Select Epson Models:</strong> Add one or more Epson products with quantities</li>
+                        <li><strong>Complete Project Profile:</strong> Fill in all required fields marked with asterisk (*)</li>
+                        <li><strong>Competitor Info (Optional):</strong> Add competitor details if relevant</li>
+                        <li><strong>Set Schedule:</strong> Enter all important dates</li>
+                        <li><strong>Submit:</strong> Click "Submit Form" button</li>
+                    </ol>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Important Reminders</div>
+                    <ul style="padding-left: 20px; line-height: 1.8;">
+                        <li>❌ <strong>NO OPPORTUNITY ID = Form Rejected</strong> - Always get your opportunity ID from Epson Account Manager</li>
+                        <li>🔵 <strong>ALL BLUE SHADED FIELDS</strong> must be completely filled out</li>
+                        <li>⏰ <strong>Processing Time:</strong> 3-5 days for local, 5-7 days for regional approvals</li>
+                        <li>📄 <strong>Government Bids:</strong> Must include supporting bid documents</li>
+                        <li>📅 <strong>Tender Validity:</strong> Valid for 60 days only - submit new form if expired</li>
+                        <li>📊 <strong>Quantities Monitored:</strong> System tracks registered quantities for pricing compliance</li>
+                    </ul>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Contact Support</div>
+                    <p><strong>IT Avenue General Merchandise</strong></p>
+                    <p>Contact: Robert Glenn Rastrullo / Project Group Head - NHQ</p>
+                    <p>Phone: 9088826140</p>
+                    <p>Email: robert.rastrullo@itavenue.ph</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+
+            // Deactivate all buttons
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+
+            // Activate button
+            event.target.classList.add('active');
+        }
+
+        // Add model row
+        function addModelRow() {
+            const tbody = document.getElementById('modelsBody');
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" name="model[]" class="blue-shaded" required></td>
+                <td><input type="number" name="qty[]" min="1" value="1" class="blue-shaded" required></td>
+                <td><button type="button" class="remove-row-btn" onclick="removeRow(this)">Remove</button></td>
+            `;
+            tbody.appendChild(newRow);
+        }
+
+        // Remove row
+        function removeRow(btn) {
+            const rows = document.querySelectorAll('#modelsBody tr');
+            if (rows.length > 1) {
+                btn.closest('tr').remove();
+            } else {
+                alert('At least one model is required!');
+            }
+        }
+
+        // Form submission
+        document.getElementById('tenderForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(this);
+            const data = {
+                submission_date: new Date().toLocaleString(),
+                dealer_profile: {
+                    registration_date: formData.get('registration_date'),
+                    company_name: formData.get('company_name'),
+                    contact_person: formData.get('contact_person'),
+                    phone: formData.get('phone'),
+                    email: formData.get('email'),
+                    distributor: formData.get('distributor')
+                },
+                enduser_profile: {
+                    company: formData.get('enduser_company'),
+                    address: formData.get('enduser_address'),
+                    contact: formData.get('enduser_contact'),
+                    email: formData.get('enduser_email')
+                },
+                project_profile: {
+                    opportunity_id: formData.get('opportunity_id'),
+                    project_name: formData.get('project_name'),
+                    models: formData.getAll('model[]'),
+                    quantities: formData.getAll('qty[]')
+                }
+            };
+
+            // Save to localStorage
+            let submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+            submissions.push(data);
+            localStorage.setItem('submissions', JSON.stringify(submissions));
+
+            // Show success message
+            const successMsg = document.getElementById('successMsg');
+            successMsg.classList.add('show');
+            setTimeout(() => successMsg.classList.remove('show'), 5000);
+
+            // Update submissions table
+            updateSubmissionsTable();
+
+            // Reset form
+            this.reset();
+        });
+
+        // Update submissions table
+        function updateSubmissionsTable() {
+            const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+            const tbody = document.getElementById('submissionsBody');
+            
+            if (submissions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">No submissions yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = submissions.map((sub, idx) => `
+                <tr>
+                    <td>${sub.submission_date}</td>
+                    <td>${sub.project_profile.project_name}</td>
+                    <td>${sub.enduser_profile.company}</td>
+                    <td>${sub.project_profile.opportunity_id}</td>
+                    <td>${sub.project_profile.models.join(', ')}</td>
+                    <td><span style="color: #27ae60; font-weight: 600;">✓ Submitted</span></td>
+                    <td><button class="remove-row-btn" onclick="deleteSubmission(${idx})">Delete</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // Delete submission
+        function deleteSubmission(idx) {
+            if (confirm('Delete this submission?')) {
+                let submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+                submissions.splice(idx, 1);
+                localStorage.setItem('submissions', JSON.stringify(submissions));
+                updateSubmissionsTable();
+            }
+        }
+
+        // Download as Excel placeholder
+        function downloadForm() {
+            alert('📥 Download feature will export the form as Excel file.\n\nFor now, you can:\n1. Fill the form completely\n2. Submit it\n3. Use your browser\'s Print > Save as PDF option\n\nOr contact IT Avenue for direct Excel export support.');
+        }
+
+        // Load submissions on page load
+        window.addEventListener('load', updateSubmissionsTable);
+    </script>
+</body>
+</html>

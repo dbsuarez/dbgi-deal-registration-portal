@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["registrations/migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"registrations/forms.py" = ["RUF012"]
+"registrations/models.py" = ["RUF012"]

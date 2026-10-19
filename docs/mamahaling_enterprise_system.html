@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAMAHALING - Epson Tender Management System | Enterprise Platform</title>
+    <style>
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --info: #3498db;
+            --dark: #1a1a2e;
+            --light: #f5f7fa;
+            --border: #e0e0e0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 30px 20px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+        }
+
+        .sidebar-logo {
+            font-size: 24px;
+            font-weight: 900;
+            color: #667eea;
+            margin-bottom: 30px;
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 10px;
+        }
+
+        .sidebar-menu a {
+            display: block;
+            padding: 12px 15px;
+            color: #aaa;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-menu a:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: white;
+            border-left-color: #667eea;
+        }
+
+        .sidebar-menu a.active {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            border-left-color: white;
+        }
+
+        .main-container {
+            margin-left: 280px;
+            min-height: 100vh;
+            background: #f5f7fa;
+        }
+
+        .top-bar {
+            background: white;
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .top-bar h1 {
+            font-size: 28px;
+            color: var(--dark);
+            font-weight: 700;
+        }
+
+        .top-bar-info {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .company-info {
+            text-align: right;
+        }
+
+        .company-info p {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .company-info strong {
+            display: block;
+            font-size: 14px;
+            color: var(--dark);
+        }
+
+        .content-area {
+            padding: 40px;
+        }
+
+        .page-section {
+            display: none;
+            animation: slideIn 0.3s ease-in;
+        }
+
+        .page-section.active {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+
+        .card-header {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-box {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            text-align: center;
+            border-top: 4px solid var(--primary);
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: 900;
+            color: var(--primary);
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        label .req {
+            color: var(--danger);
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="date"],
+        input[type="number"],
+        select,
+        textarea {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+            background: #f9fbff;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .blue-field {
+            background: #e3f2fd;
+            border-color: #90caf9;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            justify-content: flex-end;
+        }
+
+        .section-divider {
+            margin: 30px 0;
+            padding: 20px;
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-left: 4px solid var(--primary);
+            border-radius: 8px;
+        }
+
+        .section-divider h3 {
+            color: var(--dark);
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .info-box {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .success-box.show {
+            display: block;
+        }
+
+        .model-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 80px;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: end;
+        }
+
+        .add-row-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .add-row-btn:hover {
+            background: #5568d3;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .close {
+            float: right;
+            font-size: 24px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: var(--dark);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-approved {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .print-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .export-btn {
+            background: #27ae60;
+            color: white;
+        }
+
+        .pdf-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .report-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            border-top: 3px solid var(--primary);
+        }
+
+        .report-card h4 {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .report-card .value {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--primary);
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 240px;
+            }
+
+            .main-container {
+                margin-left: 240px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+                padding: 15px 10px;
+            }
+
+            .sidebar-logo {
+                font-size: 18px;
+                margin-bottom: 20px;
+            }
+
+            .sidebar-menu a {
+                padding: 10px;
+                font-size: 0;
+            }
+
+            .sidebar-menu a:before {
+                content: attr(data-icon);
+                font-size: 16px;
+            }
+
+            .main-container {
+                margin-left: 70px;
+            }
+
+            .top-bar {
+                flex-direction: column;
+                gap: 15px;
+                padding: 20px;
+            }
+
+            .top-bar-info {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .content-area {
+                padding: 20px;
+            }
+
+            .model-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR NAVIGATION -->
+    <div class="sidebar">
+        <div class="sidebar-logo">🏆 MAMAHALING</div>
+        <ul class="sidebar-menu">
+            <li><a class="menu-link active" data-page="dashboard" onclick="switchPage('dashboard')">📊 Dashboard</a></li>
+            <li><a class="menu-link" data-page="form" onclick="switchPage('form')">📝 Tender Form</a></li>
+            <li><a class="menu-link" data-page="submissions" onclick="switchPage('submissions')">📋 Submissions</a></li>
+            <li><a class="menu-link" data-page="tracking" onclick="switchPage('tracking')">🎯 Deal Tracking</a></li>
+            <li><a class="menu-link" data-page="analytics" onclick="switchPage('analytics')">📈 Analytics</a></li>
+            <li><a class="menu-link" data-page="products" onclick="switchPage('products')">📱 Products</a></li>
+            <li><a class="menu-link" data-page="reports" onclick="switchPage('reports')">📊 Reports</a></li>
+            <li><a class="menu-link" data-page="settings" onclick="switchPage('settings')">⚙️ Settings</a></li>
+        </ul>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="main-container">
+        <!-- TOP BAR -->
+        <div class="top-bar">
+            <h1>MAMAHALING Tender Management System</h1>
+            <div class="top-bar-info">
+                <div class="company-info">
+                    <strong>IT Avenue General Merchandise</strong>
+                    <p>Robert Glenn Rastrullo</p>
+                    <p>robert.rastrullo@itavenue.ph</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTENT AREA -->
+        <div class="content-area">
+
+            <!-- DASHBOARD PAGE -->
+            <div id="dashboard" class="page-section active">
+                <div class="dashboard-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">Total Tenders</div>
+                        <div class="stat-number" id="totalTenders">0</div>
+                    </div>
+                    <div class="stat-box" style="border-top-color: var(--success);">
+                        <div class="stat-label">Submitted</div>
+                        <div class="stat-number" id="submittedCount">0</div>
+                    </div>
+                    <div class="stat-box" style="border-top-color: var(--warning);">
+                        <div class="stat-label">Pending</div>
+                        <div class="stat-number" id="pendingCount">0</div>
+                    </div>
+                    <div class="stat-box" style="border-top-color: var(--info);">
+                        <div class="stat-label">Approved</div>
+                        <div class="stat-number" id="approvedCount">0</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        📊 Recent Submissions
+                    </div>
+                    <div class="table-responsive">
+                        <table id="recentTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Project</th>
+                                    <th>End-User</th>
+                                    <th>Opp ID</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="5" style="text-align: center; padding: 40px;">No submissions yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TENDER FORM PAGE -->
+            <div id="form" class="page-section">
+                <div class="success-box" id="successMsg">✓ Tender Form Submitted Successfully!</div>
+
+                <div class="info-box">
+                    <strong>📌 IMPORTANT:</strong> All <span style="color: #e74c3c; font-weight: bold;">RED marked (*)</span> fields must be filled. Response time: 3-5 days (local) / 5-7 days (regional).
+                </div>
+
+                <form id="tenderForm">
+                    <!-- DEALER PROFILE -->
+                    <div class="card">
+                        <div class="card-header">👤 Dealer Profile</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Date of Registration <span class="req">*</span></label>
+                                <input type="date" name="reg_date" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Company Name <span class="req">*</span></label>
+                                <input type="text" name="company_name" class="blue-field" value="IT Avenue General Merchandise" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Person <span class="req">*</span></label>
+                                <input type="text" name="contact_person" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone <span class="req">*</span></label>
+                                <input type="tel" name="phone" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Email <span class="req">*</span></label>
+                                <input type="email" name="email" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Preferred Distributor <span class="req">*</span></label>
+                                <input type="text" name="distributor" class="blue-field" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- END-USER PROFILE -->
+                    <div class="card">
+                        <div class="card-header">🏢 End-User Profile</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Company Name <span class="req">*</span></label>
+                                <input type="text" name="enduser_company" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Address <span class="req">*</span></label>
+                                <input type="text" name="enduser_address" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Person <span class="req">*</span></label>
+                                <input type="text" name="enduser_contact" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Email <span class="req">*</span></label>
+                                <input type="email" name="enduser_email" class="blue-field" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROJECT PROFILE -->
+                    <div class="card">
+                        <div class="card-header">📋 Project Profile</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>OPPORTUNITY ID <span class="req">*</span></label>
+                                <input type="text" name="opp_id" class="blue-field" placeholder="Required!" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Epson Account Manager</label>
+                                <input type="text" name="epson_am">
+                            </div>
+                            <div class="form-group">
+                                <label>Project Name <span class="req">*</span></label>
+                                <input type="text" name="project_name" class="blue-field" required>
+                            </div>
+                        </div>
+
+                        <div class="section-divider">
+                            <h3>📦 Epson Models & Quantities</h3>
+                        </div>
+
+                        <div id="modelsContainer" style="margin-bottom: 20px;"></div>
+                        <button type="button" class="add-row-btn" onclick="addModelRow()">+ Add Model</button>
+
+                        <div class="form-grid" style="margin-top: 30px;">
+                            <div class="form-group">
+                                <label>Current Machine</label>
+                                <input type="text" name="current_machine" placeholder="Brand/Model">
+                            </div>
+                            <div class="form-group">
+                                <label>Monthly Print Volume</label>
+                                <input type="number" name="monthly_volume" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Deployment Location <span class="req">*</span></label>
+                                <input type="text" name="deployment" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Intended Use <span class="req">*</span></label>
+                                <input type="text" name="intended_use" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Replacement or Additional <span class="req">*</span></label>
+                                <select name="replacement_type" class="blue-field" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="Replacement">Replacement</option>
+                                    <option value="Additional">Additional</option>
+                                    <option value="Both">Both</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Past Projects</label>
+                                <input type="text" name="past_projects">
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Requested Price Reason</label>
+                                <textarea name="price_reason"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Extended Warranty</label>
+                                <input type="text" name="warranty">
+                            </div>
+                            <div class="form-group">
+                                <label>Customization / Solution</label>
+                                <textarea name="customization"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COMPETITOR PROFILE -->
+                    <div class="card">
+                        <div class="card-header">⚔️ Competitor Profile</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Competitor Model</label>
+                                <input type="text" name="comp_model" placeholder="e.g., Canon ImageRunner">
+                            </div>
+                            <div class="form-group">
+                                <label>Warranty</label>
+                                <input type="text" name="comp_warranty">
+                            </div>
+                            <div class="form-group">
+                                <label>End-User Price</label>
+                                <input type="number" name="comp_price" min="0" step="0.01">
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Specifications</label>
+                                <textarea name="comp_specs"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SCHEDULE -->
+                    <div class="card">
+                        <div class="card-header">📅 Schedule</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Pre-Bid Schedule <span class="req">*</span></label>
+                                <input type="date" name="prebid_date" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Bid Date <span class="req">*</span></label>
+                                <input type="date" name="bid_date" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Award Date <span class="req">*</span></label>
+                                <input type="date" name="award_date" class="blue-field" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Delivery Date <span class="req">*</span></label>
+                                <input type="date" name="delivery_date" class="blue-field" required>
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Staggered Delivery Schedule</label>
+                                <textarea name="staggered_schedule"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WARNINGS -->
+                    <div class="warning-box">
+                        <strong>⚠️ CRITICAL REQUIREMENTS:</strong><br>
+                        1. NO OPPORTUNITY ID = Form REJECTED<br>
+                        2. ALL BLUE FIELDS must be filled<br>
+                        3. Processing: 3-5 days local, 5-7 days regional<br>
+                        4. Government bids need supporting documents<br>
+                        5. Tender valid for 60 days only<br>
+                        6. Quantities monitored for pricing compliance
+                    </div>
+
+                    <!-- BUTTONS -->
+                    <div class="button-group">
+                        <button type="reset" class="btn btn-secondary">Clear Form</button>
+                        <button type="button" class="btn export-btn" onclick="exportToExcel()">📥 Export Excel</button>
+                        <button type="submit" class="btn btn-success">✓ Submit Tender</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- SUBMISSIONS PAGE -->
+            <div id="submissions" class="page-section">
+                <div class="card">
+                    <div class="card-header">
+                        📋 Tender Submissions
+                        <span style="font-size: 14px; font-weight: normal;">Total: <span id="submissionCount">0</span></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="submissionsTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Project</th>
+                                    <th>End-User</th>
+                                    <th>Opp ID</th>
+                                    <th>Models</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="7" style="text-align: center; padding: 40px;">No submissions</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DEAL TRACKING -->
+            <div id="tracking" class="page-section">
+                <div class="card">
+                    <div class="card-header">🎯 Deal Tracking & Pipeline</div>
+                    <div class="table-responsive">
+                        <table id="trackingTable">
+                            <thead>
+                                <tr>
+                                    <th>Opp ID</th>
+                                    <th>Project</th>
+                                    <th>Value (₱)</th>
+                                    <th>Stage</th>
+                                    <th>Probability</th>
+                                    <th>Next Step</th>
+                                    <th>Close Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="7" style="text-align: center; padding: 40px;">No deals tracked yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANALYTICS PAGE -->
+            <div id="analytics" class="page-section">
+                <div class="report-grid">
+                    <div class="report-card">
+                        <h4>Avg Days to Close</h4>
+                        <div class="value" id="avgDays">-</div>
+                    </div>
+                    <div class="report-card">
+                        <h4>Win Rate</h4>
+                        <div class="value" id="winRate">-</div>
+                    </div>
+                    <div class="report-card">
+                        <h4>Pipeline Value</h4>
+                        <div class="value" id="pipelineValue">₱0</div>
+                    </div>
+                    <div class="report-card">
+                        <h4>Avg Deal Size</h4>
+                        <div class="value" id="avgDealSize">₱0</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📈 Performance Metrics</div>
+                    <p style="color: #666; padding: 40px; text-align: center;">Analytics data will populate as you submit more tenders</p>
+                </div>
+            </div>
+
+            <!-- PRODUCTS PAGE -->
+            <div id="products" class="page-section">
+                <div class="card">
+                    <div class="card-header">📱 Epson Product Catalog</div>
+                    
+                    <div class="section-divider">
+                        <h3>🖨️ Printers & Multifunction Systems</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>Model</th><th>Type</th><th>Key Features</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>WF-C5790</strong></td><td>Color Inkjet</td><td>High-volume, network-ready</td></tr>
+                                <tr><td><strong>WF-C20600</strong></td><td>Enterprise MFP</td><td>Large workgroup, advanced features</td></tr>
+                                <tr><td><strong>LQ-2090KIICC</strong></td><td>Dot Matrix</td><td>Heavy-duty, multi-part forms</td></tr>
+                                <tr><td><strong>M15140</strong></td><td>Engineering</td><td>Large format printing</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="section-divider">
+                        <h3>🖥️ Scanners & Document Capture</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>Model</th><th>Type</th><th>Specifications</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>ES-500WR</strong></td><td>Wireless Desktop</td><td>Mobile scanning capability</td></tr>
+                                <tr><td><strong>DS-770</strong></td><td>Document Scanner</td><td>High-speed capture</td></tr>
+                                <tr><td><strong>WorkForce DS-30000</strong></td><td>Production Scanner</td><td>Enterprise scanning</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="section-divider">
+                        <h3>📽️ Projectors & Visual Solutions</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>Model</th><th>Type</th><th>Lumens</th><th>Resolution</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>EB-2250U</strong></td><td>Professional</td><td>5000</td><td>WUXGA</td></tr>
+                                <tr><td><strong>EB-PU1008B</strong></td><td>Ultra Short Throw</td><td>3200</td><td>WUXGA</td></tr>
+                                <tr><td><strong>EF-12</strong></td><td>Laser Portable</td><td>2000</td><td>Full HD</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REPORTS PAGE -->
+            <div id="reports" class="page-section">
+                <div class="card">
+                    <div class="card-header">
+                        📊 Generate Reports
+                    </div>
+                    <div class="form-grid">
+                        <button class="btn export-btn" onclick="generateTenderReport()">📋 Tender Report</button>
+                        <button class="btn print-btn" onclick="generatePipelineReport()">📈 Pipeline Report</button>
+                        <button class="btn pdf-btn" onclick="generateCompetitiveReport()">⚔️ Competitive Report</button>
+                        <button class="btn btn-primary" onclick="exportAllData()">💾 Export All Data</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS PAGE -->
+            <div id="settings" class="page-section">
+                <div class="card">
+                    <div class="card-header">⚙️ System Settings</div>
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Company Settings</label>
+                            <p style="color: #666; font-size: 13px; margin-top: 10px;">
+                                Company: <strong>IT Avenue General Merchandise</strong><br>
+                                Contact: <strong>Robert Glenn Rastrullo</strong><br>
+                                Email: <strong>robert.rastrullo@itavenue.ph</strong><br>
+                                Phone: <strong>9088826140</strong>
+                            </p>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger" onclick="clearAllData()" style="margin-top: 20px;">🗑️ Clear All Data</button>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="footer">
+                © 2026 MAMAHALING - Epson Tender Management System | Powered by IT Avenue General Merchandise
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize models container
+        function addModelRow() {
+            const container = document.getElementById('modelsContainer');
+            const count = container.children.length + 1;
+            const row = document.createElement('div');
+            row.className = 'model-row';
+            row.innerHTML = `
+                <input type="text" name="model[]" placeholder="Epson Model" required>
+                <input type="number" name="qty[]" min="1" value="1" required>
+                <button type="button" class="btn btn-danger btn-small" onclick="removeModelRow(this)">Remove</button>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeModelRow(btn) {
+            const container = document.getElementById('modelsContainer');
+            if (container.children.length > 0) {
+                btn.parentElement.remove();
+            }
+        }
+
+        // Initialize first model row on page load
+        window.addEventListener('load', () => {
+            addModelRow();
+            updateDashboard();
+        });
+
+        // Page switching
+        function switchPage(pageName) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(pageName).classList.add('active');
+
+            document.querySelectorAll('.menu-link').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+
+            updateDashboard();
+        }
+
+        // Form submission
+        document.getElementById('tenderForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const models = formData.getAll('model[]');
+            const quantities = formData.getAll('qty[]');
+
+            const submission = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString(),
+                company_name: formData.get('company_name'),
+                project_name: formData.get('project_name'),
+                enduser_company: formData.get('enduser_company'),
+                opp_id: formData.get('opp_id'),
+                models: models,
+                quantities: quantities,
+                status: 'Submitted',
+                email: formData.get('email'),
+                deployment: formData.get('deployment'),
+                all_data: Object.fromEntries(formData)
+            };
+
+            let submissions = JSON.parse(localStorage.getItem('mamahaling_submissions') || '[]');
+            submissions.push(submission);
+            localStorage.setItem('mamahaling_submissions', JSON.stringify(submissions));
+
+            document.getElementById('successMsg').classList.add('show');
+            setTimeout(() => document.getElementById('successMsg').classList.remove('show'), 4000);
+
+            this.reset();
+            addModelRow();
+            updateDashboard();
+            updateSubmissionsTable();
+        });
+
+        function updateDashboard() {
+            const submissions = JSON.parse(localStorage.getItem('mamahaling_submissions') || '[]');
+            
+            document.getElementById('totalTenders').textContent = submissions.length;
+            document.getElementById('submittedCount').textContent = submissions.filter(s => s.status === 'Submitted').length;
+            document.getElementById('pendingCount').textContent = submissions.filter(s => s.status === 'Pending').length;
+            document.getElementById('approvedCount').textContent = submissions.filter(s => s.status === 'Approved').length;
+
+            const tbody = document.querySelector('#recentTable tbody');
+            if (submissions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px;">No submissions yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = submissions.slice(-5).reverse().map(s => `
+                <tr>
+                    <td>${s.date}</td>
+                    <td>${s.project_name}</td>
+                    <td>${s.enduser_company}</td>
+                    <td>${s.opp_id}</td>
+                    <td><span class="badge badge-${s.status.toLowerCase()}">${s.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function updateSubmissionsTable() {
+            const submissions = JSON.parse(localStorage.getItem('mamahaling_submissions') || '[]');
+            const tbody = document.querySelector('#submissionsTable tbody');
+            const count = document.getElementById('submissionCount');
+
+            count.textContent = submissions.length;
+
+            if (submissions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">No submissions</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = submissions.map((s, idx) => `
+                <tr>
+                    <td>${s.date}</td>
+                    <td>${s.project_name}</td>
+                    <td>${s.enduser_company}</td>
+                    <td><strong>${s.opp_id}</strong></td>
+                    <td>${s.models.join(', ')}</td>
+                    <td><span class="badge badge-${s.status.toLowerCase()}">${s.status}</span></td>
+                    <td>
+                        <button class="btn btn-small btn-primary" onclick="viewSubmission(${idx})">View</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteSubmission(${idx})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function deleteSubmission(idx) {
+            if (confirm('Delete this submission?')) {
+                let submissions = JSON.parse(localStorage.getItem('mamahaling_submissions') || '[]');
+                submissions.splice(idx, 1);
+                localStorage.setItem('mamahaling_submissions', JSON.stringify(submissions));
+                updateSubmissionsTable();
+                updateDashboard();
+            }
+        }
+
+        function exportToExcel() {
+            alert('📥 Excel export feature will generate a file with your tender data.\n\nFeature coming soon!');
+        }
+
+        function generateTenderReport() {
+            alert('📋 Tender Report\n\nTotal Submissions: ' + JSON.parse(localStorage.getItem('mamahaling_submissions') || '[]').length + '\n\nFeature coming soon!');
+        }
+
+        function generatePipelineReport() {
+            alert('📈 Pipeline Report will show your deals and forecast.\n\nFeature coming soon!');
+        }
+
+        function generateCompetitiveReport() {
+            alert('⚔️ Competitive Report will analyze competitor bids.\n\nFeature coming soon!');
+        }
+
+        function exportAllData() {
+            const data = localStorage.getItem('mamahaling_submissions');
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mamahaling_backup_' + new Date().toISOString().split('T')[0] + '.json';
+            a.click();
+        }
+
+        function clearAllData() {
+            if (confirm('⚠️ This will delete ALL tender data. Are you sure?\n\nThis action cannot be undone!')) {
+                localStorage.removeItem('mamahaling_submissions');
+                alert('✓ All data cleared');
+                updateDashboard();
+                updateSubmissionsTable();
+            }
+        }
+
+        function viewSubmission(idx) {
+            const submissions = JSON.parse(localStorage.getItem('mamahaling_submissions') || '[]');
+            const s = submissions[idx];
+            alert('📋 Submission Details\n\n' +
+                  'Project: ' + s.project_name + '\n' +
+                  'End-User: ' + s.enduser_company + '\n' +
+                  'Opportunity ID: ' + s.opp_id + '\n' +
+                  'Models: ' + s.models.join(', ') + '\n' +
+                  'Status: ' + s.status + '\n' +
+                  'Submitted: ' + s.date);
+        }
+    </script>
+</body>
+</html>
