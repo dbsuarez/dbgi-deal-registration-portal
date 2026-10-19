@@ -116,6 +116,34 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["code"], "authentication_required")
 
+    @override_settings(DEBUG=True)
+    def test_development_login_lists_grouped_accounts_and_signs_in(self):
+        response = self.client.get("/accounts/login/")
+        self.assertContains(response, "/static/registrations/app.css")
+        self.assertContains(response, "Company users")
+        self.assertContains(response, "DBGI administrators")
+        self.assertContains(response, self.user_a.username)
+        self.assertContains(response, self.admin.username)
+
+        response = self.client.post(
+            "/accounts/debug-login/",
+            {"username": self.user_a.username, "next": "/"},
+        )
+
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.user_a.pk)
+
+    @override_settings(DEBUG=False)
+    def test_development_login_is_unavailable_outside_debug_mode(self):
+        response = self.client.get("/accounts/login/")
+        self.assertNotContains(response, "Choose a test account")
+        self.assertEqual(
+            self.client.post(
+                "/accounts/debug-login/", {"username": self.user_a.username}
+            ).status_code,
+            404,
+        )
+
     def test_list_and_detail_are_company_scoped(self):
         self.client.force_login(self.user_a)
         response = self.client.get("/api/v1/registrations?page=1&page_size=10")

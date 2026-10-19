@@ -22,6 +22,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 
 from registrations.api import api
+from registrations.views import DevelopmentLoginView, development_login
 
 
 def health_check(request):
@@ -37,9 +38,10 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path(
         "accounts/login/",
-        auth_views.LoginView.as_view(template_name="registration/login.html"),
+        DevelopmentLoginView.as_view(),
         name="login",
     ),
+    path("accounts/debug-login/", development_login, name="development-login"),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("", include("registrations.urls")),
 ]

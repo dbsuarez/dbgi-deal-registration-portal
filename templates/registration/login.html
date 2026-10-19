@@ -1,23 +1,71 @@
 {% extends "base.html" %}
 {% block title %}Sign in | DBGI Project Registration{% endblock %}
 {% block content %}
-<section class="auth-card">
-  <p class="eyebrow">Partner access</p>
-  <h1>Sign in</h1>
-  <p class="muted">Use the account provided by your DBGI administrator.</p>
-  {% if form.errors %}<p class="error-summary">Please check your username and password.</p>{% endif %}
-  <form method="post">
-    {% csrf_token %}
-    <div class="field">
-      <label for="{{ form.username.id_for_label }}">Username</label>
-      {{ form.username }}
-    </div>
-    <div class="field">
-      <label for="{{ form.password.id_for_label }}">Password</label>
-      {{ form.password }}
-    </div>
-    <input type="hidden" name="next" value="{{ next }}">
-    <button class="button primary full-width" type="submit">Sign in</button>
-  </form>
-</section>
+<div class="auth-layout{% if development_company_users or development_admin_users %} has-debug-login{% endif %}">
+  <section class="auth-card">
+    <p class="eyebrow">Partner access</p>
+    <h1>Sign in</h1>
+    <p class="muted">Use the account provided by your DBGI administrator.</p>
+    {% if form.errors %}<p class="error-summary">Please check your username and password.</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="field">
+        <label for="{{ form.username.id_for_label }}">Username</label>
+        {{ form.username }}
+      </div>
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="button primary full-width" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  {% if development_company_users or development_admin_users %}
+    <aside class="debug-login" aria-labelledby="debug-login-heading">
+      <p class="eyebrow">Development only</p>
+      <h2 id="debug-login-heading">Choose a test account</h2>
+      <p class="muted">Password-free access is available only while Django debug mode is enabled.</p>
+
+      {% if development_company_users %}
+        <section class="debug-account-group" aria-labelledby="company-accounts-heading">
+          <h3 id="company-accounts-heading">Company users</h3>
+          <div class="debug-account-list">
+            {% for account in development_company_users %}
+              <form method="post" action="{% url 'development-login' %}">
+                {% csrf_token %}
+                <input type="hidden" name="username" value="{{ account.username }}">
+                <input type="hidden" name="next" value="{{ next }}">
+                <button class="debug-account" type="submit">
+                  <strong>{{ account.get_full_name|default:account.username }}</strong>
+                  <span>{{ account.company.name|default:"No company assigned" }} · {{ account.username }}</span>
+                </button>
+              </form>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if development_admin_users %}
+        <section class="debug-account-group" aria-labelledby="admin-accounts-heading">
+          <h3 id="admin-accounts-heading">DBGI administrators</h3>
+          <div class="debug-account-list">
+            {% for account in development_admin_users %}
+              <form method="post" action="{% url 'development-login' %}">
+                {% csrf_token %}
+                <input type="hidden" name="username" value="{{ account.username }}">
+                <input type="hidden" name="next" value="{{ next }}">
+                <button class="debug-account" type="submit">
+                  <strong>{{ account.get_full_name|default:account.username }}</strong>
+                  <span>DBGI administration · {{ account.username }}</span>
+                </button>
+              </form>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </aside>
+  {% endif %}
+</div>
 {% endblock %}
