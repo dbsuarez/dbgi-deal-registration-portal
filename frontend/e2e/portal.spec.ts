@@ -172,3 +172,85 @@ test("company user can submit a complete registration", async ({ page }) => {
     page.getByRole("heading", { name: "Municipal printer project" }),
   ).toBeVisible();
 });
+
+test("DBGI administrator can inspect a suggestion and start review", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  const detail = {
+    id: 1,
+    reference: "DBGI-000001",
+    project_title: "Municipal printer project",
+    company_name: "North Dealer",
+    end_user_name: "Sample municipality",
+    end_user_address: "Test address",
+    bid_date: "2026-11-30",
+    delivery_date: "2027-01-30",
+    contact_person: "Test person",
+    contact_designation: "Buyer",
+    contact_email: "test@example.invalid",
+    contact_number: "0000000000",
+    evidence_description: "Public procurement notice",
+    evidence_url: "",
+    evidence_sharing_confirmed: true,
+    status: "submitted",
+    status_label: "Submitted",
+    needs_review: false,
+    created_at: "2026-10-19T02:00:00Z",
+    version: 1,
+    can_edit: false,
+    competitor_items: [],
+    items: [],
+    attachments: [],
+    events: [],
+    opportunity_scope_id: null,
+    opportunity_scope_label: null,
+    matching_suggestion: {
+      id: 1,
+      outcome: "clarify",
+      outcome_label: "Request clarification",
+      confidence: "medium",
+      confidence_label: "Medium",
+      score: 58,
+      supporting_factors: ["The end-user names closely match."],
+      conflicting_factors: ["No requested catalog product overlap was found."],
+      rule_version: "matching-v1",
+      candidate_scope_id: null,
+      candidate_scope_label: null,
+      created_at: "2026-10-19T02:00:00Z",
+    },
+  };
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/v1/registrations/1", (route) =>
+    route.fulfill({ json: detail }),
+  );
+  await page.route("**/api/v1/review/registrations/1/decision", async (route) => {
+    const payload = route.request().postDataJSON();
+    expect(payload.decision).toBe("start_review");
+    expect(payload.rationale).toBe("Evidence review started.");
+    await route.fulfill({
+      json: {
+        ...detail,
+        status: "under_review",
+        status_label: "Under review",
+        version: 2,
+      },
+    });
+  });
+
+  await page.goto("/registrations/1/");
+  await page.getByLabel("Explain matching suggestion").click();
+  await expect(
+    page.getByRole("heading", { name: "Why this match was suggested" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await page.getByLabel("Decision reason").fill("Evidence review started.");
+  await page.getByRole("button", { name: "Start review" }).click();
+  await expect(page.getByText("Under review", { exact: true })).toBeVisible();
+});

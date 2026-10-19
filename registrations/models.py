@@ -7,6 +7,7 @@ from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+from django.utils import timezone
 
 
 def registration_upload_path(instance, filename):
@@ -76,10 +77,54 @@ class Product(models.Model):
         return f"{self.code} - {self.name}"
 
 
+class Opportunity(models.Model):
+    title = models.CharField(max_length=240)
+    end_user_name = models.CharField(max_length=240)
+    end_user_address = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="opportunities")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["title", "id"]
+        indexes = [models.Index(fields=["is_active", "end_user_name"])]
+
+    def __str__(self):
+        return self.title
+
+
+class OpportunityScope(models.Model):
+    class ScopeType(models.TextChoices):
+        WHOLE = "whole", "Whole opportunity"
+        LOT = "lot", "Specific lot"
+
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.PROTECT, related_name="scopes")
+    name = models.CharField(max_length=200)
+    scope_type = models.CharField(max_length=10, choices=ScopeType.choices)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["opportunity__title", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["opportunity", "name"], name="unique_scope_name_per_opportunity"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.opportunity.title} | {self.name}"
+
+
 class Registration(models.Model):
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "Submitted"
         UNDER_REVIEW = "under_review", "Under review"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        RESUBMITTED = "resubmitted", "Resubmitted"
+        ELIGIBLE_MATCHED = "eligible_matched", "Eligible and matched"
+        REVIEW_REQUIRED = "review_required", "Review required after edit"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
 
@@ -99,6 +144,14 @@ class Registration(models.Model):
     evidence_sharing_confirmed = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED)
     needs_review = models.BooleanField(default=False)
+    opportunity_scope = models.ForeignKey(
+        OpportunityScope,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="registrations",
+    )
+    original_submitted_at = models.DateTimeField(default=timezone.now, editable=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -127,6 +180,82 @@ class Registration(models.Model):
 
     def __str__(self):
         return f"{self.reference} - {self.project_title}"
+
+
+class MatchingSuggestion(models.Model):
+    class Outcome(models.TextChoices):
+        SAME_SCOPE = "same_scope", "Same opportunity and scope"
+        NEW_SCOPE = "new_scope", "Same opportunity with a new scope"
+        DIFFERENT = "different", "Different opportunity"
+        CLARIFY = "clarify", "Request clarification"
+
+    class Confidence(models.TextChoices):
+        HIGH = "high", "High"
+        MEDIUM = "medium", "Medium"
+        LOW = "low", "Low"
+
+    registration = models.ForeignKey(
+        Registration, on_delete=models.CASCADE, related_name="matching_suggestions"
+    )
+    candidate_scope = models.ForeignKey(
+        OpportunityScope,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="matching_suggestions",
+    )
+    outcome = models.CharField(max_length=20, choices=Outcome.choices)
+    confidence = models.CharField(max_length=10, choices=Confidence.choices)
+    score = models.PositiveSmallIntegerField()
+    supporting_factors = models.JSONField(default=list)
+    conflicting_factors = models.JSONField(default=list)
+    rule_version = models.CharField(max_length=40, default="matching-v1")
+    is_current = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["registration"],
+                condition=models.Q(is_current=True),
+                name="one_current_matching_suggestion",
+            )
+        ]
+
+
+class RegistrationReviewDecision(models.Model):
+    class Decision(models.TextChoices):
+        START_REVIEW = "start_review", "Start review"
+        REQUEST_CHANGES = "request_changes", "Request changes"
+        CONFIRM_MATCH = "confirm_match", "Confirm eligible match"
+        REJECT = "reject", "Reject"
+
+    registration = models.ForeignKey(
+        Registration, on_delete=models.PROTECT, related_name="review_decisions"
+    )
+    suggestion = models.ForeignKey(
+        MatchingSuggestion,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="decisions",
+    )
+    opportunity_scope = models.ForeignKey(
+        OpportunityScope,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="review_decisions",
+    )
+    decision = models.CharField(max_length=30, choices=Decision.choices)
+    rationale = models.TextField()
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name="review_decisions")
+    registration_version = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
 
 
 class CompetitorItem(models.Model):

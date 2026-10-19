@@ -1,5 +1,6 @@
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EditIcon from "@mui/icons-material/Edit";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
   Alert,
   Box,
@@ -9,13 +10,20 @@ import {
   CircularProgress,
   Container,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   Grid,
   IconButton,
   Link,
   List,
   ListItem,
   ListItemText,
+  MenuItem,
   Paper,
+  Checkbox,
   Snackbar,
   Stack,
   Table,
@@ -24,12 +32,21 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { getRegistration, type RegistrationDetail } from "../api";
+import {
+  getOpportunityScopes,
+  getRegistration,
+  refreshMatchingSuggestion,
+  reviewRegistration,
+  type OpportunityScope,
+  type RegistrationDetail,
+} from "../api";
+import { useSession } from "../session";
 
 const moneyCell = {
   textAlign: "right" as const,
@@ -54,6 +71,7 @@ function Detail({
 }
 
 export default function RegistrationDetailPage() {
+  const session = useSession();
   const { id } = useParams();
   const navigate = useNavigate();
   const [registration, setRegistration] = useState<RegistrationDetail | null>(
@@ -61,16 +79,63 @@ export default function RegistrationDetailPage() {
   );
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [scopes, setScopes] = useState<OpportunityScope[]>([]);
+  const [scopeId, setScopeId] = useState("");
+  const [createNewOpportunity, setCreateNewOpportunity] = useState(false);
+  const [rationale, setRationale] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const [explanationOpen, setExplanationOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     getRegistration(Number(id), controller.signal)
-      .then(setRegistration)
+      .then((result) => {
+        setRegistration(result);
+        if (result.matching_suggestion?.candidate_scope_id)
+          setScopeId(String(result.matching_suggestion.candidate_scope_id));
+      })
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       });
     return () => controller.abort();
   }, [id]);
+
+  useEffect(() => {
+    if (!session.is_dbgi_admin) return;
+    const controller = new AbortController();
+    getOpportunityScopes(controller.signal).then(setScopes).catch(() => undefined);
+    return () => controller.abort();
+  }, [session.is_dbgi_admin]);
+
+  const submitReview = async (
+    decision: "start_review" | "request_changes" | "confirm_match" | "reject",
+  ) => {
+    if (!registration || rationale.trim().length < 5) {
+      setError("Enter a review reason of at least five characters.");
+      return;
+    }
+    setReviewing(true);
+    setError("");
+    try {
+      const updated = await reviewRegistration(
+        registration.id,
+        {
+          version: registration.version,
+          decision,
+          rationale: rationale.trim(),
+          opportunity_scope_id: scopeId ? Number(scopeId) : null,
+          create_new_opportunity: createNewOpportunity,
+        },
+        session.csrf_token,
+      );
+      setRegistration(updated);
+      setRationale("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The review action failed.");
+    } finally {
+      setReviewing(false);
+    }
+  };
 
   if (error)
     return (
@@ -132,6 +197,151 @@ export default function RegistrationDetailPage() {
           </Button>
         )}
       </Stack>
+
+      {session.is_dbgi_admin && (
+        <Paper sx={{ mb: 3, p: 3 }}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            justifyContent="space-between"
+          >
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="h2">DBGI review</Typography>
+                <IconButton
+                  aria-label="Explain matching suggestion"
+                  onClick={() => setExplanationOpen(true)}
+                >
+                  <InfoOutlinedIcon />
+                </IconButton>
+              </Stack>
+              {registration.matching_suggestion ? (
+                <>
+                  <Typography>
+                    Suggested action: {registration.matching_suggestion.outcome_label}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={`${registration.matching_suggestion.confidence_label} confidence | ${registration.matching_suggestion.score}%`}
+                    color={
+                      registration.matching_suggestion.confidence === "high"
+                        ? "success"
+                        : "default"
+                    }
+                    sx={{ mt: 1 }}
+                  />
+                  {registration.matching_suggestion.candidate_scope_label && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Candidate: {registration.matching_suggestion.candidate_scope_label}
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <Typography color="text.secondary">
+                  No matching suggestion is available.
+                </Typography>
+              )}
+            </Box>
+            <Button
+              variant="outlined"
+              disabled={reviewing}
+              onClick={async () => {
+                if (!registration) return;
+                const suggestion = await refreshMatchingSuggestion(
+                  registration.id,
+                  session.csrf_token,
+                );
+                setRegistration({ ...registration, matching_suggestion: suggestion });
+                if (suggestion.candidate_scope_id)
+                  setScopeId(String(suggestion.candidate_scope_id));
+              }}
+            >
+              Refresh suggestion
+            </Button>
+          </Stack>
+
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid size={{ xs: 12, md: 7 }}>
+              <TextField
+                fullWidth
+                multiline
+                required
+                minRows={2}
+                label="Decision reason"
+                value={rationale}
+                onChange={(event) => setRationale(event.target.value)}
+                helperText="Required for the audit history."
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 5 }}>
+              <TextField
+                select
+                fullWidth
+                label="Opportunity scope"
+                value={scopeId}
+                disabled={createNewOpportunity}
+                onChange={(event) => setScopeId(event.target.value)}
+              >
+                <MenuItem value="">Choose a scope</MenuItem>
+                {scopes.map((scope) => (
+                  <MenuItem key={scope.id} value={scope.id}>
+                    {scope.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={createNewOpportunity}
+                    onChange={(event) => setCreateNewOpportunity(event.target.checked)}
+                  />
+                }
+                label="Create a new whole opportunity from this registration"
+              />
+            </Grid>
+          </Grid>
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2 }}>
+            {["submitted", "resubmitted", "review_required"].includes(
+              registration.status,
+            ) && (
+              <Button
+                variant="contained"
+                disabled={reviewing}
+                onClick={() => submitReview("start_review")}
+              >
+                Start review
+              </Button>
+            )}
+            {registration.status === "under_review" && (
+              <>
+                <Button
+                  variant="contained"
+                  disabled={
+                    reviewing || (!createNewOpportunity && scopeId === "")
+                  }
+                  onClick={() => submitReview("confirm_match")}
+                >
+                  Confirm eligible match
+                </Button>
+                <Button
+                  variant="outlined"
+                  disabled={reviewing}
+                  onClick={() => submitReview("request_changes")}
+                >
+                  Request changes
+                </Button>
+                <Button
+                  color="error"
+                  disabled={reviewing}
+                  onClick={() => submitReview("reject")}
+                >
+                  Reject
+                </Button>
+              </>
+            )}
+          </Stack>
+        </Paper>
+      )}
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 7 }}>
@@ -305,6 +515,38 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
+      <Dialog open={explanationOpen} onClose={() => setExplanationOpen(false)}>
+        <DialogTitle>Why this match was suggested</DialogTitle>
+        <DialogContent>
+          <Typography paragraph>
+            The application compares end-user names, addresses, and catalog product
+            overlap. It provides guidance only. A DBGI administrator must confirm every
+            matching decision.
+          </Typography>
+          <Typography variant="h3">Supporting factors</Typography>
+          <List dense>
+            {(registration.matching_suggestion?.supporting_factors ?? []).map(
+              (factor) => (
+                <ListItem key={factor}>{factor}</ListItem>
+              ),
+            )}
+          </List>
+          <Typography variant="h3">Conflicting factors</Typography>
+          <List dense>
+            {(registration.matching_suggestion?.conflicting_factors ?? []).map(
+              (factor) => (
+                <ListItem key={factor}>{factor}</ListItem>
+              ),
+            )}
+          </List>
+          <Typography variant="caption" color="text.secondary">
+            Rule version: {registration.matching_suggestion?.rule_version ?? "Not available"}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExplanationOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

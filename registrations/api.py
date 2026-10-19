@@ -15,13 +15,17 @@ from ninja.errors import ValidationError as NinjaValidationError
 from ninja.security import django_auth
 
 from .audit import registration_snapshot
+from .matching import generate_matching_suggestion
 from .models import (
     CompetitorItem,
+    Opportunity,
+    OpportunityScope,
     Product,
     Registration,
     RegistrationAttachment,
     RegistrationEvent,
     RegistrationItem,
+    RegistrationReviewDecision,
 )
 
 api = NinjaAPI(
@@ -127,6 +131,21 @@ class EventOutput(Schema):
     created_at: datetime
 
 
+class MatchingSuggestionOutput(Schema):
+    id: int
+    outcome: str
+    outcome_label: str
+    confidence: str
+    confidence_label: str
+    score: int
+    supporting_factors: list[str]
+    conflicting_factors: list[str]
+    rule_version: str
+    candidate_scope_id: int | None
+    candidate_scope_label: str | None
+    created_at: datetime
+
+
 class RegistrationDetail(RegistrationListItem):
     end_user_address: str
     bid_date: date
@@ -143,6 +162,9 @@ class RegistrationDetail(RegistrationListItem):
     items: list[RegistrationItemOutput]
     attachments: list[AttachmentOutput]
     events: list[EventOutput]
+    opportunity_scope_id: int | None
+    opportunity_scope_label: str | None
+    matching_suggestion: MatchingSuggestionOutput | None
 
 
 class ProductOption(Schema):
@@ -157,6 +179,23 @@ class SessionResponse(Schema):
     display_name: str
     is_dbgi_admin: bool
     csrf_token: str
+
+
+class ReviewDecisionInput(Schema):
+    version: int
+    decision: Literal["start_review", "request_changes", "confirm_match", "reject"]
+    rationale: str = Field(min_length=5, max_length=2000)
+    opportunity_scope_id: int | None = None
+    create_new_opportunity: bool = False
+
+
+class OpportunityScopeOutput(Schema):
+    id: int
+    opportunity_id: int
+    opportunity_title: str
+    name: str
+    scope_type: str
+    label: str
 
 
 @api.exception_handler(AuthenticationError)
@@ -297,9 +336,47 @@ def _serialize_registration_detail(registration, user):
                 }
                 for event in registration.events.select_related("actor").all()
             ],
+            "opportunity_scope_id": registration.opportunity_scope_id,
+            "opportunity_scope_label": (
+                str(registration.opportunity_scope) if registration.opportunity_scope_id else None
+            ),
+            "matching_suggestion": (
+                _serialize_matching_suggestion(
+                    registration.matching_suggestions.filter(is_current=True)
+                    .select_related("candidate_scope__opportunity")
+                    .first()
+                )
+                if user.is_dbgi_admin
+                else None
+            ),
         }
     )
     return detail
+
+
+def _serialize_matching_suggestion(suggestion):
+    if not suggestion:
+        return None
+    return {
+        "id": suggestion.pk,
+        "outcome": suggestion.outcome,
+        "outcome_label": suggestion.get_outcome_display(),
+        "confidence": suggestion.confidence,
+        "confidence_label": suggestion.get_confidence_display(),
+        "score": suggestion.score,
+        "supporting_factors": suggestion.supporting_factors,
+        "conflicting_factors": suggestion.conflicting_factors,
+        "rule_version": suggestion.rule_version,
+        "candidate_scope_id": suggestion.candidate_scope_id,
+        "candidate_scope_label": (
+            str(suggestion.candidate_scope) if suggestion.candidate_scope_id else None
+        ),
+        "created_at": suggestion.created_at,
+    }
+
+
+def _require_admin(request):
+    return request.user.is_dbgi_admin
 
 
 @api.get(
@@ -486,6 +563,7 @@ def create_registration(request, payload: RegistrationInput):
             details="Registration submitted.",
             snapshot=registration_snapshot(registration),
         )
+        generate_matching_suggestion(registration)
     return Status(201, _serialize_registration(registration))
 
 
@@ -543,6 +621,10 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
             setattr(registration, name, value)
         registration.version += 1
         registration.needs_review = True
+        if registration.status == Registration.Status.CHANGES_REQUESTED:
+            registration.status = Registration.Status.RESUBMITTED
+        elif registration.status == Registration.Status.ELIGIBLE_MATCHED:
+            registration.status = Registration.Status.REVIEW_REQUIRED
         registration.save()
         if not _save_children(registration, payload):
             transaction.set_rollback(True)
@@ -560,7 +642,170 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
             details="Company updated the registration; DBGI review is required.",
             snapshot=prior_snapshot,
         )
+        generate_matching_suggestion(registration)
     return _serialize_registration(registration)
+
+
+@api.get(
+    "/review/opportunity-scopes",
+    auth=django_auth,
+    response={200: list[OpportunityScopeOutput], 403: ErrorResponse},
+)
+def list_opportunity_scopes(request):
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    scopes = OpportunityScope.objects.filter(
+        is_active=True, opportunity__is_active=True
+    ).select_related("opportunity")
+    return [
+        {
+            "id": scope.pk,
+            "opportunity_id": scope.opportunity_id,
+            "opportunity_title": scope.opportunity.title,
+            "name": scope.name,
+            "scope_type": scope.scope_type,
+            "label": str(scope),
+        }
+        for scope in scopes
+    ]
+
+
+@api.post(
+    "/review/registrations/{registration_id}/suggestion",
+    auth=django_auth,
+    response={200: MatchingSuggestionOutput, 403: ErrorResponse, 404: ErrorResponse},
+)
+def refresh_matching_suggestion(request, registration_id: int):
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    registration = get_object_or_404(
+        Registration.objects.prefetch_related("items"), pk=registration_id
+    )
+    return _serialize_matching_suggestion(generate_matching_suggestion(registration))
+
+
+@api.post(
+    "/review/registrations/{registration_id}/decision",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def review_registration(request, registration_id: int, payload: ReviewDecisionInput):
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    transitions = {
+        RegistrationReviewDecision.Decision.START_REVIEW: {
+            Registration.Status.SUBMITTED,
+            Registration.Status.RESUBMITTED,
+            Registration.Status.REVIEW_REQUIRED,
+        },
+        RegistrationReviewDecision.Decision.REQUEST_CHANGES: {Registration.Status.UNDER_REVIEW},
+        RegistrationReviewDecision.Decision.CONFIRM_MATCH: {Registration.Status.UNDER_REVIEW},
+        RegistrationReviewDecision.Decision.REJECT: {Registration.Status.UNDER_REVIEW},
+    }
+    target_status = {
+        RegistrationReviewDecision.Decision.START_REVIEW: Registration.Status.UNDER_REVIEW,
+        RegistrationReviewDecision.Decision.REQUEST_CHANGES: Registration.Status.CHANGES_REQUESTED,
+        RegistrationReviewDecision.Decision.CONFIRM_MATCH: Registration.Status.ELIGIBLE_MATCHED,
+        RegistrationReviewDecision.Decision.REJECT: Registration.Status.REJECTED,
+    }[payload.decision]
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update().select_related("company", "opportunity_scope"),
+            pk=registration_id,
+        )
+        if registration.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This registration changed. Refresh before deciding.",
+                },
+            )
+        if registration.status not in transitions[payload.decision]:
+            return Status(
+                400,
+                {
+                    "code": "invalid_transition",
+                    "message": "That review action is not available from the current status.",
+                },
+            )
+
+        scope = None
+        if payload.decision == RegistrationReviewDecision.Decision.CONFIRM_MATCH:
+            if payload.create_new_opportunity:
+                opportunity = Opportunity.objects.create(
+                    title=registration.project_title,
+                    end_user_name=registration.end_user_name,
+                    end_user_address=registration.end_user_address,
+                    created_by=request.user,
+                )
+                scope = OpportunityScope.objects.create(
+                    opportunity=opportunity,
+                    name="Whole opportunity",
+                    scope_type=OpportunityScope.ScopeType.WHOLE,
+                )
+            elif payload.opportunity_scope_id:
+                scope = get_object_or_404(
+                    OpportunityScope,
+                    pk=payload.opportunity_scope_id,
+                    is_active=True,
+                    opportunity__is_active=True,
+                )
+            else:
+                return Status(
+                    400,
+                    {
+                        "code": "scope_required",
+                        "message": "Choose an opportunity scope or create a new opportunity.",
+                    },
+                )
+
+        prior_snapshot = registration_snapshot(registration)
+        suggestion = registration.matching_suggestions.filter(is_current=True).first()
+        registration.status = target_status
+        registration.needs_review = target_status in {
+            Registration.Status.CHANGES_REQUESTED,
+            Registration.Status.REVIEW_REQUIRED,
+        }
+        if scope:
+            registration.opportunity_scope = scope
+        registration.version += 1
+        registration.save()
+        decision = RegistrationReviewDecision.objects.create(
+            registration=registration,
+            suggestion=suggestion,
+            opportunity_scope=scope,
+            decision=payload.decision,
+            rationale=payload.rationale.strip(),
+            actor=request.user,
+            registration_version=registration.version,
+        )
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type=decision.get_decision_display(),
+            details=decision.rationale,
+            snapshot=prior_snapshot,
+        )
+    registration = (
+        _registration_queryset(request.user)
+        .prefetch_related("competitor_items", "items__product", "attachments", "events__actor")
+        .select_related("opportunity_scope__opportunity")
+        .get(pk=registration_id)
+    )
+    return _serialize_registration_detail(registration, request.user)
 
 
 @api.post(

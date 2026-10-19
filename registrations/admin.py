@@ -9,11 +9,15 @@ from .audit import registration_snapshot
 from .models import (
     Company,
     CompetitorItem,
+    MatchingSuggestion,
+    Opportunity,
+    OpportunityScope,
     Product,
     Registration,
     RegistrationAttachment,
     RegistrationEvent,
     RegistrationItem,
+    RegistrationReviewDecision,
     User,
 )
 
@@ -48,6 +52,25 @@ class ProductAdmin(ModelAdmin):
     list_display = ("code", "name", "category", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
+
+
+class OpportunityScopeInline(TabularInline):
+    model = OpportunityScope
+    extra = 0
+
+
+@admin.register(Opportunity)
+class OpportunityAdmin(ModelAdmin):
+    list_display = ("title", "end_user_name", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("title", "end_user_name", "end_user_address")
+    readonly_fields = ("created_by", "created_at")
+    inlines = (OpportunityScopeInline,)
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 class CompetitorItemInline(TabularInline):
@@ -92,7 +115,13 @@ class RegistrationAdmin(ModelAdmin):
     )
     list_filter = ("status", "needs_review", "company")
     search_fields = ("project_title", "end_user_name", "company__name")
-    readonly_fields = ("company", "submitted_by", "created_at", "updated_at")
+    readonly_fields = (
+        "company",
+        "submitted_by",
+        "original_submitted_at",
+        "created_at",
+        "updated_at",
+    )
     inlines = (
         CompetitorItemInline,
         RegistrationItemInline,
@@ -132,6 +161,58 @@ class RegistrationEventAdmin(ModelAdmin):
     list_filter = ("event_type", "created_at")
     search_fields = ("registration__project_title", "details")
     readonly_fields = ("registration", "actor", "event_type", "details", "snapshot", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MatchingSuggestion)
+class MatchingSuggestionAdmin(ModelAdmin):
+    list_display = ("registration", "outcome", "confidence", "score", "rule_version", "created_at")
+    list_filter = ("outcome", "confidence", "rule_version", "is_current")
+    readonly_fields = (
+        "registration",
+        "candidate_scope",
+        "outcome",
+        "confidence",
+        "score",
+        "supporting_factors",
+        "conflicting_factors",
+        "rule_version",
+        "is_current",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RegistrationReviewDecision)
+class RegistrationReviewDecisionAdmin(ModelAdmin):
+    list_display = ("registration", "decision", "actor", "created_at")
+    list_filter = ("decision", "created_at")
+    readonly_fields = (
+        "registration",
+        "suggestion",
+        "opportunity_scope",
+        "decision",
+        "rationale",
+        "actor",
+        "registration_version",
+        "created_at",
+    )
 
     def has_add_permission(self, request):
         return False

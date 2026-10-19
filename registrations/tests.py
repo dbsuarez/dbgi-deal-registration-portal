@@ -13,11 +13,13 @@ from django.urls import reverse
 from .models import (
     Company,
     CompetitorItem,
+    Opportunity,
     Product,
     Registration,
     RegistrationAttachment,
     RegistrationEvent,
     RegistrationItem,
+    RegistrationReviewDecision,
     User,
 )
 
@@ -246,6 +248,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(registration.competitor_items.count(), 1)
         self.assertEqual(registration.items.count(), 1)
         self.assertEqual(registration.events.get().event_type, "Submitted")
+        self.assertEqual(registration.matching_suggestions.filter(is_current=True).count(), 1)
 
     def test_create_rejects_missing_children_and_evidence_confirmation(self):
         self.client.force_login(self.user_a)
@@ -291,6 +294,96 @@ class RegistrationApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["code"], "edit_conflict")
+
+    def test_company_user_cannot_use_review_endpoints(self):
+        self.client.force_login(self.user_a)
+
+        scopes = self.client.get("/api/v1/review/opportunity-scopes")
+        decision = self.client.post(
+            f"/api/v1/review/registrations/{self.registration_a.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": self.registration_a.version,
+                    "decision": "start_review",
+                    "rationale": "Reviewing the submitted evidence.",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(scopes.status_code, 403)
+        self.assertEqual(decision.status_code, 403)
+
+    def test_admin_review_lifecycle_creates_opportunity_and_audit_decisions(self):
+        self.client.force_login(self.admin)
+
+        started = self.client.post(
+            f"/api/v1/review/registrations/{self.registration_a.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": self.registration_a.version,
+                    "decision": "start_review",
+                    "rationale": "Evidence review has started.",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(started.status_code, 200, started.content)
+        self.assertEqual(started.json()["status"], Registration.Status.UNDER_REVIEW)
+
+        confirmed = self.client.post(
+            f"/api/v1/review/registrations/{self.registration_a.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": started.json()["version"],
+                    "decision": "confirm_match",
+                    "rationale": "Specific evidence supports a distinct whole opportunity.",
+                    "create_new_opportunity": True,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(confirmed.status_code, 200, confirmed.content)
+        self.registration_a.refresh_from_db()
+        self.assertEqual(self.registration_a.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertIsNotNone(self.registration_a.opportunity_scope_id)
+        self.assertEqual(Opportunity.objects.count(), 1)
+        self.assertEqual(
+            RegistrationReviewDecision.objects.filter(registration=self.registration_a).count(),
+            2,
+        )
+
+    def test_admin_review_rejects_stale_version_and_invalid_transition(self):
+        self.client.force_login(self.admin)
+        url = f"/api/v1/review/registrations/{self.registration_a.pk}/decision"
+
+        stale = self.client.post(
+            url,
+            data=json.dumps(
+                {
+                    "version": 999,
+                    "decision": "start_review",
+                    "rationale": "This version is stale.",
+                }
+            ),
+            content_type="application/json",
+        )
+        invalid = self.client.post(
+            url,
+            data=json.dumps(
+                {
+                    "version": self.registration_a.version,
+                    "decision": "confirm_match",
+                    "rationale": "Cannot confirm before review starts.",
+                    "create_new_opportunity": True,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(invalid.status_code, 400)
 
     def test_initial_products_are_seeded_without_prices(self):
         printers = Product.objects.filter(code__in=("M1820W", "P1820W"))

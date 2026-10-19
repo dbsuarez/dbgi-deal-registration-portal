@@ -74,6 +74,30 @@ export type RegistrationEvent = {
   created_at: string;
 };
 
+export type MatchingSuggestion = {
+  id: number;
+  outcome: string;
+  outcome_label: string;
+  confidence: string;
+  confidence_label: string;
+  score: number;
+  supporting_factors: string[];
+  conflicting_factors: string[];
+  rule_version: string;
+  candidate_scope_id: number | null;
+  candidate_scope_label: string | null;
+  created_at: string;
+};
+
+export type OpportunityScope = {
+  id: number;
+  opportunity_id: number;
+  opportunity_title: string;
+  name: string;
+  scope_type: string;
+  label: string;
+};
+
 export type RegistrationDetail = RegistrationListItem & {
   end_user_address: string;
   bid_date: string;
@@ -90,6 +114,9 @@ export type RegistrationDetail = RegistrationListItem & {
   items: RequestedItem[];
   attachments: Attachment[];
   events: RegistrationEvent[];
+  opportunity_scope_id: number | null;
+  opportunity_scope_label: string | null;
+  matching_suggestion: MatchingSuggestion | null;
 };
 
 export type RegistrationPayload = {
@@ -248,4 +275,46 @@ export function uploadAttachment(
 
 export function deleteAttachment(id: number, csrfToken: string) {
   return mutation<void>(`/api/v1/attachments/${id}`, "DELETE", csrfToken);
+}
+
+export function getOpportunityScopes(signal?: AbortSignal) {
+  return request<OpportunityScope[]>(
+    "/api/v1/review/opportunity-scopes",
+    signal,
+  );
+}
+
+export function refreshMatchingSuggestion(
+  registrationId: number,
+  csrfToken: string,
+) {
+  return mutation<MatchingSuggestion>(
+    `/api/v1/review/registrations/${registrationId}/suggestion`,
+    "POST",
+    csrfToken,
+  );
+}
+
+export function reviewRegistration(
+  registrationId: number,
+  payload: {
+    version: number;
+    decision:
+      | "start_review"
+      | "request_changes"
+      | "confirm_match"
+      | "reject";
+    rationale: string;
+    opportunity_scope_id?: number | null;
+    create_new_opportunity?: boolean;
+  },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/review/registrations/${registrationId}/decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
 }
