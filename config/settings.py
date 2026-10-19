@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "registrations.apps.RegistrationsConfig",
+    "devtools.apps.DevtoolsConfig",
 ]
 
 MIDDLEWARE = [

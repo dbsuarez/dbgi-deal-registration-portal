@@ -1,9 +1,12 @@
 import json
+from io import StringIO
 from datetime import date
 from tempfile import TemporaryDirectory
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
@@ -143,6 +146,23 @@ class RegistrationApiTests(TestCase):
             ).status_code,
             404,
         )
+
+    @override_settings(DEBUG=True)
+    def test_development_account_command_sets_known_local_passwords(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+
+        preview = User.objects.get(username="preview")
+        admin = User.objects.get(username="admin-preview")
+        self.assertTrue(preview.check_password("testpass123"))
+        self.assertEqual(preview.role, User.Role.COMPANY)
+        self.assertIsNotNone(preview.company_id)
+        self.assertTrue(admin.check_password("testpass123"))
+        self.assertTrue(admin.is_dbgi_admin)
+
+    @override_settings(DEBUG=False)
+    def test_development_account_command_is_blocked_in_production(self):
+        with self.assertRaises(CommandError):
+            call_command("seed_development_accounts", stdout=StringIO())
 
     def test_list_and_detail_are_company_scoped(self):
         self.client.force_login(self.user_a)

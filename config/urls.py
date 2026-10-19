@@ -22,7 +22,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 
 from registrations.api import api
-from registrations.views import DevelopmentLoginView, development_login
+from devtools.views import DevelopmentLoginView, development_login
 
 
 def health_check(request):

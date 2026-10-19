@@ -11,7 +11,7 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py seed_development_accounts
 python manage.py runserver
 ```
 
@@ -25,7 +25,9 @@ npm run dev
 
 Open `http://127.0.0.1:5173/`. The React development server proxies API, authentication, admin, and attachment routes to Django on port 8000. API documentation is available to authorized developers at `/api/v1/docs` through Django.
 
-Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Create a company in Django admin, then add company users and assign each to its company. No partner accounts or prices are seeded.
+The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`.
+
+Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Production partner and administrator accounts are never seeded automatically.
 
 ## Run with Docker
 
