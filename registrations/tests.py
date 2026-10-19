@@ -166,6 +166,24 @@ class RegistrationApiTests(TestCase):
         with self.assertRaises(CommandError):
             call_command("seed_development_accounts", stdout=StringIO())
 
+    @override_settings(DEBUG=True)
+    def test_sample_matching_scenario_is_reproducible(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+
+        it_user = User.objects.get(username="deals@itavenue.ph")
+        lexmark_user = User.objects.get(username="deals@lexmark.com")
+        first = Registration.objects.get(company=it_user.company)
+        second = Registration.objects.get(company=lexmark_user.company)
+        suggestion = second.matching_suggestions.get(is_current=True)
+        self.assertLess(first.original_submitted_at, second.original_submitted_at)
+        self.assertEqual(first.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertIsNotNone(first.opportunity_scope_id)
+        self.assertEqual(suggestion.outcome, "same_scope")
+        self.assertEqual(suggestion.confidence, "high")
+        self.assertEqual(suggestion.candidate_scope_id, first.opportunity_scope_id)
+
     def test_list_and_detail_are_company_scoped(self):
         self.client.force_login(self.user_a)
         response = self.client.get("/api/v1/registrations?page=1&page_size=10")
