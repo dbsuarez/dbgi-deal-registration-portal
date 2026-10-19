@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from .models import (
@@ -152,6 +152,19 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 204)
         self.assertNotIn("_auth_user_id", self.client.session)
         self.assertEqual(self.client.get("/api/v1/session").status_code, 401)
+
+    def test_logout_accepts_local_react_development_origin(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user_a)
+        csrf_token = client.get("/api/v1/session").json()["csrf_token"]
+
+        response = client.post(
+            "/api/v1/session/logout",
+            HTTP_ORIGIN="http://127.0.0.1:5173",
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+
+        self.assertEqual(response.status_code, 204)
 
     def test_create_registration_saves_scope_children_and_audit(self):
         self.client.force_login(self.user_a)

@@ -45,6 +45,12 @@ CSRF_TRUSTED_ORIGINS = [
     for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend(
+        origin
+        for origin in ("http://127.0.0.1:5173", "http://localhost:5173")
+        if origin not in CSRF_TRUSTED_ORIGINS
+    )
 
 
 # Application definition
