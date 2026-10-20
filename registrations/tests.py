@@ -18,6 +18,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from .admin import RegistrationAdmin
+from .audit import registration_change_summary
 from .matching import generate_matching_suggestion
 from .models import (
     Company,
@@ -1191,6 +1192,29 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(obj.version, self.registration_a.version + 1)
         self.assertEqual(
             request.registration_prior_snapshot["project_title"], self.registration_a.project_title
+        )
+
+    def test_change_summary_names_fields_and_collections(self):
+        changes = registration_change_summary(
+            {
+                "project_title": "Original title",
+                "status": "submitted",
+                "items": [{"quantity": 1}],
+            },
+            {
+                "project_title": "Revised title",
+                "status": "under_review",
+                "items": [{"quantity": 2}],
+            },
+        )
+
+        self.assertEqual(
+            changes,
+            [
+                "Project title: Original title to Revised title",
+                "Registration status: submitted to under review",
+                "Requested products: updated",
+            ],
         )
 
     def test_admin_inline_edit_records_before_and_resulting_snapshots(self):

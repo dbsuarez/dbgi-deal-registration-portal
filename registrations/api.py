@@ -16,7 +16,7 @@ from ninja.errors import AuthenticationError
 from ninja.errors import ValidationError as NinjaValidationError
 from ninja.security import django_auth
 
-from .audit import registration_snapshot
+from .audit import registration_change_summary, registration_snapshot
 from .matching import generate_matching_suggestion
 from .models import (
     CompetitorBrand,
@@ -191,6 +191,7 @@ class EventOutput(Schema):
     details: str
     actor_name: str
     created_at: datetime
+    changes: list[str]
 
 
 class MatchingSuggestionOutput(Schema):
@@ -486,6 +487,9 @@ def _serialize_registration_detail(registration, user):
                         else "System"
                     ),
                     "created_at": event.created_at,
+                    "changes": registration_change_summary(
+                        event.snapshot, event.resulting_snapshot
+                    ),
                 }
                 for event in registration.events.select_related("actor").all()
             ],
@@ -1020,6 +1024,7 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
             event_type="Company edit",
             details="Company updated the registration; DBGI review is required.",
             snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
         )
         generate_matching_suggestion(registration)
     return _serialize_registration(registration)
@@ -1286,6 +1291,7 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
             event_type=decision.get_decision_display(),
             details=decision.rationale,
             snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
         )
     registration = (
         _registration_queryset(request.user)

@@ -42,3 +42,50 @@ def registration_snapshot(registration):
             for item in registration.attachments.all()
         ],
     }
+
+
+CHANGE_LABELS = {
+    "end_user_name": "End-user",
+    "end_user_address": "End-user address",
+    "project_title": "Project title",
+    "bid_date": "Bid date",
+    "delivery_date": "Delivery date",
+    "contact_person": "Contact person",
+    "contact_designation": "Contact designation",
+    "contact_email": "Contact email",
+    "contact_number": "Contact number",
+    "evidence_description": "Evidence description",
+    "evidence_url": "Evidence URL",
+    "evidence_sharing_confirmed": "Evidence sharing confirmation",
+    "status": "Registration status",
+    "project_status": "Project status",
+    "price_status": "Commercial status",
+    "version": "Version",
+}
+
+
+def registration_change_summary(before, after):
+    if not before or not after:
+        return []
+    changes = []
+    for field, label in CHANGE_LABELS.items():
+        if before.get(field) != after.get(field):
+            old_value = before.get(field)
+            new_value = after.get(field)
+            changes.append(f"{label}: {_display_value(old_value)} to {_display_value(new_value)}")
+    for field, label in (
+        ("competitor_items", "Competitor items"),
+        ("items", "Requested products"),
+        ("attachments", "Attachments"),
+    ):
+        if before.get(field) != after.get(field):
+            changes.append(f"{label}: updated")
+    return changes
+
+
+def _display_value(value):
+    if value in (None, ""):
+        return "Not set"
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    return str(value).replace("_", " ")

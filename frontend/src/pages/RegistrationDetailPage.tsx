@@ -630,7 +630,7 @@ export default function RegistrationDetailPage() {
             <ListItem key={event.id} divider>
               <ListItemText
                 primary={event.event_type}
-                secondary={`${event.actor_name} | ${new Date(event.created_at).toLocaleString("sv-SE", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} | ${event.details}`}
+                secondary={`${event.actor_name} | ${new Date(event.created_at).toLocaleString("sv-SE", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} | ${event.details}${event.changes?.length ? ` | Changes: ${event.changes.join("; ")}` : ""}`}
               />
             </ListItem>
           ))}

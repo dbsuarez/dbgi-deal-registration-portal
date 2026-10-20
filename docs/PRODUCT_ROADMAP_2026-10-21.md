@@ -106,7 +106,7 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 1. Add company withdrawal requests with reason and DBGI confirmation.
 2. Add administrator merge and split workflows with impact previews and mandatory rationale.
 3. Recalculate or preserve affected ranks according to the approved policy.
-4. Add field-level change summaries for material edits and administrator decisions.
+4. [x] Add field-level change summaries for material edits and administrator decisions.
 5. Improve the DBGI review queue with saved filters for matching, edited records, withdrawals, and merge or split review.
 6. Add contextual help that clearly distinguishes project, registration, ranking, and pricing states.
 7. Add configurable advance-registration expiry, reminders, clarification holds, and reasoned pre-expiry extensions.

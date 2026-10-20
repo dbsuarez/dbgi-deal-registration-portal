@@ -114,6 +114,7 @@ export type RegistrationEvent = {
   details: string;
   actor_name: string;
   created_at: string;
+  changes: string[];
 };
 
 export type MatchingSuggestion = {
