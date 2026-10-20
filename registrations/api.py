@@ -85,6 +85,11 @@ class RegistrationUpdate(RegistrationInput):
     version: int
 
 
+class RegistrationFinalize(Schema):
+    version: int
+    evidence_changed: bool = False
+
+
 class RegistrationListItem(Schema):
     id: int
     reference: str
@@ -1082,7 +1087,6 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
 
 
 def _attachment_edit_guard(registration, version):
-    """Shared gate for evidence changes, evaluated under a row lock."""
     if registration.status in Registration.EVIDENCE_LOCKED_STATUSES:
         return Status(
             409,
@@ -1103,6 +1107,56 @@ def _attachment_edit_guard(registration, version):
             },
         )
     return None
+
+
+@api.post(
+    "/registrations/{registration_id}/finalize",
+    auth=django_auth,
+    response={
+        200: RegistrationListItem,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def finalize_registration(request, registration_id: int, payload: RegistrationFinalize):
+    """Commit a saved registration once its evidence transfers have finished.
+
+    The company form saves fields first and moves files afterwards, so the
+    version it holds is only final after this call. Bumping it here keeps a
+    half-finished submit from looking complete to another editor.
+    """
+    company_id = _company_id(request.user)
+    if company_id in (None, False):
+        return Status(
+            403,
+            {"code": "company_access_required", "message": "A company account is required."},
+        )
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update(),
+            pk=registration_id,
+            company_id=company_id,
+        )
+        guard = _attachment_edit_guard(registration, payload.version)
+        if guard:
+            return guard
+        prior_snapshot = registration_snapshot(registration)
+        registration.version += 1
+        if payload.evidence_changed:
+            registration.needs_review = True
+        registration.save(update_fields=["version", "needs_review", "updated_at"])
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Evidence submitted",
+            details=(
+                "Company finished submitting the registration and its evidence set. "
+                f"Version is now {registration.version}."
+            ),
+            snapshot=prior_snapshot,
+        )
+    return _serialize_registration(registration)
 
 
 @api.post(

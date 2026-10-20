@@ -42,6 +42,7 @@ import {
   createRegistration,
   createEndUser,
   deleteAttachment,
+  finalizeRegistration,
   getEndUsers,
   getProducts,
   getRegistration,
@@ -324,11 +325,22 @@ export default function RegistrationFormPage() {
           saved.id,
           attachment.file,
           attachment.description,
+          saved.version,
           session.csrf_token,
         );
       }
       for (const attachmentId of attachmentIdsToDelete) {
-        await deleteAttachment(attachmentId, session.csrf_token);
+        await deleteAttachment(attachmentId, saved.version, session.csrf_token);
+      }
+      const evidenceChanged =
+        pendingAttachments.length > 0 || attachmentIdsToDelete.length > 0;
+      if (evidenceChanged) {
+        await finalizeRegistration(
+          saved.id,
+          saved.version,
+          evidenceChanged,
+          session.csrf_token,
+        );
       }
       setDirty(false);
       navigate(`/registrations/${saved.id}/`, { replace: true });

@@ -331,11 +331,15 @@ export function uploadAttachment(
   registrationId: number,
   file: File,
   description: string,
+  version: number,
   csrfToken: string,
 ) {
   const data = new FormData();
   data.append("file", file);
-  const params = new URLSearchParams({ description });
+  const params = new URLSearchParams({
+    description,
+    version: String(version),
+  });
   return mutation<Attachment>(
     `/api/v1/registrations/${registrationId}/attachments?${params}`,
     "POST",
@@ -344,8 +348,32 @@ export function uploadAttachment(
   );
 }
 
-export function deleteAttachment(id: number, csrfToken: string) {
-  return mutation<void>(`/api/v1/attachments/${id}`, "DELETE", csrfToken);
+export function deleteAttachment(
+  id: number,
+  version: number,
+  csrfToken: string,
+) {
+  const params = new URLSearchParams({ version: String(version) });
+  return mutation<void>(
+    `/api/v1/attachments/${id}?${params}`,
+    "DELETE",
+    csrfToken,
+  );
+}
+
+export function finalizeRegistration(
+  id: number,
+  version: number,
+  evidenceChanged: boolean,
+  csrfToken: string,
+) {
+  return mutation<RegistrationListItem>(
+    `/api/v1/registrations/${id}/finalize`,
+    "POST",
+    csrfToken,
+    JSON.stringify({ version, evidence_changed: evidenceChanged }),
+    "application/json",
+  );
 }
 
 export function getOpportunityScopes(signal?: AbortSignal) {

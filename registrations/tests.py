@@ -879,3 +879,27 @@ class RegistrationApiTests(TestCase):
         with self.assertRaises(CommandError):
             clear_transactional_records()
         self.assertTrue(Registration.objects.filter(pk=self.registration_a.pk).exists())
+
+    def test_finalize_bumps_the_version_and_rejects_a_stale_one(self):
+        self.client.force_login(self.user_a)
+        version = self.registration_a.version
+
+        response = self.client.post(
+            f"/api/v1/registrations/{self.registration_a.pk}/finalize",
+            data=json.dumps({"version": version, "evidence_changed": True}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["version"], version + 1)
+        self.registration_a.refresh_from_db()
+        self.assertTrue(self.registration_a.needs_review)
+        self.assertTrue(self.registration_a.events.filter(event_type="Evidence submitted").exists())
+
+        stale = self.client.post(
+            f"/api/v1/registrations/{self.registration_a.pk}/finalize",
+            data=json.dumps({"version": version}),
+            content_type="application/json",
+        )
+        self.assertEqual(stale.status_code, 409, stale.content)
+        self.assertEqual(stale.json()["code"], "edit_conflict")
