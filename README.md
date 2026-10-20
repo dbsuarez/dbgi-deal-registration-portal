@@ -106,6 +106,8 @@ Two initial laser printer catalog entries (M1820W and P1820W) are added by migra
 
 ## Run with Docker
 
+The proposed production architecture, security boundaries, operations, recovery requirements, and launch gates are documented in [`docs/TECHNICAL_INFRASTRUCTURE_PROPOSAL_2026-10-21.md`](docs/TECHNICAL_INFRASTRUCTURE_PROPOSAL_2026-10-21.md).
+
 Requires Docker Engine and the Compose plugin. Copy `.env.example` to `.env`, set a unique Django secret and strong matching PostgreSQL passwords, and set `SITE_DOMAIN` to the DNS name pointed at this VPS. Do not commit `.env`.
 
 The production architecture is Cloudflare HTTPS to Nginx, then React or Django depending on the route. Allow only the intended web ports in the VPS firewall. Configure Cloudflare origin protection and TLS before accepting real traffic.
