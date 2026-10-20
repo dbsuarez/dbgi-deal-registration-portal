@@ -35,6 +35,7 @@ The application is a working internal beta with these foundations implemented:
 - Explicit Django Admin authorization through a DBGI-specific admin site permission gate.
 - Immutable before-and-resulting snapshots for Django Admin registration and child-inline edits.
 - PostgreSQL-safe row locking and concurrency coverage for simultaneous edits, evidence finalization, matching refresh, and normalized End-user uniqueness.
+- GitHub Actions quality gates for backend, PostgreSQL, frontend, build, formatting, and Playwright checks.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, notifications, reporting, operational automation, and several policies remain incomplete.
@@ -74,7 +75,7 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
    - [x] Replace broad admin URL-prefix assumptions with explicit authorization.
    - [x] Verify that Django Admin child-inline edits capture complete before-and-after audit evidence.
 2. [x] Add PostgreSQL integration tests for row locks, concurrent registration edits, matching refresh, evidence finalization, and duplicate normalized master data.
-3. Add CI quality gates for backend tests, frontend tests, Ruff, migration drift, build, and representative Playwright workflows.
+3. [x] Add CI quality gates for backend tests, frontend tests, Ruff, migration drift, build, and representative Playwright workflows.
 4. Reconcile stale documentation, especially the README current-scope section and the old MVP gap analysis.
 5. Add focused accessibility coverage for dialogs, keyboard navigation, focus restoration, and error states.
 6. Prepare the separate technical and infrastructure proposal required by v9 before production implementation.
