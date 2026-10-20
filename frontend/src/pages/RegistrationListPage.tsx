@@ -1,4 +1,5 @@
 import AddIcon from "@mui/icons-material/Add";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import {
@@ -17,6 +18,7 @@ import {
 import {
   DataGrid,
   type GridColDef,
+  type GridColumnVisibilityModel,
   type GridSortModel,
 } from "@mui/x-data-grid";
 import { useEffect, useMemo, useState } from "react";
@@ -40,11 +42,25 @@ function formatDateTime(value: string) {
   return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
 }
 
+function ExportUpIcon() {
+  return <FileUploadOutlinedIcon fontSize="small" />;
+}
+
+function loadGridPreference(key: string) {
+  if (typeof localStorage?.getItem !== "function") return {};
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
 export default function RegistrationListPage() {
   const session = useSession();
   const navigate = useNavigate();
   const [rows, setRows] = useState<RegistrationListItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [grandTotal, setGrandTotal] = useState("0.00");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -57,6 +73,29 @@ export default function RegistrationListPage() {
     { field: "created_at", sort: "desc" },
   ]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const preferenceKey = `dbgi-registration-grid:${session.username}`;
+  const [columnVisibilityModel, setColumnVisibilityModel] =
+    useState<GridColumnVisibilityModel>(
+      () => loadGridPreference(preferenceKey).visibility ?? {},
+    );
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => loadGridPreference(preferenceKey).widths ?? {},
+  );
+  const [columnOrder, setColumnOrder] = useState<string[]>(
+    () => loadGridPreference(preferenceKey).order ?? [],
+  );
+
+  useEffect(() => {
+    if (typeof localStorage?.setItem !== "function") return;
+    localStorage.setItem(
+      preferenceKey,
+      JSON.stringify({
+        visibility: columnVisibilityModel,
+        widths: columnWidths,
+        order: columnOrder,
+      }),
+    );
+  }, [columnOrder, columnVisibilityModel, columnWidths, preferenceKey]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -90,6 +129,7 @@ export default function RegistrationListPage() {
       .then((result) => {
         setRows(result.items);
         setTotal(result.total);
+        setGrandTotal(result.grand_total ?? "0.00");
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError")
@@ -104,15 +144,18 @@ export default function RegistrationListPage() {
     return () => controller.abort();
   }, [debouncedSearch, paginationModel, refreshKey, sortModel]);
 
-  const columns = useMemo<GridColDef<RegistrationListItem>[]>(
+  const baseColumns = useMemo<GridColDef<RegistrationListItem>[]>(
     () => [
       {
         field: "reference",
         headerName: "Reference",
         minWidth: 140,
-        renderCell: ({ row }) => (
-          <Link href={`/registrations/${row.id}/`}>{row.reference}</Link>
-        ),
+        renderCell: ({ row }) =>
+          row.id === -1 ? (
+            <Typography fontWeight={700}>Grand total</Typography>
+          ) : (
+            <Link href={`/registrations/${row.id}/`}>{row.reference}</Link>
+          ),
       },
       { field: "project_title", headerName: "Project", minWidth: 220, flex: 1 },
       ...(session.is_dbgi_admin
@@ -129,37 +172,45 @@ export default function RegistrationListPage() {
         headerName: "Registration status",
         minWidth: 140,
         sortable: false,
-        renderCell: ({ value }) => (
-          <Chip label={value} size="small" variant="outlined" />
-        ),
+        renderCell: ({ row, value }) =>
+          row.id === -1 ? null : (
+            <Chip label={value} size="small" variant="outlined" />
+          ),
       },
       {
         field: "project_status_label",
         headerName: "Project status",
         minWidth: 135,
         sortable: false,
-        renderCell: ({ value }) => (
-          <Chip label={value} size="small" variant="outlined" />
-        ),
+        renderCell: ({ row, value }) =>
+          row.id === -1 ? null : (
+            <Chip label={value} size="small" variant="outlined" />
+          ),
       },
       {
         field: "price_status_label",
         headerName: "Price status",
         minWidth: 150,
         sortable: false,
-        renderCell: ({ value }) => (
-          <Chip label={value} size="small" variant="outlined" />
-        ),
+        renderCell: ({ row, value }) =>
+          row.id === -1 ? null : (
+            <Chip label={value} size="small" variant="outlined" />
+          ),
       },
       {
         field: "total_requested_value",
-        headerName: "Requested total",
+        headerName: "Bid Total",
         minWidth: 150,
         sortable: false,
         align: "right",
         headerAlign: "right",
-        valueFormatter: (value: string) =>
-          Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2 }),
+        renderCell: ({ row, value }) => (
+          <Typography fontWeight={row.id === -1 ? 700 : 400}>
+            {Number(value).toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+            })}
+          </Typography>
+        ),
       },
       {
         field: "bid_date",
@@ -174,7 +225,8 @@ export default function RegistrationListPage() {
         sortable: false,
         align: "right",
         headerAlign: "right",
-        valueFormatter: (value: number) => `${value}d`,
+        valueFormatter: (value: number, row) =>
+          row.id === -1 ? "" : `${value}d`,
       },
       {
         field: "needs_review",
@@ -190,21 +242,51 @@ export default function RegistrationListPage() {
         field: "created_at",
         headerName: "Submitted",
         minWidth: 170,
-        valueFormatter: (value: string) => formatDateTime(value),
+        valueFormatter: (value: string, row) =>
+          row.id === -1 ? "" : formatDateTime(value),
       },
       {
         field: "actions",
         type: "actions",
         headerName: "Actions",
-        getActions: ({ row }) => [
-          <Button key="view" href={`/registrations/${row.id}/`} size="small">
-            View
-          </Button>,
-        ],
+        getActions: ({ row }) =>
+          row.id === -1
+            ? []
+            : [
+                <Button
+                  key="view"
+                  href={`/registrations/${row.id}/`}
+                  size="small"
+                >
+                  View
+                </Button>,
+              ],
       },
     ],
     [session.is_dbgi_admin],
   );
+  const columns = useMemo(() => {
+    const positions = new Map(
+      columnOrder.map((field, index) => [field, index]),
+    );
+    return baseColumns
+      .map((column) => {
+        const savedWidth = columnWidths[column.field];
+        return {
+          ...column,
+          width: savedWidth ?? column.width,
+          flex: savedWidth == null ? column.flex : undefined,
+        };
+      })
+      .sort((left, right) => {
+        const leftPosition = positions.get(left.field);
+        const rightPosition = positions.get(right.field);
+        if (leftPosition == null && rightPosition == null) return 0;
+        if (leftPosition == null) return 1;
+        if (rightPosition == null) return -1;
+        return leftPosition - rightPosition;
+      });
+  }, [baseColumns, columnOrder, columnWidths]);
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -264,8 +346,50 @@ export default function RegistrationListPage() {
       )}
       <Box sx={{ height: 620, bgcolor: "background.paper" }}>
         <DataGrid
-          rows={rows}
+          rows={[
+            ...rows,
+            {
+              id: -1,
+              reference: "Grand total",
+              project_title: "",
+              company_name: "",
+              end_user_name: "",
+              end_user_id: null,
+              end_user_status: null,
+              end_user_status_label: null,
+              status: "",
+              status_label: "",
+              project_status: null,
+              project_status_label: "",
+              price_status: "",
+              price_status_label: "",
+              total_requested_value: grandTotal,
+              bid_date: "",
+              age_days: 0,
+              needs_review: false,
+              created_at: "",
+              version: 0,
+            },
+          ]}
           columns={columns}
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={setColumnVisibilityModel}
+          onColumnWidthChange={({ colDef, width }) =>
+            setColumnWidths((current) => ({
+              ...current,
+              [colDef.field]: width,
+            }))
+          }
+          onColumnOrderChange={({ oldIndex, targetIndex }) =>
+            setColumnOrder((current) => {
+              const fields = current.length
+                ? [...current]
+                : columns.map((column) => column.field);
+              const [moved] = fields.splice(oldIndex, 1);
+              fields.splice(targetIndex, 0, moved);
+              return fields;
+            })
+          }
           rowCount={total}
           loading={loading}
           paginationMode="server"
@@ -278,7 +402,18 @@ export default function RegistrationListPage() {
           disableRowSelectionOnClick
           onRowDoubleClick={({ row }) => navigate(`/registrations/${row.id}/`)}
           showToolbar
-          sx={{ border: 0 }}
+          slots={{ exportIcon: ExportUpIcon }}
+          getRowClassName={({ row }) =>
+            row.id === -1 ? "grand-total-row" : ""
+          }
+          sx={{
+            border: 0,
+            "& .grand-total-row": {
+              bgcolor: "action.hover",
+              borderTop: 1,
+              borderColor: "divider",
+            },
+          }}
         />
       </Box>
     </Container>

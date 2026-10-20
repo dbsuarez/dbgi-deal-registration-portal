@@ -39,6 +39,7 @@ export type RegistrationPage = {
   total: number;
   page: number;
   page_size: number;
+  grand_total: string;
 };
 
 export type ProductOption = {

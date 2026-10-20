@@ -69,13 +69,13 @@ Current domain models: `Company`, custom `User`, `Product`, `Registration`, `Com
 
 ### Main files
 
-- `config/settings.py`, `config/urls.py` — environment-based settings, local SQLite fallback, PostgreSQL configuration, proxy/HTTPS flags, health and login routes.
-- `registrations/models.py`, `forms.py`, `views.py`, `urls.py`, `audit.py`, `admin.py`, `middleware.py` — core app, forms, company scope, audit snapshots and admin.
-- `registrations/migrations/0001_initial.py` through `0003_seed_initial_laser_printers.py` — current schema and two initial product seeds.
-- `templates/` and `registrations/static/registrations/` — server-rendered UI and progressive enhancement.
-- `registrations/tests.py` — focused regression/security behavior tests.
-- `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.example` — container, PostgreSQL, and Caddy HTTPS setup.
-- `README.md` — local/Docker setup and operations notes.
+- `config/settings.py`, `config/urls.py`: environment-based settings, local SQLite fallback, PostgreSQL configuration, proxy/HTTPS flags, health and login routes.
+- `registrations/models.py`, `forms.py`, `views.py`, `urls.py`, `audit.py`, `admin.py`, `middleware.py`: core app, forms, company scope, audit snapshots and admin.
+- `registrations/migrations/0001_initial.py` through `0003_seed_initial_laser_printers.py`: current schema and two initial product seeds.
+- `templates/` and `registrations/static/registrations/`: server-rendered UI and progressive enhancement.
+- `registrations/tests.py`: focused regression/security behavior tests.
+- `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.example`: container, PostgreSQL, and Caddy HTTPS setup.
+- `README.md`: local/Docker setup and operations notes.
 
 ## Running and preview state
 

@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.auth import logout as django_logout
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -122,6 +122,7 @@ class RegistrationListResponse(Schema):
     total: int
     page: int
     page_size: int
+    grand_total: Decimal
 
 
 class CompetitorOutput(CompetitorInput):
@@ -691,6 +692,14 @@ def list_registrations(
             | Q(company__name__icontains=term)
         )
     total = queryset.count()
+    grand_total = RegistrationItem.objects.filter(registration__in=queryset).aggregate(
+        total=Sum(
+            ExpressionWrapper(
+                F("quantity") * F("requested_unit_price"),
+                output_field=DecimalField(max_digits=18, decimal_places=2),
+            )
+        )
+    )["total"] or Decimal("0.00")
     start = (page - 1) * page_size
     records = queryset.order_by(sort)[start : start + page_size]
     return {
@@ -698,6 +707,7 @@ def list_registrations(
         "total": total,
         "page": page,
         "page_size": page_size,
+        "grand_total": grand_total,
     }
 
 

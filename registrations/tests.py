@@ -1,5 +1,6 @@
 import json
 from datetime import date, timedelta
+from decimal import Decimal
 from io import StringIO
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -437,6 +438,7 @@ class RegistrationApiTests(TestCase):
         response = self.client.get("/api/v1/registrations?page=1&page_size=10")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 1)
+        self.assertEqual(Decimal(response.json()["grand_total"]), Decimal("190.00"))
         self.assertEqual(response.json()["items"][0]["id"], self.registration_a.pk)
 
         own = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}")
