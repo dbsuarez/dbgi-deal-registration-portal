@@ -1193,6 +1193,29 @@ class RegistrationApiTests(TestCase):
             request.registration_prior_snapshot["project_title"], self.registration_a.project_title
         )
 
+    def test_admin_inline_edit_records_before_and_resulting_snapshots(self):
+        registration_admin = RegistrationAdmin(Registration, AdminSite())
+        request = RequestFactory().post("/admin/registrations/registration/")
+        request.user = self.admin
+        obj = Registration.objects.get(pk=self.registration_a.pk)
+        item = obj.items.get()
+
+        registration_admin.save_model(request, obj, SimpleNamespace(), change=True)
+
+        def save_inline(*args, **kwargs):
+            item.quantity = 7
+            item.save(update_fields=["quantity"])
+
+        form = SimpleNamespace(instance=obj, save_m2m=lambda: None)
+        with patch.object(registration_admin, "save_formset", side_effect=save_inline):
+            registration_admin.save_related(request, form, [object()], change=True)
+
+        event = obj.events.get(event_type="Admin update")
+        self.assertEqual(event.snapshot["items"][0]["quantity"], 2)
+        self.assertEqual(event.resulting_snapshot["items"][0]["quantity"], 7)
+        self.assertEqual(event.snapshot["version"], 1)
+        self.assertEqual(event.resulting_snapshot["version"], 2)
+
     @override_settings(DEBUG=False)
     def test_clearing_transactional_records_requires_debug(self):
         from devtools.scenarios import clear_transactional_records

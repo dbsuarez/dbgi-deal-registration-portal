@@ -689,6 +689,7 @@ class RegistrationEvent(models.Model):
     event_type = models.CharField(max_length=80)
     details = models.TextField(blank=True)
     snapshot = models.JSONField(default=dict, blank=True)
+    resulting_snapshot = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

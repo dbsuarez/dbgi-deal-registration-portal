@@ -239,7 +239,14 @@ class RegistrationEventInline(TabularInline):
     model = RegistrationEvent
     extra = 0
     can_delete = False
-    readonly_fields = ("actor", "event_type", "details", "snapshot", "created_at")
+    readonly_fields = (
+        "actor",
+        "event_type",
+        "details",
+        "snapshot",
+        "resulting_snapshot",
+        "created_at",
+    )
     classes = ("collapse",)
 
     def has_add_permission(self, request, obj=None):
@@ -328,6 +335,7 @@ class RegistrationAdmin(ModelAdmin):
                     f"Version is now {form.instance.version}."
                 ),
                 snapshot=request.registration_prior_snapshot or {},
+                resulting_snapshot=registration_snapshot(form.instance),
             )
         else:
             RegistrationEvent.objects.create(
@@ -335,7 +343,7 @@ class RegistrationAdmin(ModelAdmin):
                 actor=request.user,
                 event_type="Admin created",
                 details="Registration created by DBGI admin.",
-                snapshot=registration_snapshot(form.instance),
+                resulting_snapshot=registration_snapshot(form.instance),
             )
 
 
@@ -425,7 +433,15 @@ class RegistrationEventAdmin(ModelAdmin):
     list_display = ("registration", "event_type", "actor", "created_at")
     list_filter = ("event_type", "created_at")
     search_fields = ("registration__project_title", "details")
-    readonly_fields = ("registration", "actor", "event_type", "details", "snapshot", "created_at")
+    readonly_fields = (
+        "registration",
+        "actor",
+        "event_type",
+        "details",
+        "snapshot",
+        "resulting_snapshot",
+        "created_at",
+    )
 
     def has_add_permission(self, request):
         return False
