@@ -1078,15 +1078,46 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
     return _serialize_registration_detail(registration, request.user)
 
 
+def _attachment_edit_guard(registration, version):
+    """Shared gate for evidence changes, evaluated under a row lock."""
+    if registration.status in Registration.EVIDENCE_LOCKED_STATUSES:
+        return Status(
+            409,
+            {
+                "code": "evidence_locked",
+                "message": ("Evidence cannot change once review has started or a decision exists."),
+            },
+        )
+    if registration.version != version:
+        return Status(
+            409,
+            {
+                "code": "edit_conflict",
+                "message": (
+                    "This registration changed after you opened it. Refresh before changing "
+                    "the evidence."
+                ),
+            },
+        )
+    return None
+
+
 @api.post(
     "/registrations/{registration_id}/attachments",
     auth=django_auth,
-    response={201: AttachmentOutput, 400: ErrorResponse, 403: ErrorResponse},
+    response={
+        201: AttachmentOutput,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
 )
 def upload_attachment(
     request,
     registration_id: int,
     file: UploadedFile,
+    version: int,
     description: str = "",
 ):
     company_id = _company_id(request.user)
@@ -1095,34 +1126,47 @@ def upload_attachment(
             403,
             {"code": "company_access_required", "message": "A company account is required."},
         )
-    registration = get_object_or_404(
-        Registration,
-        pk=registration_id,
-        company_id=company_id,
-    )
-    attachment = registration.attachments.model(
-        registration=registration,
-        file=file,
-        original_name=file.name.replace("\\", "/").rsplit("/", 1)[-1],
-        description=description,
-        uploaded_by=request.user,
-    )
-    try:
-        attachment.full_clean()
-    except DjangoValidationError as exc:
-        return Status(
-            400,
-            {
-                "code": "invalid_attachment",
-                "message": "The attachment could not be uploaded.",
-                "details": [
-                    {"field": field, "message": message}
-                    for field, messages in exc.message_dict.items()
-                    for message in messages
-                ],
-            },
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update(),
+            pk=registration_id,
+            company_id=company_id,
         )
-    attachment.save()
+        guard = _attachment_edit_guard(registration, version)
+        if guard:
+            return guard
+        attachment = registration.attachments.model(
+            registration=registration,
+            file=file,
+            original_name=file.name.replace("\\", "/").rsplit("/", 1)[-1],
+            description=description,
+            uploaded_by=request.user,
+        )
+        try:
+            attachment.full_clean()
+        except DjangoValidationError as exc:
+            return Status(
+                400,
+                {
+                    "code": "invalid_attachment",
+                    "message": "The attachment could not be uploaded.",
+                    "details": [
+                        {"field": field, "message": message}
+                        for field, messages in exc.message_dict.items()
+                        for message in messages
+                    ],
+                },
+            )
+        prior_snapshot = registration_snapshot(registration)
+        attachment.save()
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Attachment added",
+            details=f"{attachment.original_name} was added to the evidence set."
+            + (f" Description: {description}" if description else ""),
+            snapshot=prior_snapshot,
+        )
     return Status(
         201,
         {
@@ -1138,19 +1182,39 @@ def upload_attachment(
 @api.delete(
     "/attachments/{attachment_id}",
     auth=django_auth,
-    response={204: None, 403: ErrorResponse},
+    response={
+        204: None,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
 )
-def delete_attachment(request, attachment_id: int):
+def delete_attachment(request, attachment_id: int, version: int):
     company_id = _company_id(request.user)
     if company_id in (None, False):
         return Status(
             403,
             {"code": "company_access_required", "message": "A company account is required."},
         )
-    attachment = get_object_or_404(
-        RegistrationAttachment.objects.select_related("registration"),
-        pk=attachment_id,
-        registration__company_id=company_id,
-    )
-    attachment.delete()
+    with transaction.atomic():
+        attachment = get_object_or_404(
+            RegistrationAttachment.objects.select_related("registration"),
+            pk=attachment_id,
+            registration__company_id=company_id,
+        )
+        registration = Registration.objects.select_for_update().get(pk=attachment.registration_id)
+        guard = _attachment_edit_guard(registration, version)
+        if guard:
+            return guard
+        original_name = attachment.original_name
+        prior_snapshot = registration_snapshot(registration)
+        attachment.delete()
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Attachment removed",
+            details=f"{original_name} was removed from the evidence set.",
+            snapshot=prior_snapshot,
+        )
     return Status(204, None)

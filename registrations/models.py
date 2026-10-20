@@ -22,6 +22,31 @@ def validate_attachment_size(upload):
         raise ValidationError("Attachments must be no larger than 10 MB.")
 
 
+ATTACHMENT_SIGNATURES = {
+    "pdf": (b"%PDF-",),
+    "png": (b"\x89PNG\r\n\x1a\n",),
+    "jpg": (b"\xff\xd8\xff",),
+    "jpeg": (b"\xff\xd8\xff",),
+    "docx": (b"PK\x03\x04",),
+    "xlsx": (b"PK\x03\x04",),
+}
+
+
+def validate_attachment_content(upload):
+    """Reject files whose first bytes do not match the declared extension."""
+    extension = Path(getattr(upload, "name", "") or "").suffix.lower().lstrip(".")
+    signatures = ATTACHMENT_SIGNATURES.get(extension)
+    if not signatures:
+        raise ValidationError("Attachments must be a PDF, PNG, JPEG, DOCX, or XLSX file.")
+    upload.seek(0)
+    header = upload.read(8)
+    upload.seek(0)
+    if not any(header.startswith(signature) for signature in signatures):
+        raise ValidationError(
+            "The file content does not match its extension. Upload the original document."
+        )
+
+
 class Company(models.Model):
     name = models.CharField(max_length=200, unique=True)
     partner_code = models.CharField(max_length=40, blank=True)
@@ -264,6 +289,10 @@ class Registration(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
+    # Evidence is frozen once a reviewer has it or a decision exists, so an
+    # upload or delete can never change what a decision was based on.
+    EVIDENCE_LOCKED_STATUSES = frozenset({Status.UNDER_REVIEW, Status.APPROVED, Status.REJECTED})
+
     @property
     def reference(self):
         return f"DBGI-{self.pk:06d}" if self.pk else "New registration"
@@ -440,6 +469,7 @@ class RegistrationAttachment(models.Model):
                 allowed_extensions=("pdf", "png", "jpg", "jpeg", "docx", "xlsx")
             ),
             validate_attachment_size,
+            validate_attachment_content,
         ],
     )
     original_name = models.CharField(max_length=255)

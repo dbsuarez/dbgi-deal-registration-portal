@@ -729,18 +729,23 @@ class RegistrationApiTests(TestCase):
 
     def test_attachment_upload_download_delete_and_scope(self):
         self.client.force_login(self.user_a)
+        version = self.registration_a.version
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             upload = self.client.post(
-                f"/api/v1/registrations/{self.registration_a.pk}/attachments?description=Support",
-                data={"file": SimpleUploadedFile("support.pdf", b"valid evidence")},
+                f"/api/v1/registrations/{self.registration_a.pk}/attachments"
+                f"?description=Support&version={version}",
+                data={"file": SimpleUploadedFile("support.pdf", b"%PDF-1.4 valid evidence")},
             )
             self.assertEqual(upload.status_code, 201, upload.content)
             attachment_id = upload.json()["id"]
+            self.assertEqual(
+                self.registration_a.events.filter(event_type="Attachment added").count(), 1
+            )
 
             download = self.client.get(reverse("registration-attachment", args=[attachment_id]))
             self.assertEqual(download.status_code, 200)
             self.assertEqual(download["Cache-Control"], "private, no-store")
-            self.assertEqual(b"".join(download.streaming_content), b"valid evidence")
+            self.assertEqual(b"".join(download.streaming_content), b"%PDF-1.4 valid evidence")
 
             self.client.force_login(self.user_b)
             hidden = self.client.get(reverse("registration-attachment", args=[attachment_id]))
@@ -748,9 +753,38 @@ class RegistrationApiTests(TestCase):
 
             self.client.force_login(self.user_a)
             with self.captureOnCommitCallbacks(execute=True):
-                deleted = self.client.delete(f"/api/v1/attachments/{attachment_id}")
+                deleted = self.client.delete(
+                    f"/api/v1/attachments/{attachment_id}?version={version}"
+                )
             self.assertEqual(deleted.status_code, 204)
             self.assertFalse(RegistrationAttachment.objects.filter(pk=attachment_id).exists())
+            self.assertEqual(
+                self.registration_a.events.filter(event_type="Attachment removed").count(), 1
+            )
+
+    def test_attachment_changes_are_locked_after_review_starts(self):
+        self.client.force_login(self.user_a)
+        version = self.registration_a.version
+        self.registration_a.status = Registration.Status.UNDER_REVIEW
+        self.registration_a.save(update_fields=["status"])
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                f"/api/v1/registrations/{self.registration_a.pk}/attachments?version={version}",
+                data={"file": SimpleUploadedFile("support.pdf", b"%PDF-1.4 evidence")},
+            )
+        self.assertEqual(response.status_code, 409, response.content)
+        self.assertEqual(response.json()["code"], "evidence_locked")
+        self.assertFalse(RegistrationAttachment.objects.exists())
+
+    def test_attachment_changes_reject_a_stale_version(self):
+        self.client.force_login(self.user_a)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                f"/api/v1/registrations/{self.registration_a.pk}/attachments?version=99",
+                data={"file": SimpleUploadedFile("support.pdf", b"%PDF-1.4 evidence")},
+            )
+        self.assertEqual(response.status_code, 409, response.content)
+        self.assertEqual(response.json()["code"], "edit_conflict")
 
     def test_attachment_validation_rejects_extension_and_size(self):
         bad_extension = RegistrationAttachment(
@@ -770,10 +804,21 @@ class RegistrationApiTests(TestCase):
         with self.assertRaises(ValidationError):
             oversized.full_clean()
 
+    def test_attachment_validation_rejects_a_renamed_file(self):
+        renamed = RegistrationAttachment(
+            registration=self.registration_a,
+            file=SimpleUploadedFile("evidence.pdf", b"MZ\x90\x00 not a pdf"),
+            original_name="evidence.pdf",
+            uploaded_by=self.user_a,
+        )
+        with self.assertRaises(ValidationError):
+            renamed.full_clean()
+
     def test_cannot_upload_attachment_to_other_company(self):
         self.client.force_login(self.user_a)
         response = self.client.post(
-            f"/api/v1/registrations/{self.registration_b.pk}/attachments",
-            data={"file": SimpleUploadedFile("support.pdf", b"valid evidence")},
+            f"/api/v1/registrations/{self.registration_b.pk}/attachments"
+            f"?version={self.registration_b.version}",
+            data={"file": SimpleUploadedFile("support.pdf", b"%PDF-1.4 evidence")},
         )
         self.assertEqual(response.status_code, 404)
