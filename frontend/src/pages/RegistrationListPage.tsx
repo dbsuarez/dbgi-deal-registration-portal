@@ -403,6 +403,10 @@ export default function RegistrationListPage() {
           onRowDoubleClick={({ row }) => navigate(`/registrations/${row.id}/`)}
           showToolbar
           slots={{ exportIcon: ExportUpIcon }}
+          localeText={{
+            paginationDisplayedRows: ({ from, to, count }) =>
+              `${from}-${to} of ${count === -1 ? `more than ${to}` : count}`,
+          }}
           getRowClassName={({ row }) =>
             row.id === -1 ? "grand-total-row" : ""
           }

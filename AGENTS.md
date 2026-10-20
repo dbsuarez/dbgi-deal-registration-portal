@@ -23,7 +23,7 @@ If rules conflict, identify the conflict and request clarification rather than s
 8. Report files changed, migrations, checks run, outcomes, and remaining risks.
 
 ## Mandatory global rules
-- Never use em dashes in code, comments, documentation, or UI text.
+- Never use en dashes or em dashes in code, comments, documentation, or UI text. Use a normal hyphen instead.
 - Follow `UI_STANDARDS.md` for the existing table-first UX, grid layouts, formatting, accessible contextual help, forms, and interaction patterns.
 - All displayed dates use `YYYY-MM-DD`; timestamps with time use `YYYY-MM-DD HH:mm` where needed.
 - Numeric and currency text, including corresponding table headers, must be right-aligned.

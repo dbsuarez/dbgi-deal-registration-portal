@@ -4,7 +4,7 @@
 **Version:** v9, superseding v8.  
 **Prepared:** 2026-09-29.  
 **Updated:** 2026-10-17, incorporating registration-form and initial stack/hosting decisions below.  
-**Version note:** This is the current specification; earlier generated v1–v8 documents are superseded, not physically deleted from the conversation file panel. This document incorporates the ranking decision made after v8.
+**Version note:** This is the current specification; earlier generated v1-v8 documents are superseded, not physically deleted from the conversation file panel. This document incorporates the ranking decision made after v8.
 
 ## 1. Purpose and deployment
 
