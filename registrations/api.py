@@ -951,10 +951,13 @@ def refresh_matching_suggestion(request, registration_id: int):
         return Status(
             403, {"code": "admin_required", "message": "DBGI administrator access is required."}
         )
-    registration = get_object_or_404(
-        Registration.objects.prefetch_related("items"), pk=registration_id
-    )
-    return _serialize_matching_suggestion(generate_matching_suggestion(registration))
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update().prefetch_related("items"),
+            pk=registration_id,
+        )
+        suggestion = generate_matching_suggestion(registration)
+    return _serialize_matching_suggestion(suggestion)
 
 
 @api.post(
