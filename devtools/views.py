@@ -19,15 +19,15 @@ class DevelopmentLoginView(LoginView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if settings.DEBUG:
-            users = User.objects.filter(is_active=True).select_related("company").order_by(
-                "company__name", "username"
+            users = (
+                User.objects.filter(is_active=True)
+                .select_related("company")
+                .order_by("company__name", "username")
             )
             context["development_company_users"] = [
                 user for user in users if not user.is_dbgi_admin
             ]
-            context["development_admin_users"] = [
-                user for user in users if user.is_dbgi_admin
-            ]
+            context["development_admin_users"] = [user for user in users if user.is_dbgi_admin]
         return context
 
 

@@ -13,9 +13,7 @@ def _can_access_registration(user, company_id):
     if user.is_dbgi_admin:
         return True
     return (
-        user.role == user.Role.COMPANY
-        and user.company_id == company_id
-        and user.company.is_active
+        user.role == user.Role.COMPANY and user.company_id == company_id and user.company.is_active
     )
 
 
