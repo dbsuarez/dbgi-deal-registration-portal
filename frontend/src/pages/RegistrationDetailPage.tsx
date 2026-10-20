@@ -187,6 +187,16 @@ export default function RegistrationDetailPage() {
               label={registration.status_label}
               variant="outlined"
             />
+            <Chip
+              size="small"
+              label={`Project: ${registration.project_status_label}`}
+              variant="outlined"
+            />
+            <Chip
+              size="small"
+              label={`Pricing: ${registration.price_status_label}`}
+              variant="outlined"
+            />
             {registration.needs_review && (
               <Chip size="small" label="Review required" color="warning" />
             )}
@@ -497,6 +507,51 @@ export default function RegistrationDetailPage() {
 
       <Paper sx={{ mt: 3, p: 3 }}>
         <Typography variant="h2" gutterBottom>
+          Commercial approvals
+        </Typography>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Product category</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Valid until</TableCell>
+                <TableCell>Reviewer</TableCell>
+                <TableCell>Reason</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(registration.category_approvals ?? []).map((approval) => (
+                <TableRow key={approval.id}>
+                  <TableCell>{approval.category}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={approval.status_label}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell>{approval.valid_until ?? "Not set"}</TableCell>
+                  <TableCell>
+                    {approval.reviewed_by ?? "Not reviewed"}
+                  </TableCell>
+                  <TableCell>{approval.rationale || "Not provided"}</TableCell>
+                </TableRow>
+              ))}
+              {!(registration.category_approvals ?? []).length && (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    No catalog category requires pricing review.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      <Paper sx={{ mt: 3, p: 3 }}>
+        <Typography variant="h2" gutterBottom>
           Requested products
         </Typography>
         <TableContainer>
@@ -505,7 +560,11 @@ export default function RegistrationDetailPage() {
               <TableRow>
                 <TableCell>Product</TableCell>
                 <TableCell sx={moneyCell}>Quantity</TableCell>
+                <TableCell sx={moneyCell}>List unit price</TableCell>
                 <TableCell sx={moneyCell}>Requested unit price</TableCell>
+                <TableCell sx={moneyCell}>Requested discount</TableCell>
+                <TableCell sx={moneyCell}>Requested total</TableCell>
+                <TableCell sx={moneyCell}>Approved unit price</TableCell>
                 <TableCell>Justification</TableCell>
               </TableRow>
             </TableHead>
@@ -517,9 +576,34 @@ export default function RegistrationDetailPage() {
                     {item.quantity.toLocaleString("en-PH")}
                   </TableCell>
                   <TableCell sx={moneyCell}>
+                    {Number(item.list_unit_price ?? 0).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </TableCell>
+                  <TableCell sx={moneyCell}>
                     {Number(item.requested_unit_price).toLocaleString("en-PH", {
                       minimumFractionDigits: 2,
                     })}
+                  </TableCell>
+                  <TableCell sx={moneyCell}>
+                    {item.requested_discount_percent == null
+                      ? "Not available"
+                      : `${Number(item.requested_discount_percent).toLocaleString("en-PH", { minimumFractionDigits: 2 })}%`}
+                  </TableCell>
+                  <TableCell sx={moneyCell}>
+                    {Number(item.requested_total ?? 0).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </TableCell>
+                  <TableCell sx={moneyCell}>
+                    {item.approved_unit_price == null
+                      ? "Pending"
+                      : Number(item.approved_unit_price).toLocaleString(
+                          "en-PH",
+                          {
+                            minimumFractionDigits: 2,
+                          },
+                        )}
                   </TableCell>
                   <TableCell>{item.justification || "Not provided"}</TableCell>
                 </TableRow>

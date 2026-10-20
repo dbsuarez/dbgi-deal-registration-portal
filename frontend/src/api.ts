@@ -22,6 +22,13 @@ export type RegistrationListItem = {
   end_user_status_label: string | null;
   status: string;
   status_label: string;
+  project_status: string | null;
+  project_status_label: string;
+  price_status: string;
+  price_status_label: string;
+  total_requested_value: string;
+  bid_date: string;
+  age_days: number;
   needs_review: boolean;
   created_at: string;
   version: number;
@@ -39,6 +46,8 @@ export type ProductOption = {
   code: string;
   name: string;
   category: string;
+  currency: string;
+  list_price: string;
 };
 
 export type EndUser = {
@@ -82,6 +91,11 @@ export type RequestedItem = {
   display_name?: string;
   quantity: number;
   requested_unit_price: string;
+  currency?: string;
+  list_unit_price?: string;
+  requested_discount_percent?: string | null;
+  requested_total?: string;
+  approved_unit_price?: string | null;
   justification: string;
 };
 
@@ -172,6 +186,19 @@ export type RegistrationDetail = RegistrationListItem & {
   opportunity_scope_id: number | null;
   opportunity_scope_label: string | null;
   matching_suggestion: MatchingSuggestion | null;
+  category_approvals: CategoryApproval[];
+};
+
+export type CategoryApproval = {
+  id: number;
+  category: string;
+  status: string;
+  status_label: string;
+  rationale: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  valid_until: string | null;
+  version: number;
 };
 
 export type RegistrationPayload = {

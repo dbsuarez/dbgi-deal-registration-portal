@@ -116,6 +116,20 @@ UNFOLD = {
                         "permission": "config.admin_navigation.can_view_review_decisions",
                     },
                     {
+                        "title": "Price approvals",
+                        "icon": "price_check",
+                        "link": reverse_lazy(
+                            "admin:registrations_registrationcategoryapproval_changelist"
+                        ),
+                        "permission": "config.admin_navigation.can_view_category_approvals",
+                    },
+                    {
+                        "title": "Price renewals",
+                        "icon": "event_repeat",
+                        "link": reverse_lazy("admin:registrations_priceapprovalrenewal_changelist"),
+                        "permission": "config.admin_navigation.can_view_price_renewals",
+                    },
+                    {
                         "title": "Registration events",
                         "icon": "history",
                         "link": reverse_lazy("admin:registrations_registrationevent_changelist"),

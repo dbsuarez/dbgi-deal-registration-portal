@@ -126,12 +126,55 @@ export default function RegistrationListPage() {
       },
       {
         field: "status_label",
-        headerName: "Status",
+        headerName: "Registration status",
         minWidth: 140,
         sortable: false,
         renderCell: ({ value }) => (
           <Chip label={value} size="small" variant="outlined" />
         ),
+      },
+      {
+        field: "project_status_label",
+        headerName: "Project status",
+        minWidth: 135,
+        sortable: false,
+        renderCell: ({ value }) => (
+          <Chip label={value} size="small" variant="outlined" />
+        ),
+      },
+      {
+        field: "price_status_label",
+        headerName: "Price status",
+        minWidth: 150,
+        sortable: false,
+        renderCell: ({ value }) => (
+          <Chip label={value} size="small" variant="outlined" />
+        ),
+      },
+      {
+        field: "total_requested_value",
+        headerName: "Requested total",
+        minWidth: 150,
+        sortable: false,
+        align: "right",
+        headerAlign: "right",
+        valueFormatter: (value: string) =>
+          Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2 }),
+      },
+      {
+        field: "bid_date",
+        headerName: "Bid date",
+        minWidth: 120,
+        sortable: false,
+      },
+      {
+        field: "age_days",
+        headerName: "Age",
+        minWidth: 90,
+        sortable: false,
+        align: "right",
+        headerAlign: "right",
+        valueFormatter: (value: number) => `${value}d`,
       },
       {
         field: "needs_review",

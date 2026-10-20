@@ -1,5 +1,5 @@
 from collections import Counter, defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
@@ -10,6 +10,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import Field, NinjaAPI, Schema, Status, UploadedFile
 from ninja.errors import AuthenticationError
 from ninja.errors import ValidationError as NinjaValidationError
@@ -22,11 +23,14 @@ from .models import (
     EndUser,
     Opportunity,
     OpportunityScope,
+    PriceApprovalRenewal,
     Product,
     Registration,
     RegistrationAttachment,
+    RegistrationCategoryApproval,
     RegistrationEvent,
     RegistrationItem,
+    RegistrationItemApproval,
     RegistrationReviewDecision,
 )
 
@@ -101,6 +105,13 @@ class RegistrationListItem(Schema):
     end_user_status_label: str | None
     status: str
     status_label: str
+    project_status: str | None
+    project_status_label: str
+    price_status: str
+    price_status_label: str
+    total_requested_value: Decimal
+    bid_date: date
+    age_days: int
     needs_review: bool
     created_at: datetime
     version: int
@@ -122,6 +133,45 @@ class RegistrationItemOutput(RegistrationItemInput):
     product_code: str | None
     product_name: str | None
     display_name: str
+    currency: str
+    list_unit_price: Decimal
+    requested_discount_percent: Decimal | None
+    requested_total: Decimal
+    approved_unit_price: Decimal | None
+
+
+class CategoryApprovalOutput(Schema):
+    id: int
+    category: str
+    status: str
+    status_label: str
+    rationale: str
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    valid_until: date | None
+    version: int
+
+
+class CategoryApprovalDecisionInput(Schema):
+    version: int
+    status: Literal["changes_requested", "partially_approved", "approved", "rejected"]
+    rationale: str = Field(min_length=5, max_length=2000)
+    valid_until: date | None = None
+    approved_prices: dict[int, Decimal] = Field(default_factory=dict)
+
+
+class RenewalRequestInput(Schema):
+    reason: str = Field(min_length=5, max_length=2000)
+
+
+class RenewalDecisionInput(Schema):
+    approve: bool
+    reason: str = Field(min_length=5, max_length=2000)
+
+
+class ProjectStatusInput(Schema):
+    status: Literal["upcoming", "active", "won", "lost", "cancelled", "on_hold"]
+    reason: str = Field(min_length=5, max_length=2000)
 
 
 class AttachmentOutput(Schema):
@@ -174,6 +224,7 @@ class RegistrationDetail(RegistrationListItem):
     opportunity_scope_id: int | None
     opportunity_scope_label: str | None
     matching_suggestion: MatchingSuggestionOutput | None
+    category_approvals: list[CategoryApprovalOutput]
 
 
 class ProductOption(Schema):
@@ -181,6 +232,8 @@ class ProductOption(Schema):
     code: str
     name: str
     category: str
+    currency: str
+    list_price: Decimal
 
 
 class EndUserOutput(Schema):
@@ -321,7 +374,9 @@ def _company_id(user):
 
 def _registration_queryset(user):
     company_id = _company_id(user)
-    queryset = Registration.objects.select_related("company", "submitted_by", "end_user")
+    queryset = Registration.objects.select_related(
+        "company", "submitted_by", "end_user", "opportunity_scope__opportunity"
+    ).prefetch_related("items__product", "items__price_approval", "category_approvals")
     if company_id is False:
         return queryset.none()
     if company_id is not None:
@@ -330,6 +385,9 @@ def _registration_queryset(user):
 
 
 def _serialize_registration(registration):
+    total_requested_value = sum(
+        (item.requested_total for item in registration.items.all()), Decimal("0.00")
+    )
     return {
         "id": registration.pk,
         "reference": registration.reference,
@@ -343,6 +401,13 @@ def _serialize_registration(registration):
         ),
         "status": registration.status,
         "status_label": registration.get_status_display(),
+        "project_status": registration.project_status,
+        "project_status_label": registration.project_status_label,
+        "price_status": registration.price_status,
+        "price_status_label": registration.price_status_label,
+        "total_requested_value": total_requested_value,
+        "bid_date": registration.bid_date,
+        "age_days": max((timezone.localdate() - registration.created_at.date()).days, 0),
         "needs_review": registration.needs_review,
         "created_at": registration.created_at,
         "version": registration.version,
@@ -384,6 +449,15 @@ def _serialize_registration_detail(registration, user):
                     "display_name": item.display_name,
                     "quantity": item.quantity,
                     "requested_unit_price": item.requested_unit_price,
+                    "currency": item.currency,
+                    "list_unit_price": item.list_unit_price_snapshot,
+                    "requested_discount_percent": item.requested_discount_percent,
+                    "requested_total": item.requested_total,
+                    "approved_unit_price": (
+                        item.price_approval.approved_unit_price
+                        if hasattr(item, "price_approval")
+                        else None
+                    ),
                     "justification": item.justification,
                 }
                 for item in registration.items.all()
@@ -425,6 +499,26 @@ def _serialize_registration_detail(registration, user):
                 if user.is_dbgi_admin
                 else None
             ),
+            "category_approvals": [
+                {
+                    "id": approval.pk,
+                    "category": approval.category,
+                    "status": approval.effective_status,
+                    "status_label": RegistrationCategoryApproval.Status(
+                        approval.effective_status
+                    ).label,
+                    "rationale": approval.rationale,
+                    "reviewed_by": (
+                        approval.reviewed_by.get_full_name() or approval.reviewed_by.username
+                        if approval.reviewed_by_id
+                        else None
+                    ),
+                    "reviewed_at": approval.reviewed_at,
+                    "valid_until": approval.valid_until,
+                    "version": approval.version,
+                }
+                for approval in registration.category_approvals.select_related("reviewed_by").all()
+            ],
         }
     )
     return detail
@@ -448,6 +542,24 @@ def _serialize_matching_suggestion(suggestion):
             str(suggestion.candidate_scope) if suggestion.candidate_scope_id else None
         ),
         "created_at": suggestion.created_at,
+    }
+
+
+def _serialize_category_approval(approval):
+    return {
+        "id": approval.pk,
+        "category": approval.category,
+        "status": approval.effective_status,
+        "status_label": RegistrationCategoryApproval.Status(approval.effective_status).label,
+        "rationale": approval.rationale,
+        "reviewed_by": (
+            approval.reviewed_by.get_full_name() or approval.reviewed_by.username
+            if approval.reviewed_by_id
+            else None
+        ),
+        "reviewed_at": approval.reviewed_at,
+        "valid_until": approval.valid_until,
+        "version": approval.version,
     }
 
 
@@ -646,6 +758,9 @@ def _validate_input(payload):
 
 
 def _save_children(registration, payload):
+    registration.category_approvals.filter(
+        status=RegistrationCategoryApproval.Status.PENDING
+    ).delete()
     registration.competitor_items.all().delete()
     registration.items.all().delete()
     CompetitorItem.objects.bulk_create(
@@ -661,7 +776,7 @@ def _save_children(registration, payload):
     }
     if len(products) != len(product_ids):
         return False
-    RegistrationItem.objects.bulk_create(
+    saved_items = RegistrationItem.objects.bulk_create(
         [
             RegistrationItem(
                 registration=registration,
@@ -669,9 +784,22 @@ def _save_children(registration, payload):
                 non_catalog_name=item.non_catalog_name,
                 quantity=item.quantity,
                 requested_unit_price=item.requested_unit_price,
+                currency=(products[item.product_id].currency if item.product_id else "PHP"),
+                list_unit_price_snapshot=(
+                    products[item.product_id].list_price if item.product_id else Decimal("0.00")
+                ),
                 justification=item.justification,
             )
             for item in payload.items
+        ]
+    )
+    categories = sorted(
+        {item.product.category for item in saved_items if item.product_id and item.product}
+    )
+    RegistrationCategoryApproval.objects.bulk_create(
+        [
+            RegistrationCategoryApproval(registration=registration, category=category)
+            for category in categories
         ]
     )
     return True
@@ -778,6 +906,19 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
                     "code": "edit_conflict",
                     "message": (
                         "This registration changed after you opened it. Refresh before saving."
+                    ),
+                },
+            )
+        if registration.category_approvals.exclude(
+            status=RegistrationCategoryApproval.Status.PENDING
+        ).exists():
+            return Status(
+                409,
+                {
+                    "code": "commercial_review_locked",
+                    "message": (
+                        "Products and requested prices cannot change after commercial review "
+                        "has started. Ask DBGI to request changes first."
                     ),
                 },
             )
@@ -1084,6 +1225,269 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
         .get(pk=registration_id)
     )
     return _serialize_registration_detail(registration, request.user)
+
+
+@api.post(
+    "/review/category-approvals/{approval_id}/decision",
+    auth=django_auth,
+    response={
+        200: CategoryApprovalOutput,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def decide_category_approval(request, approval_id: int, payload: CategoryApprovalDecisionInput):
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        approval = get_object_or_404(
+            RegistrationCategoryApproval.objects.select_for_update().select_related(
+                "registration", "reviewed_by"
+            ),
+            pk=approval_id,
+        )
+        if approval.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This commercial approval changed. Refresh before deciding.",
+                },
+            )
+        items = list(
+            approval.registration.items.select_related("product").filter(
+                product__category=approval.category
+            )
+        )
+        item_ids = {item.pk for item in items}
+        unexpected_ids = set(payload.approved_prices) - item_ids
+        if unexpected_ids:
+            return Status(
+                400,
+                {
+                    "code": "invalid_approved_item",
+                    "message": "An approved price refers to an item outside this category.",
+                },
+            )
+        if payload.status in {
+            RegistrationCategoryApproval.Status.APPROVED,
+            RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+        }:
+            if not payload.valid_until or payload.valid_until < timezone.localdate():
+                return Status(
+                    400,
+                    {
+                        "code": "valid_until_required",
+                        "message": (
+                            "Approved commercial terms require a current or future expiry date."
+                        ),
+                    },
+                )
+            required_count = (
+                len(items) if payload.status == RegistrationCategoryApproval.Status.APPROVED else 1
+            )
+            if len(payload.approved_prices) < required_count:
+                return Status(
+                    400,
+                    {
+                        "code": "approved_prices_required",
+                        "message": (
+                            "Enter approved prices for the products covered by this decision."
+                        ),
+                    },
+                )
+        prior_snapshot = registration_snapshot(approval.registration)
+        approval.status = payload.status
+        approval.rationale = payload.rationale.strip()
+        approval.reviewed_by = request.user
+        approval.reviewed_at = timezone.now()
+        approval.valid_until = payload.valid_until
+        approval.version += 1
+        approval.save()
+        approval.item_approvals.all().delete()
+        RegistrationItemApproval.objects.bulk_create(
+            [
+                RegistrationItemApproval(
+                    category_approval=approval,
+                    registration_item=item,
+                    approved_unit_price=payload.approved_prices.get(item.pk),
+                )
+                for item in items
+                if item.pk in payload.approved_prices
+            ]
+        )
+        approval.registration.version += 1
+        approval.registration.save(update_fields=["version", "updated_at"])
+        RegistrationEvent.objects.create(
+            registration=approval.registration,
+            actor=request.user,
+            event_type="Commercial decision",
+            details=(
+                f"{approval.category} pricing was marked {approval.get_status_display()}. "
+                f"{approval.rationale}"
+            ),
+            snapshot=prior_snapshot,
+        )
+    return _serialize_category_approval(approval)
+
+
+@api.post(
+    "/review/opportunities/{opportunity_id}/project-status",
+    auth=django_auth,
+    response={200: OpportunityScopeOutput, 403: ErrorResponse, 404: ErrorResponse},
+)
+def update_project_status(request, opportunity_id: int, payload: ProjectStatusInput):
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        opportunity = get_object_or_404(
+            Opportunity.objects.select_for_update(), pk=opportunity_id, is_active=True
+        )
+        old_label = opportunity.get_project_status_display()
+        opportunity.project_status = payload.status
+        opportunity.save(update_fields=["project_status"])
+        registrations = Registration.objects.filter(opportunity_scope__opportunity=opportunity)
+        for registration in registrations:
+            RegistrationEvent.objects.create(
+                registration=registration,
+                actor=request.user,
+                event_type="Project status changed",
+                details=(
+                    f"Project status changed from {old_label} to "
+                    f"{opportunity.get_project_status_display()}: {payload.reason.strip()}"
+                ),
+                snapshot=registration_snapshot(registration),
+            )
+    scope = opportunity.scopes.filter(is_active=True).first()
+    if not scope:
+        return Status(
+            404,
+            {"code": "scope_not_found", "message": "The opportunity has no active scope."},
+        )
+    return {
+        "id": scope.pk,
+        "opportunity_id": opportunity.pk,
+        "opportunity_title": opportunity.title,
+        "name": scope.name,
+        "scope_type": scope.scope_type,
+        "label": str(scope),
+    }
+
+
+@api.post(
+    "/category-approvals/{approval_id}/renewals",
+    auth=django_auth,
+    response={
+        201: CategoryApprovalOutput,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+    },
+)
+def request_price_renewal(request, approval_id: int, payload: RenewalRequestInput):
+    company_id = _company_id(request.user)
+    if company_id in (None, False):
+        return Status(
+            403, {"code": "company_access_required", "message": "A company account is required."}
+        )
+    approval = get_object_or_404(
+        RegistrationCategoryApproval.objects.select_related("registration", "reviewed_by"),
+        pk=approval_id,
+        registration__company_id=company_id,
+    )
+    if approval.status not in {
+        RegistrationCategoryApproval.Status.APPROVED,
+        RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+    }:
+        return Status(
+            400,
+            {
+                "code": "renewal_unavailable",
+                "message": "Only approved commercial terms can be renewed.",
+            },
+        )
+    if approval.renewals.filter(status=PriceApprovalRenewal.Status.PENDING).exists():
+        return Status(
+            400,
+            {"code": "renewal_pending", "message": "A renewal request is already pending."},
+        )
+    PriceApprovalRenewal.objects.create(
+        category_approval=approval,
+        requested_by=request.user,
+        reason=payload.reason.strip(),
+        previous_valid_until=approval.valid_until,
+    )
+    RegistrationEvent.objects.create(
+        registration=approval.registration,
+        actor=request.user,
+        event_type="Price renewal requested",
+        details=f"Renewal requested for {approval.category}: {payload.reason.strip()}",
+        snapshot=registration_snapshot(approval.registration),
+    )
+    return Status(201, _serialize_category_approval(approval))
+
+
+@api.post(
+    "/review/renewals/{renewal_id}/decision",
+    auth=django_auth,
+    response={
+        200: CategoryApprovalOutput,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+    },
+)
+def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput):
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        renewal = get_object_or_404(
+            PriceApprovalRenewal.objects.select_for_update().select_related(
+                "category_approval__registration", "category_approval__reviewed_by"
+            ),
+            pk=renewal_id,
+            status=PriceApprovalRenewal.Status.PENDING,
+        )
+        approval = renewal.category_approval
+        renewal.decided_by = request.user
+        renewal.decided_at = timezone.now()
+        renewal.decision_reason = payload.reason.strip()
+        if payload.approve:
+            today = timezone.localdate()
+            base_date = (
+                approval.valid_until
+                if approval.valid_until and approval.valid_until >= today
+                else today
+            )
+            renewal.status = PriceApprovalRenewal.Status.APPROVED
+            renewal.new_valid_until = base_date + timedelta(days=30)
+            approval.valid_until = renewal.new_valid_until
+            approval.version += 1
+            approval.save(update_fields=["valid_until", "version", "updated_at"])
+        else:
+            renewal.status = PriceApprovalRenewal.Status.REJECTED
+        renewal.save()
+        approval.registration.version += 1
+        approval.registration.save(update_fields=["version", "updated_at"])
+        RegistrationEvent.objects.create(
+            registration=approval.registration,
+            actor=request.user,
+            event_type="Price renewal decided",
+            details=(
+                f"The {approval.category} renewal was "
+                f"{'approved' if payload.approve else 'rejected'}: {payload.reason.strip()}"
+            ),
+            snapshot=registration_snapshot(approval.registration),
+        )
+    return _serialize_category_approval(approval)
 
 
 def _attachment_edit_guard(registration, version):

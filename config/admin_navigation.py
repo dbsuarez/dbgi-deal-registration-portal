@@ -21,6 +21,14 @@ def can_view_review_decisions(request):
     return request.user.has_perm("registrations.view_registrationreviewdecision")
 
 
+def can_view_category_approvals(request):
+    return request.user.has_perm("registrations.view_registrationcategoryapproval")
+
+
+def can_view_price_renewals(request):
+    return request.user.has_perm("registrations.view_priceapprovalrenewal")
+
+
 def can_view_registration_events(request):
     return request.user.has_perm("registrations.view_registrationevent")
 

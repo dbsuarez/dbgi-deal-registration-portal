@@ -20,11 +20,14 @@ from .models import (
     EndUser,
     Opportunity,
     OpportunityScope,
+    PriceApprovalRenewal,
     Product,
     Registration,
     RegistrationAttachment,
+    RegistrationCategoryApproval,
     RegistrationEvent,
     RegistrationItem,
+    RegistrationItemApproval,
     RegistrationReviewDecision,
     User,
 )
@@ -621,6 +624,112 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(registration.items.count(), 1)
         self.assertEqual(registration.events.get().event_type, "Submitted")
         self.assertEqual(registration.matching_suggestions.filter(is_current=True).count(), 1)
+
+    def test_create_snapshots_list_price_and_opens_category_review(self):
+        self.product.list_price = "125.00"
+        self.product.save(update_fields=["list_price"])
+        self.client.force_login(self.user_a)
+
+        response = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload()),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        registration = Registration.objects.get(project_title="TEST opportunity")
+        item = registration.items.get()
+        self.assertEqual(str(item.list_unit_price_snapshot), "125.00")
+        self.assertEqual(str(item.requested_discount_percent), "99.20")
+        approval = registration.category_approvals.get()
+        self.assertEqual(approval.category, self.product.category)
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+
+    def test_admin_can_approve_category_prices_with_expiry(self):
+        self.product.list_price = "125.00"
+        self.product.save(update_fields=["list_price"])
+        self.client.force_login(self.user_a)
+        created = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload()),
+            content_type="application/json",
+        )
+        registration = Registration.objects.get(pk=created.json()["id"])
+        approval = registration.category_approvals.get()
+        item = registration.items.get()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            f"/api/v1/review/category-approvals/{approval.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": approval.version,
+                    "status": "approved",
+                    "rationale": "Pricing is commercially acceptable.",
+                    "valid_until": (date.today() + timedelta(days=30)).isoformat(),
+                    "approved_prices": {str(item.pk): "95.00"},
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.APPROVED)
+        self.assertEqual(
+            RegistrationItemApproval.objects.get(registration_item=item).approved_unit_price,
+            95,
+        )
+        self.assertTrue(registration.events.filter(event_type="Commercial decision").exists())
+
+    def test_company_cannot_make_a_commercial_decision(self):
+        approval = RegistrationCategoryApproval.objects.create(
+            registration=self.registration_a, category=self.product.category
+        )
+        self.client.force_login(self.user_a)
+
+        response = self.client.post(
+            f"/api/v1/review/category-approvals/{approval.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": approval.version,
+                    "status": "rejected",
+                    "rationale": "Company users cannot decide pricing.",
+                    "approved_prices": {},
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_approved_renewal_adds_thirty_days_to_current_expiry(self):
+        current_expiry = date.today() + timedelta(days=10)
+        approval = RegistrationCategoryApproval.objects.create(
+            registration=self.registration_a,
+            category=self.product.category,
+            status=RegistrationCategoryApproval.Status.APPROVED,
+            valid_until=current_expiry,
+        )
+        renewal = PriceApprovalRenewal.objects.create(
+            category_approval=approval,
+            requested_by=self.user_a,
+            reason="The procurement schedule moved.",
+            previous_valid_until=current_expiry,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            f"/api/v1/review/renewals/{renewal.pk}/decision",
+            data=json.dumps({"approve": True, "reason": "Schedule evidence is sufficient."}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        approval.refresh_from_db()
+        renewal.refresh_from_db()
+        self.assertEqual(approval.valid_until, current_expiry + timedelta(days=30))
+        self.assertEqual(renewal.new_valid_until, approval.valid_until)
 
     def test_create_rejects_missing_children_and_evidence_confirmation(self):
         self.client.force_login(self.user_a)

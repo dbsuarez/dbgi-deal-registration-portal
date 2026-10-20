@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
@@ -93,6 +94,13 @@ class Product(models.Model):
     code = models.CharField(max_length=80, unique=True)
     name = models.CharField(max_length=240)
     category = models.CharField(max_length=120)
+    currency = models.CharField(max_length=3, default="PHP")
+    list_price = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -201,12 +209,23 @@ class EndUserAlias(models.Model):
 
 
 class Opportunity(models.Model):
+    class ProjectStatus(models.TextChoices):
+        UPCOMING = "upcoming", "Upcoming"
+        ACTIVE = "active", "Active"
+        WON = "won", "Won"
+        LOST = "lost", "Lost"
+        CANCELLED = "cancelled", "Cancelled"
+        ON_HOLD = "on_hold", "On hold"
+
     end_user = models.ForeignKey(
         EndUser, on_delete=models.PROTECT, null=True, blank=True, related_name="opportunities"
     )
     title = models.CharField(max_length=240)
     end_user_name = models.CharField(max_length=240)
     end_user_address = models.TextField()
+    project_status = models.CharField(
+        max_length=20, choices=ProjectStatus.choices, default=ProjectStatus.UPCOMING
+    )
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="opportunities")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -250,7 +269,7 @@ class Registration(models.Model):
         UNDER_REVIEW = "under_review", "Under review"
         CHANGES_REQUESTED = "changes_requested", "Changes requested"
         RESUBMITTED = "resubmitted", "Resubmitted"
-        ELIGIBLE_MATCHED = "eligible_matched", "Eligible and matched"
+        ELIGIBLE_MATCHED = "eligible_matched", "Registered"
         REVIEW_REQUIRED = "review_required", "Review required after edit"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
@@ -314,6 +333,49 @@ class Registration(models.Model):
 
     def __str__(self):
         return f"{self.reference} - {self.project_title}"
+
+    @property
+    def project_status(self):
+        if not self.opportunity_scope_id:
+            return None
+        return self.opportunity_scope.opportunity.project_status
+
+    @property
+    def project_status_label(self):
+        if not self.opportunity_scope_id:
+            return "Not linked"
+        return self.opportunity_scope.opportunity.get_project_status_display()
+
+    @property
+    def price_status(self):
+        approvals = list(self.category_approvals.all())
+        if not approvals:
+            return "not_requested"
+        statuses = {approval.effective_status for approval in approvals}
+        if statuses == {RegistrationCategoryApproval.Status.APPROVED}:
+            return "approved"
+        if statuses == {RegistrationCategoryApproval.Status.EXPIRED}:
+            return "expired"
+        if RegistrationCategoryApproval.Status.CHANGES_REQUESTED in statuses:
+            return "changes_requested"
+        if statuses == {RegistrationCategoryApproval.Status.REJECTED}:
+            return "rejected"
+        if statuses == {RegistrationCategoryApproval.Status.PENDING}:
+            return "pending"
+        return "partially_approved"
+
+    @property
+    def price_status_label(self):
+        labels = {
+            "not_requested": "Not requested",
+            "pending": "Pending",
+            "changes_requested": "Changes requested",
+            "partially_approved": "Partially approved",
+            "approved": "Approved",
+            "rejected": "Rejected",
+            "expired": "Expired",
+        }
+        return labels[self.price_status]
 
 
 class OpportunityRanking(Registration):
@@ -424,6 +486,13 @@ class RegistrationItem(models.Model):
     requested_unit_price = models.DecimalField(
         max_digits=14, decimal_places=2, validators=[MinValueValidator(0)]
     )
+    currency = models.CharField(max_length=3, default="PHP")
+    list_unit_price_snapshot = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
     justification = models.TextField(blank=True)
 
     def clean(self):
@@ -437,8 +506,117 @@ class RegistrationItem(models.Model):
     def display_name(self):
         return str(self.product) if self.product_id else self.non_catalog_name
 
+    @property
+    def requested_discount_percent(self):
+        if self.list_unit_price_snapshot <= 0:
+            return None
+        return (
+            (self.list_unit_price_snapshot - self.requested_unit_price)
+            / self.list_unit_price_snapshot
+            * Decimal("100")
+        ).quantize(Decimal("0.01"))
+
+    @property
+    def requested_total(self):
+        return (self.requested_unit_price * self.quantity).quantize(Decimal("0.01"))
+
     def __str__(self):
         return self.display_name
+
+
+class RegistrationCategoryApproval(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        PARTIALLY_APPROVED = "partially_approved", "Partially approved"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        EXPIRED = "expired", "Expired"
+
+    registration = models.ForeignKey(
+        Registration, on_delete=models.PROTECT, related_name="category_approvals"
+    )
+    category = models.CharField(max_length=120)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.PENDING)
+    rationale = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True, related_name="category_approvals"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["category", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["registration", "category"], name="unique_category_approval"
+            )
+        ]
+
+    @property
+    def effective_status(self):
+        if (
+            self.status in {self.Status.APPROVED, self.Status.PARTIALLY_APPROVED}
+            and self.valid_until
+            and self.valid_until < timezone.localdate()
+        ):
+            return self.Status.EXPIRED
+        return self.status
+
+    def __str__(self):
+        return f"{self.registration.reference} - {self.category}"
+
+
+class RegistrationItemApproval(models.Model):
+    category_approval = models.ForeignKey(
+        RegistrationCategoryApproval, on_delete=models.CASCADE, related_name="item_approvals"
+    )
+    registration_item = models.OneToOneField(
+        RegistrationItem, on_delete=models.PROTECT, related_name="price_approval"
+    )
+    approved_unit_price = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    remarks = models.TextField(blank=True)
+
+    def clean(self):
+        super().clean()
+        if self.registration_item.registration_id != self.category_approval.registration_id:
+            raise ValidationError("The approved item must belong to the same registration.")
+
+
+class PriceApprovalRenewal(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    category_approval = models.ForeignKey(
+        RegistrationCategoryApproval, on_delete=models.PROTECT, related_name="renewals"
+    )
+    requested_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="price_renewal_requests"
+    )
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    previous_valid_until = models.DateField(null=True, blank=True)
+    new_valid_until = models.DateField(null=True, blank=True)
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="price_renewal_decisions",
+    )
+    decision_reason = models.TextField(blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at", "-id"]
 
 
 class RegistrationEvent(models.Model):

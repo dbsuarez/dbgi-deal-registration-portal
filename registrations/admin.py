@@ -20,11 +20,14 @@ from .models import (
     Opportunity,
     OpportunityRanking,
     OpportunityScope,
+    PriceApprovalRenewal,
     Product,
     Registration,
     RegistrationAttachment,
+    RegistrationCategoryApproval,
     RegistrationEvent,
     RegistrationItem,
+    RegistrationItemApproval,
     RegistrationReviewDecision,
     User,
 )
@@ -57,7 +60,7 @@ class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ("code", "name", "category", "is_active")
+    list_display = ("code", "name", "category", "currency", "list_price", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
 
@@ -169,16 +172,31 @@ class OpportunityScopeInline(TabularInline):
 
 @admin.register(Opportunity)
 class OpportunityAdmin(ModelAdmin):
-    list_display = ("title", "end_user_name", "is_active", "created_at")
-    list_filter = ("is_active",)
+    list_display = ("title", "end_user_name", "project_status", "is_active", "created_at")
+    list_filter = ("project_status", "is_active")
     search_fields = ("title", "end_user_name", "end_user_address")
     readonly_fields = ("created_by", "created_at")
     inlines = (OpportunityScopeInline,)
 
     def save_model(self, request, obj, form, change):
+        previous_status = None
+        if change:
+            previous_status = self.get_queryset(request).get(pk=obj.pk).project_status
         if not obj.pk:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+        if change and previous_status != obj.project_status:
+            for registration in Registration.objects.filter(opportunity_scope__opportunity=obj):
+                RegistrationEvent.objects.create(
+                    registration=registration,
+                    actor=request.user,
+                    event_type="Project status changed",
+                    details=(
+                        f"Project status changed from {previous_status} to "
+                        f"{obj.get_project_status_display()} through Django administration."
+                    ),
+                    snapshot=registration_snapshot(registration),
+                )
 
 
 class CompetitorItemInline(TabularInline):
@@ -212,6 +230,26 @@ class RegistrationAttachmentInline(TabularInline):
         return False
 
 
+class RegistrationCategoryApprovalInline(TabularInline):
+    model = RegistrationCategoryApproval
+    extra = 0
+    readonly_fields = (
+        "category",
+        "status",
+        "rationale",
+        "reviewed_by",
+        "reviewed_at",
+        "valid_until",
+        "version",
+        "created_at",
+        "updated_at",
+    )
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Registration)
 class RegistrationAdmin(ModelAdmin):
     list_display = (
@@ -236,6 +274,7 @@ class RegistrationAdmin(ModelAdmin):
         CompetitorItemInline,
         RegistrationItemInline,
         RegistrationAttachmentInline,
+        RegistrationCategoryApprovalInline,
         RegistrationEventInline,
     )
 
@@ -412,6 +451,89 @@ class RegistrationReviewDecisionAdmin(ModelAdmin):
         "actor",
         "registration_version",
         "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class RegistrationItemApprovalInline(TabularInline):
+    model = RegistrationItemApproval
+    extra = 0
+
+
+@admin.register(RegistrationCategoryApproval)
+class RegistrationCategoryApprovalAdmin(ModelAdmin):
+    list_display = (
+        "registration",
+        "category",
+        "status",
+        "valid_until",
+        "reviewed_by",
+        "reviewed_at",
+    )
+    list_filter = ("status", "category", "valid_until")
+    search_fields = ("registration__project_title", "registration__company__name", "category")
+    readonly_fields = ("version", "created_at", "updated_at")
+    inlines = (RegistrationItemApprovalInline,)
+
+    def save_model(self, request, obj, form, change):
+        request.commercial_prior_snapshot = registration_snapshot(obj.registration)
+        if change:
+            obj.version += 1
+        obj.reviewed_by = request.user
+        obj.reviewed_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        registration = form.instance.registration
+        registration.version += 1
+        registration.save(update_fields=("version", "updated_at"))
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Commercial decision",
+            details=(
+                f"{form.instance.category} pricing was marked "
+                f"{form.instance.get_status_display()} through Django administration."
+            ),
+            snapshot=request.commercial_prior_snapshot,
+        )
+
+
+@admin.register(PriceApprovalRenewal)
+class PriceApprovalRenewalAdmin(ModelAdmin):
+    list_display = (
+        "category_approval",
+        "status",
+        "requested_by",
+        "requested_at",
+        "new_valid_until",
+        "decided_by",
+    )
+    list_filter = ("status", "requested_at")
+    search_fields = (
+        "category_approval__registration__project_title",
+        "category_approval__registration__company__name",
+    )
+    readonly_fields = (
+        "category_approval",
+        "requested_by",
+        "reason",
+        "status",
+        "previous_valid_until",
+        "new_valid_until",
+        "decided_by",
+        "decision_reason",
+        "requested_at",
+        "decided_at",
     )
 
     def has_add_permission(self, request):

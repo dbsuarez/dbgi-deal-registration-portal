@@ -13,6 +13,8 @@ def registration_snapshot(registration):
         "evidence_url": registration.evidence_url,
         "evidence_sharing_confirmed": registration.evidence_sharing_confirmed,
         "status": registration.status,
+        "project_status": registration.project_status,
+        "price_status": registration.price_status,
         "version": registration.version,
         "competitor_items": [
             {
@@ -29,6 +31,8 @@ def registration_snapshot(registration):
                 "non_catalog_name": item.non_catalog_name,
                 "quantity": item.quantity,
                 "requested_unit_price": str(item.requested_unit_price),
+                "currency": item.currency,
+                "list_unit_price_snapshot": str(item.list_unit_price_snapshot),
                 "justification": item.justification,
             }
             for item in registration.items.select_related("product").all()

@@ -918,20 +918,32 @@ function ItemDialog({
               fullWidth
               label="Catalog product"
               value={value.product_id ?? ""}
-              onChange={(e) =>
+              onChange={(e) => {
+                const product = products.find(
+                  (option) => option.id === Number(e.target.value),
+                );
                 onChange({
                   ...value,
                   product_id: e.target.value ? Number(e.target.value) : null,
                   non_catalog_name: e.target.value
                     ? ""
                     : value.non_catalog_name,
-                })
-              }
+                  requested_unit_price: product
+                    ? (product.list_price ?? "")
+                    : value.requested_unit_price,
+                });
+              }}
             >
               <MenuItem value="">Not in catalog</MenuItem>
               {products.map((product) => (
                 <MenuItem key={product.id} value={product.id}>
-                  {product.code} - {product.name} ({product.category})
+                  {product.code} - {product.name} ({product.category}) |{" "}
+                  {product.currency}{" "}
+                  {product.list_price
+                    ? Number(product.list_price).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })
+                    : "Price not set"}
                 </MenuItem>
               ))}
             </TextField>
