@@ -223,11 +223,30 @@ export type RegistrationPayload = {
 
 export class RequestError extends Error {
   readonly status: number;
+  readonly code: string;
+  readonly details: ApiError["details"];
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    code = "request_failed",
+    details: ApiError["details"] = [],
+  ) {
     super(message);
+    this.name = "RequestError";
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
+}
+
+function requestError(response: Response, body: ApiError | null) {
+  return new RequestError(
+    body?.message ?? "The request could not be completed.",
+    response.status,
+    body?.code,
+    body?.details,
+  );
 }
 
 function redirectToLogin() {
@@ -245,10 +264,7 @@ async function request<T>(url: string, signal?: AbortSignal): Promise<T> {
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiError | null;
-    throw new RequestError(
-      body?.message ?? "The request could not be completed.",
-      response.status,
-    );
+    throw requestError(response, body);
   }
   return response.json() as Promise<T>;
 }
@@ -274,10 +290,7 @@ async function mutation<T>(
   }
   if (!response.ok) {
     const result = (await response.json().catch(() => null)) as ApiError | null;
-    throw new RequestError(
-      result?.message ?? "The request could not be completed.",
-      response.status,
-    );
+    throw requestError(response, result);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

@@ -22,6 +22,7 @@ const RegistrationFormPage = lazy(() => import("./pages/RegistrationFormPage"));
 const OpportunityRankingsPage = lazy(
   () => import("./pages/OpportunityRankingsPage"),
 );
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -142,6 +143,7 @@ function App() {
                   path="/rankings/"
                   element={<OpportunityRankingsPage />}
                 />
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>
           </Box>

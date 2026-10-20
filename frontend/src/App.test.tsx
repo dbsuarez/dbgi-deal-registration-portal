@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
@@ -9,6 +9,15 @@ const session = {
   is_dbgi_admin: false,
   csrf_token: "test-token",
 };
+
+beforeEach(() => {
+  window.history.pushState({}, "", "/");
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("App", () => {
   it("renders the registration list returned by the API", async () => {
@@ -58,5 +67,27 @@ describe("App", () => {
     expect(
       screen.getByText(/^Build: \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
     ).toBeInTheDocument();
+  });
+
+  it("renders a useful page for an unknown route", async () => {
+    window.history.pushState({}, "", "/missing-page/");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(session), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Go to registrations" }),
+    ).toHaveAttribute("href", "/");
   });
 });

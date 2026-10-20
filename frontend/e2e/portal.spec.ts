@@ -102,6 +102,17 @@ test("authenticated user can log out", async ({ page }) => {
   await expect(page).toHaveURL(/\/accounts\/login\/$/);
 });
 
+test("unknown route shows the application not-found page", async ({ page }) => {
+  await page.goto("/missing-page/");
+
+  await expect(
+    page.getByRole("heading", { name: "Page not found" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Go to registrations" }),
+  ).toHaveAttribute("href", "/");
+});
+
 test("company user can open the React registration form", async ({ page }) => {
   await page.route("**/api/v1/registrations?**", (route) =>
     route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 25 } }),
