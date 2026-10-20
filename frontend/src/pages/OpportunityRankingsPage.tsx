@@ -20,7 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getOpportunityRankings,
@@ -73,6 +73,7 @@ export default function OpportunityRankingsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [explanationOpen, setExplanationOpen] = useState(false);
+  const explanationCloseRef = useRef<HTMLButtonElement>(null);
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 25,
@@ -252,7 +253,15 @@ export default function OpportunityRankingsPage() {
         />
       </Box>
 
-      <Dialog open={explanationOpen} onClose={() => setExplanationOpen(false)}>
+      <Dialog
+        open={explanationOpen}
+        onClose={() => setExplanationOpen(false)}
+        slotProps={{
+          transition: {
+            onEntered: () => explanationCloseRef.current?.focus(),
+          },
+        }}
+      >
         <DialogTitle>How ranking works</DialogTitle>
         <DialogContent>
           <Typography paragraph>
@@ -271,7 +280,12 @@ export default function OpportunityRankingsPage() {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setExplanationOpen(false)}>Close</Button>
+          <Button
+            ref={explanationCloseRef}
+            onClick={() => setExplanationOpen(false)}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

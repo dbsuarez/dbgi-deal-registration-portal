@@ -261,6 +261,25 @@ test("company user can submit a complete registration", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("competitor dialog supports keyboard focus and Escape restoration", async ({
+  page,
+}) => {
+  await page.goto("/registrations/new/");
+  const trigger = page.getByRole("button", { name: "Add competitor" });
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+
+  const dialog = page.getByRole("dialog", { name: "Competitor item" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("Brand")).toBeFocused();
+
+  await page.keyboard.press("Escape");
+
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
 test("failed evidence upload retries the same registration", async ({
   page,
 }) => {
@@ -407,10 +426,41 @@ test("DBGI administrator can view opportunity rankings", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("IT Avenue", { exact: true })).toBeVisible();
   await expect(page.getByText("Lexmark", { exact: true })).toBeVisible();
-  await page.getByLabel("Explain opportunity rankings").click();
-  await expect(
-    page.getByRole("heading", { name: "How ranking works" }),
-  ).toBeVisible();
+  const explainButton = page.getByLabel("Explain opportunity rankings");
+  await explainButton.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "How ranking works" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Close" })).toBeFocused();
+
+  await page.keyboard.press("Escape");
+
+  await expect(dialog).toBeHidden();
+  await expect(explainButton).toBeFocused();
+});
+
+test("ranking request failure is announced as an alert", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  await page.route("**/api/v1/rankings?**", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "service_unavailable",
+        message: "Rankings are temporarily unavailable.",
+      }),
+    }),
+  );
+
+  await page.goto("/rankings/");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Rankings are temporarily unavailable.",
+  );
 });
 
 test("DBGI administrator can inspect a suggestion and start review", async ({

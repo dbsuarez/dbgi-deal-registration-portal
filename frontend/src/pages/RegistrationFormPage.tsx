@@ -32,6 +32,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -832,8 +833,20 @@ function CompetitorDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const brandInputRef = useRef<HTMLInputElement>(null);
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      slotProps={{
+        transition: {
+          onEntered: () => brandInputRef.current?.focus(),
+        },
+      }}
+    >
       <DialogTitle>Competitor item</DialogTitle>
       <DialogContent>
         <Grid container spacing={2} sx={{ pt: 1 }}>
@@ -846,7 +859,7 @@ function CompetitorDialog({
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  autoFocus
+                  inputRef={brandInputRef}
                   required
                   label="Brand"
                   helperText="Choose a previous brand or enter a new one."

@@ -36,6 +36,7 @@ The application is a working internal beta with these foundations implemented:
 - Immutable before-and-resulting snapshots for Django Admin registration and child-inline edits.
 - PostgreSQL-safe row locking and concurrency coverage for simultaneous edits, evidence finalization, matching refresh, and normalized End-user uniqueness.
 - GitHub Actions quality gates for backend, PostgreSQL, frontend, build, formatting, and Playwright checks.
+- Browser accessibility coverage for dialog naming, keyboard activation, initial focus, Escape dismissal, focus restoration, and API error alerts.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, notifications, reporting, operational automation, and several policies remain incomplete.
@@ -77,7 +78,7 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 2. [x] Add PostgreSQL integration tests for row locks, concurrent registration edits, matching refresh, evidence finalization, and duplicate normalized master data.
 3. [x] Add CI quality gates for backend tests, frontend tests, Ruff, migration drift, build, and representative Playwright workflows.
 4. [x] Reconcile stale documentation, especially the README current-scope section and the old MVP gap analysis.
-5. Add focused accessibility coverage for dialogs, keyboard navigation, focus restoration, and error states.
+5. [x] Add focused accessibility coverage for dialogs, keyboard navigation, focus restoration, and error states.
 6. Prepare the separate technical and infrastructure proposal required by v9 before production implementation.
 
 ### Exit criteria
