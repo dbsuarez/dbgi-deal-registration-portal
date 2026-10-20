@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils import timezone
@@ -370,6 +371,8 @@ def load_scenario(key, actor):
 
 @transaction.atomic
 def clear_transactional_records():
+    if not settings.DEBUG:
+        raise CommandError("Transactional records can only be cleared while DEBUG is true.")
     counts = {
         "review_decisions": RegistrationReviewDecision.objects.count(),
         "registrations": Registration.objects.count(),

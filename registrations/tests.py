@@ -871,3 +871,11 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(
             request.registration_prior_snapshot["project_title"], self.registration_a.project_title
         )
+
+    @override_settings(DEBUG=False)
+    def test_clearing_transactional_records_requires_debug(self):
+        from devtools.scenarios import clear_transactional_records
+
+        with self.assertRaises(CommandError):
+            clear_transactional_records()
+        self.assertTrue(Registration.objects.filter(pk=self.registration_a.pk).exists())
