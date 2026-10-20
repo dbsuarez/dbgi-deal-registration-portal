@@ -202,10 +202,37 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "config.throttling.RequestThrottleMiddleware",
     "registrations.middleware.DBGIAdminAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+REDIS_URL = os.environ.get("REDIS_URL", "")
+CACHES = {
+    "default": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+        if REDIS_URL
+        else {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "dbgi-local-development",
+        }
+    )
+}
+
+THROTTLE_ENABLED = os.environ.get("DJANGO_THROTTLE_ENABLED", "true").lower() == "true"
+THROTTLE_FAIL_CLOSED = (
+    os.environ.get("DJANGO_THROTTLE_FAIL_CLOSED", "false" if DEBUG else "true").lower() == "true"
+)
+LOGIN_THROTTLE_LIMIT = int(os.environ.get("DJANGO_LOGIN_THROTTLE_LIMIT", "10"))
+LOGIN_THROTTLE_WINDOW_SECONDS = int(os.environ.get("DJANGO_LOGIN_THROTTLE_WINDOW_SECONDS", "300"))
+API_MUTATION_THROTTLE_LIMIT = int(os.environ.get("DJANGO_API_MUTATION_THROTTLE_LIMIT", "120"))
+API_MUTATION_THROTTLE_WINDOW_SECONDS = int(
+    os.environ.get("DJANGO_API_MUTATION_THROTTLE_WINDOW_SECONDS", "60")
+)
 
 ROOT_URLCONF = "config.urls"
 

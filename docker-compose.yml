@@ -1,4 +1,11 @@
 services:
+  cache:
+    image: redis:8.0-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - backend
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -24,7 +31,10 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: "5432"
+      REDIS_URL: redis://cache:6379/1
     depends_on:
+      cache:
+        condition: service_started
       db:
         condition: service_healthy
     volumes:

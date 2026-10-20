@@ -3,4 +3,5 @@ django-unfold==0.110.0
 django-ninja>=1.4,<2
 gunicorn>=23,<24
 psycopg[binary]>=3.2,<4
+redis==8.1.0
 whitenoise>=6.9,<7

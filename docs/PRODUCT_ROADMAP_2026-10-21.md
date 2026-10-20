@@ -28,6 +28,9 @@ The application is a working internal beta with these foundations implemented:
 - Category commercial approvals, item-level approved prices, expiry, and 30-day renewal decisions.
 - Project-status management and activity history.
 - Table search, filters, pagination, status indicators, and permission-scoped ranking views.
+- Structured frontend API errors that preserve backend codes and field details.
+- An application-level not-found page with a safe return action.
+- Shared Redis-backed throttling for login submissions and authenticated API mutations across Gunicorn workers.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, notifications, reporting, operational automation, and several policies remain incomplete.
@@ -60,10 +63,10 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 ### Scope
 
 1. Resolve remaining audit items:
-   - Add throttling for login and sensitive endpoints.
-   - Preserve structured API error codes and field details in the frontend.
+   - [x] Add throttling for login and sensitive endpoints.
+   - [x] Preserve structured API error codes and field details in the frontend.
    - Review missing indexes and the matching-loop N+1 query.
-   - Add a safe application-level not-found route.
+   - [x] Add a safe application-level not-found route.
    - Replace broad admin URL-prefix assumptions with explicit authorization where needed.
    - Verify that Django Admin child-inline edits capture complete before-and-after audit evidence.
 2. Add PostgreSQL integration tests for row locks, concurrent registration edits, matching refresh, evidence finalization, and duplicate normalized master data.

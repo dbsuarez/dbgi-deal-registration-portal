@@ -123,6 +123,8 @@ docker compose exec web python manage.py createsuperuser
 
 The Django process and database are not published to the host. Nginx is the only public Compose service, and PostgreSQL is on an internal Docker network. After HTTPS is confirmed, consider setting `DJANGO_SECURE_HSTS_SECONDS` to a conservative value and verify the Django deployment checklist before production use. Enable `DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS` and `DJANGO_SECURE_HSTS_PRELOAD` only after confirming that every subdomain will remain HTTPS-only and the domain is ready for browser preload requirements.
 
+Compose also runs an internal Redis cache used for request throttling across Gunicorn workers. Login submissions are limited per normalized username, and authenticated API mutations are limited per user. The defaults are documented in `.env.example`. Production fails closed for throttled operations if Redis is unavailable; local development and tests use Django's in-process cache unless `REDIS_URL` is configured.
+
 In Django admin, create the DBGI partner companies and assign company users. The initial catalog migration seeds only the M1820W and P1820W laser printer examples selected by the user; it does not set prices. Other public-page product examples are not seeded. Add or update catalog entries and prices only from DBGI-approved data.
 
 ## Operations

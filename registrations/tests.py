@@ -4,8 +4,10 @@ from decimal import Decimal
 from io import StringIO
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -275,6 +277,57 @@ class RegistrationApiTests(TestCase):
             ).status_code,
             404,
         )
+
+    @override_settings(LOGIN_THROTTLE_LIMIT=2, LOGIN_THROTTLE_WINDOW_SECONDS=300)
+    def test_login_is_throttled_per_normalized_username(self):
+        cache.clear()
+        credentials = {"username": "  DEALER-A  ", "password": "incorrect"}
+
+        first = self.client.post("/accounts/login/", credentials)
+        second = self.client.post("/accounts/login/", credentials)
+        limited = self.client.post("/accounts/login/", credentials)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(limited["X-RateLimit-Limit"], "2")
+        self.assertGreater(int(limited["Retry-After"]), 0)
+
+    @override_settings(
+        API_MUTATION_THROTTLE_LIMIT=1,
+        API_MUTATION_THROTTLE_WINDOW_SECONDS=60,
+    )
+    def test_api_mutations_return_standard_rate_limit_error(self):
+        cache.clear()
+        self.client.force_login(self.user_a)
+
+        first = self.client.post(
+            "/api/v1/registrations", data=json.dumps({}), content_type="application/json"
+        )
+        limited = self.client.post(
+            "/api/v1/registrations", data=json.dumps({}), content_type="application/json"
+        )
+
+        self.assertEqual(first.status_code, 422)
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(limited.json()["code"], "rate_limited")
+        self.assertEqual(limited.json()["details"], [])
+        self.assertGreater(int(limited["Retry-After"]), 0)
+
+    @override_settings(THROTTLE_FAIL_CLOSED=True)
+    def test_api_mutation_fails_safely_when_throttle_backend_is_unavailable(self):
+        self.client.force_login(self.user_a)
+
+        with patch("config.throttling.cache.add", side_effect=ConnectionError):
+            response = self.client.post(
+                "/api/v1/registrations",
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], "service_unavailable")
+        self.assertEqual(response.json()["details"], [])
 
     @override_settings(DEBUG=True)
     def test_development_account_command_sets_known_local_passwords(self):
