@@ -58,8 +58,8 @@ if DEBUG:
 # Application definition
 
 INSTALLED_APPS = [
-    "unfold",
-    "django.contrib.admin",
+    "unfold.apps.BasicAppConfig",
+    "config.apps.DBGIAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -203,7 +203,6 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "config.throttling.RequestThrottleMiddleware",
-    "registrations.middleware.DBGIAdminAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

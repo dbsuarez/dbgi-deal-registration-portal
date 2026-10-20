@@ -592,6 +592,19 @@ class RegistrationApiTests(TestCase):
             fetch_redirect_response=False,
         )
 
+    def test_staff_flag_does_not_grant_company_user_admin_access(self):
+        self.user_a.is_staff = True
+        self.user_a.save(update_fields=["is_staff"])
+        self.client.force_login(self.user_a)
+
+        response = self.client.get("/admin/")
+
+        self.assertRedirects(
+            response,
+            "/admin/login/?next=%2Fadmin%2F",
+            fetch_redirect_response=False,
+        )
+
     def test_dbgi_admin_can_open_django_administration(self):
         self.client.force_login(self.admin)
 
