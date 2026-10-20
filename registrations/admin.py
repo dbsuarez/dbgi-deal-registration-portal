@@ -228,6 +228,7 @@ class RegistrationAdmin(ModelAdmin):
         "company",
         "submitted_by",
         "original_submitted_at",
+        "version",
         "created_at",
         "updated_at",
     )
@@ -239,9 +240,15 @@ class RegistrationAdmin(ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        request.registration_prior_snapshot = (
-            registration_snapshot(self.get_queryset(request).get(pk=obj.pk)) if change else None
-        )
+        if change:
+            request.registration_prior_snapshot = registration_snapshot(
+                self.get_queryset(request).get(pk=obj.pk)
+            )
+            # Admin edits must invalidate any form or API client holding the old
+            # version, otherwise a stale company save overwrites the decision.
+            obj.version = obj.version + 1
+        else:
+            request.registration_prior_snapshot = None
         super().save_model(request, obj, form, change)
 
     def save_related(self, request, form, formsets, change):
@@ -251,7 +258,10 @@ class RegistrationAdmin(ModelAdmin):
                 registration=form.instance,
                 actor=request.user,
                 event_type="Admin update",
-                details="DBGI admin updated registration details or workflow status.",
+                details=(
+                    "DBGI admin updated registration details or workflow status. "
+                    f"Version is now {form.instance.version}."
+                ),
                 snapshot=request.registration_prior_snapshot or {},
             )
         else:

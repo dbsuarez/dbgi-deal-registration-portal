@@ -2,14 +2,17 @@ import json
 from datetime import date, timedelta
 from io import StringIO
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
+from django.contrib.admin.sites import AdminSite
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
+from .admin import RegistrationAdmin
 from .matching import generate_matching_suggestion
 from .models import (
     Company,
@@ -853,3 +856,18 @@ class RegistrationApiTests(TestCase):
             data={"file": SimpleUploadedFile("support.pdf", b"%PDF-1.4 evidence")},
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_admin_edit_bumps_the_version_and_keeps_the_prior_snapshot(self):
+        registration_admin = RegistrationAdmin(Registration, AdminSite())
+        request = RequestFactory().post("/admin/registrations/registration/")
+        request.user = self.admin
+        obj = Registration.objects.get(pk=self.registration_a.pk)
+        obj.project_title = "Admin edited title"
+
+        registration_admin.save_model(request, obj, SimpleNamespace(), change=True)
+
+        obj.refresh_from_db()
+        self.assertEqual(obj.version, self.registration_a.version + 1)
+        self.assertEqual(
+            request.registration_prior_snapshot["project_title"], self.registration_a.project_title
+        )
