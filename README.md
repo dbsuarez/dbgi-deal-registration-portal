@@ -151,6 +151,7 @@ python manage.py check
 python manage.py makemigrations --check --dry-run
 ruff check config registrations
 Set-Location frontend
+npm run format:check
 npm run lint
 npm run test
 npm run test:e2e
@@ -165,4 +166,6 @@ python manage.py test registrations.test_postgresql
 
 ## Current scope
 
-This implementation includes registration intake, DBGI review, strict automatic matching for unambiguous exact matches, and permission-scoped opportunity rankings. Withdrawal, merge and split workflows, pricing and discount approvals, conditional required-field rules, VAT and rounding policy, catalog pricing, notifications, backup automation, and production operating procedures still need DBGI decisions or implementation. Do not treat the starter statuses or this setup as production approval of those remaining policies.
+This internal beta includes company-scoped registration intake and editing, governed End-user and competitor-brand master data, evidence handling, DBGI review, deterministic matching, opportunity scopes, project status, permission-scoped rankings, category commercial approvals, item-level approved prices, expiry, and 30-day approval renewals. PostgreSQL concurrency behavior and the complete backend and frontend suites are configured as GitHub Actions quality gates.
+
+It does not yet include withdrawal, opportunity merge or split, authoritative dated product-price versions, VAT and rounding policy, complete discount calculations, reorder processing, notifications, reports, production backup automation, or finalized operating procedures. Several lifecycle and pricing rules still require DBGI decisions. Do not treat the implemented starter behavior as production approval of unresolved policies.

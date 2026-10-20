@@ -76,7 +76,7 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
    - [x] Verify that Django Admin child-inline edits capture complete before-and-after audit evidence.
 2. [x] Add PostgreSQL integration tests for row locks, concurrent registration edits, matching refresh, evidence finalization, and duplicate normalized master data.
 3. [x] Add CI quality gates for backend tests, frontend tests, Ruff, migration drift, build, and representative Playwright workflows.
-4. Reconcile stale documentation, especially the README current-scope section and the old MVP gap analysis.
+4. [x] Reconcile stale documentation, especially the README current-scope section and the old MVP gap analysis.
 5. Add focused accessibility coverage for dialogs, keyboard navigation, focus restoration, and error states.
 6. Prepare the separate technical and infrastructure proposal required by v9 before production implementation.
 
