@@ -23,6 +23,9 @@ test.beforeEach(async ({ page }) => {
       ],
     }),
   );
+  await page.route("**/api/v1/competitor-brands", (route) =>
+    route.fulfill({ json: ["Canon", "Epson", "HP", "Lexmark"] }),
+  );
   await page.route("**/api/v1/end-users", (route) =>
     route.fulfill({
       json: [

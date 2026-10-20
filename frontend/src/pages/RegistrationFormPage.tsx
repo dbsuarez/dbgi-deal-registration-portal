@@ -43,6 +43,7 @@ import {
   createEndUser,
   deleteAttachment,
   finalizeRegistration,
+  getCompetitorBrands,
   getEndUsers,
   getProducts,
   getRegistration,
@@ -129,6 +130,7 @@ export default function RegistrationFormPage() {
   const [items, setItems] = useState<RequestedItem[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
+  const [competitorBrands, setCompetitorBrands] = useState<string[]>([]);
   const [endUserDialogOpen, setEndUserDialogOpen] = useState(false);
   const [endUserDraft, setEndUserDraft] =
     useState<EndUserCreatePayload>(emptyEndUser);
@@ -161,6 +163,11 @@ export default function RegistrationFormPage() {
       });
     getEndUsers(controller.signal)
       .then(setEndUsers)
+      .catch((reason: Error) => {
+        if (reason.name !== "AbortError") setError(reason.message);
+      });
+    getCompetitorBrands(controller.signal)
+      .then(setCompetitorBrands)
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       });
@@ -753,6 +760,7 @@ export default function RegistrationFormPage() {
       <CompetitorDialog
         open={competitorEditor !== null}
         value={competitorDraft}
+        brands={competitorBrands}
         onChange={setCompetitorDraft}
         onClose={() => setCompetitorEditor(null)}
         onSave={saveCompetitor}
@@ -812,12 +820,14 @@ export default function RegistrationFormPage() {
 function CompetitorDialog({
   open,
   value,
+  brands,
   onChange,
   onClose,
   onSave,
 }: {
   open: boolean;
   value: CompetitorItem;
+  brands: string[];
   onChange: (value: CompetitorItem) => void;
   onClose: () => void;
   onSave: () => void;
@@ -828,13 +838,20 @@ function CompetitorDialog({
       <DialogContent>
         <Grid container spacing={2} sx={{ pt: 1 }}>
           <Grid size={6}>
-            <TextField
-              autoFocus
-              fullWidth
-              required
-              label="Brand"
-              value={value.brand}
-              onChange={(e) => onChange({ ...value, brand: e.target.value })}
+            <Autocomplete
+              freeSolo
+              options={brands}
+              inputValue={value.brand}
+              onInputChange={(_, brand) => onChange({ ...value, brand })}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  autoFocus
+                  required
+                  label="Brand"
+                  helperText="Choose a previous brand or enter a new one."
+                />
+              )}
             />
           </Grid>
           <Grid size={6}>

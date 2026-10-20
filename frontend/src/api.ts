@@ -319,6 +319,10 @@ export function getProducts(signal?: AbortSignal) {
   return request<ProductOption[]>("/api/v1/products", signal);
 }
 
+export function getCompetitorBrands(signal?: AbortSignal) {
+  return request<string[]>("/api/v1/competitor-brands", signal);
+}
+
 export function getEndUsers(signal?: AbortSignal) {
   return request<EndUser[]>("/api/v1/end-users", signal);
 }

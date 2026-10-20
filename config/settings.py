@@ -160,6 +160,12 @@ UNFOLD = {
                         "permission": "config.admin_navigation.can_view_products",
                     },
                     {
+                        "title": "Competitor brands",
+                        "icon": "sell",
+                        "link": reverse_lazy("admin:registrations_competitorbrand_changelist"),
+                        "permission": "config.admin_navigation.can_view_competitor_brands",
+                    },
+                    {
                         "title": "Users",
                         "icon": "group",
                         "link": reverse_lazy("admin:registrations_user_changelist"),
@@ -313,3 +319,7 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = (
+    os.environ.get("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", "false").lower() == "true"
+)
+SECURE_HSTS_PRELOAD = os.environ.get("DJANGO_SECURE_HSTS_PRELOAD", "false").lower() == "true"

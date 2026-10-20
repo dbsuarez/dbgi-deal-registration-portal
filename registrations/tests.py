@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError, transaction
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
@@ -17,6 +18,8 @@ from .admin import RegistrationAdmin
 from .matching import generate_matching_suggestion
 from .models import (
     Company,
+    CompetitorBrand,
+    CompetitorBrandAlias,
     CompetitorItem,
     EndUser,
     Opportunity,
@@ -621,6 +624,75 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(session.json()["csrf_token"])
         self.assertEqual(products.status_code, 200)
         self.assertIn(self.product.code, {item["code"] for item in products.json()})
+
+    def test_competitor_brand_options_return_active_master_data(self):
+        CompetitorBrand.objects.create(name="Active brand")
+        CompetitorBrand.objects.create(name="Archived brand", is_active=False)
+        self.client.force_login(self.user_a)
+        response = self.client.get("/api/v1/competitor-brands")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue({"Canon", "Epson", "HP", "Lexmark"}.issubset(response.json()))
+        self.assertIn("Active brand", response.json())
+        self.assertNotIn("Archived brand", response.json())
+
+    def test_registration_adds_new_competitor_brand_to_master_data(self):
+        self.client.force_login(self.user_a)
+        payload = self.payload()
+        payload["competitor_items"][0]["brand"] = "  New Brand  "
+
+        response = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        brand = CompetitorBrand.objects.get(normalized_name="new brand")
+        self.assertEqual(brand.name, "New Brand")
+
+    def test_competitor_brand_alias_resolves_to_canonical_brand(self):
+        self.client.force_login(self.user_a)
+        payload = self.payload()
+        payload["competitor_items"][0]["brand"] = "  hewlett PACKARD  "
+
+        response = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        registration = Registration.objects.get(pk=response.json()["id"])
+        self.assertEqual(registration.competitor_items.get().brand, "HP")
+        self.assertFalse(CompetitorBrand.objects.filter(normalized_name="hewlett packard").exists())
+
+    def test_competitor_brand_normalized_name_is_database_unique(self):
+        CompetitorBrand.objects.create(name="Unique Brand")
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            CompetitorBrand.objects.bulk_create(
+                [CompetitorBrand(name="Duplicate spelling", normalized_name="unique brand")]
+            )
+
+    def test_competitor_brand_admin_is_restricted_and_supports_aliases(self):
+        hp = CompetitorBrand.objects.get(normalized_name="hp")
+        self.assertTrue(
+            CompetitorBrandAlias.objects.filter(
+                brand=hp, normalized_name="hewlett packard"
+            ).exists()
+        )
+        changelist_url = reverse("admin:registrations_competitorbrand_changelist")
+
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.client.get(changelist_url).status_code, 302)
+
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("admin:registrations_competitorbrand_change", args=[hp.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Hewlett Packard")
 
     def test_logout_ends_authenticated_session(self):
         self.client.force_login(self.user_a)

@@ -13,6 +13,8 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 from .audit import registration_snapshot
 from .models import (
     Company,
+    CompetitorBrand,
+    CompetitorBrandAlias,
     CompetitorItem,
     EndUser,
     EndUserAlias,
@@ -63,6 +65,30 @@ class ProductAdmin(ModelAdmin):
     list_display = ("code", "name", "category", "currency", "list_price", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
+
+
+class CompetitorBrandAliasInline(TabularInline):
+    model = CompetitorBrandAlias
+    extra = 0
+    fields = ("name",)
+
+
+@admin.register(CompetitorBrand)
+class CompetitorBrandAdmin(ModelAdmin):
+    list_display = ("name", "is_active", "created_at", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "aliases__name")
+    readonly_fields = ("normalized_name", "created_at", "updated_at")
+    actions = ("archive_selected", "restore_selected")
+    inlines = (CompetitorBrandAliasInline,)
+
+    @admin.action(description="Archive selected competitor brands")
+    def archive_selected(self, request, queryset):
+        queryset.update(is_active=False)
+
+    @admin.action(description="Restore selected competitor brands")
+    def restore_selected(self, request, queryset):
+        queryset.update(is_active=True)
 
 
 class EndUserAliasInline(TabularInline):

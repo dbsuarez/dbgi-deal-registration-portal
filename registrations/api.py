@@ -19,6 +19,8 @@ from ninja.security import django_auth
 from .audit import registration_snapshot
 from .matching import generate_matching_suggestion
 from .models import (
+    CompetitorBrand,
+    CompetitorBrandAlias,
     CompetitorItem,
     EndUser,
     Opportunity,
@@ -757,6 +759,34 @@ def list_products(request, search: str = ""):
     return queryset.order_by("code")[:100]
 
 
+@api.get("/competitor-brands", auth=django_auth, response=list[str])
+def list_competitor_brands(request):
+    return list(
+        CompetitorBrand.objects.filter(is_active=True)
+        .order_by("name")
+        .values_list("name", flat=True)[:100]
+    )
+
+
+def _resolve_competitor_brand(name):
+    cleaned = " ".join(name.split())
+    normalized = cleaned.casefold()
+    brand = CompetitorBrand.objects.filter(normalized_name=normalized).first()
+    if brand:
+        return brand
+    alias = (
+        CompetitorBrandAlias.objects.select_related("brand")
+        .filter(normalized_name=normalized)
+        .first()
+    )
+    if alias:
+        return alias.brand
+    brand, _ = CompetitorBrand.objects.get_or_create(
+        normalized_name=normalized, defaults={"name": cleaned}
+    )
+    return brand
+
+
 def _validate_input(payload):
     details = []
     if not payload.competitor_items:
@@ -793,12 +823,19 @@ def _save_children(registration, payload):
     ).delete()
     registration.competitor_items.all().delete()
     registration.items.all().delete()
-    CompetitorItem.objects.bulk_create(
-        [
-            CompetitorItem(registration=registration, **item.model_dump())
-            for item in payload.competitor_items
-        ]
-    )
+    competitor_rows = []
+    for item in payload.competitor_items:
+        brand = _resolve_competitor_brand(item.brand)
+        competitor_rows.append(
+            CompetitorItem(
+                registration=registration,
+                brand=brand.name,
+                item_name=item.item_name,
+                bid_price=item.bid_price,
+                remarks=item.remarks,
+            )
+        )
+    CompetitorItem.objects.bulk_create(competitor_rows)
     product_ids = {item.product_id for item in payload.items if item.product_id}
     products = {
         product.pk: product

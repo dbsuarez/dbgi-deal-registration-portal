@@ -100,6 +100,8 @@ Docker builds accept the same value with `--build-arg BUILD_TIME="YYYY-MM-DD HH:
 
 Multiple user accounts may belong to the same company. Manage them under **Master data > Users** in Django admin. These users share company-scoped records and count as one company in opportunity rankings.
 
+Competitor brands are shared master data managed under **Master data > Competitor brands** in Django Admin. Canon, Epson, HP, and Lexmark are seeded initially, with Hewlett Packard mapped as an alias of HP. Company users may enter a new brand while adding a competitor item; a case-insensitive, whitespace-normalized master record is created when the registration is saved. An alias entry resolves to its canonical brand, so entering Hewlett Packard saves HP on the competitor item. Administrators can rename, archive, restore, search, and maintain aliases for these brands. Existing competitor items keep their saved brand text as a historical snapshot.
+
 Two initial laser printer catalog entries (M1820W and P1820W) are added by migration without prices. Production partner and administrator accounts are never seeded automatically.
 
 ## Run with Docker
@@ -119,7 +121,7 @@ docker compose up -d
 docker compose exec web python manage.py createsuperuser
 ```
 
-The Django process and database are not published to the host. Nginx is the only public Compose service, and PostgreSQL is on an internal Docker network. After HTTPS is confirmed, consider setting `DJANGO_SECURE_HSTS_SECONDS` to a conservative value and verify the Django deployment checklist before production use.
+The Django process and database are not published to the host. Nginx is the only public Compose service, and PostgreSQL is on an internal Docker network. After HTTPS is confirmed, consider setting `DJANGO_SECURE_HSTS_SECONDS` to a conservative value and verify the Django deployment checklist before production use. Enable `DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS` and `DJANGO_SECURE_HSTS_PRELOAD` only after confirming that every subdomain will remain HTTPS-only and the domain is ready for browser preload requirements.
 
 In Django admin, create the DBGI partner companies and assign company users. The initial catalog migration seeds only the M1820W and P1820W laser printer examples selected by the user; it does not set prices. Other public-page product examples are not seeded. Add or update catalog entries and prices only from DBGI-approved data.
 

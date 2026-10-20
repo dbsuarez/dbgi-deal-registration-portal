@@ -476,6 +476,61 @@ class CompetitorItem(models.Model):
         return f"{self.brand} - {self.item_name}"
 
 
+class CompetitorBrand(models.Model):
+    name = models.CharField(max_length=160)
+    normalized_name = models.CharField(max_length=160, unique=True, editable=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def clean(self):
+        super().clean()
+        self.name = " ".join(self.name.split())
+        if not self.name:
+            raise ValidationError({"name": "Enter a competitor brand name."})
+        self.normalized_name = self.name.casefold()
+        if CompetitorBrandAlias.objects.filter(normalized_name=self.normalized_name).exists():
+            raise ValidationError(
+                {"name": "This name is already assigned as a competitor brand alias."}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class CompetitorBrandAlias(models.Model):
+    brand = models.ForeignKey(CompetitorBrand, on_delete=models.CASCADE, related_name="aliases")
+    name = models.CharField(max_length=160)
+    normalized_name = models.CharField(max_length=160, unique=True, editable=False)
+
+    class Meta:
+        ordering = ["name", "id"]
+        verbose_name_plural = "competitor brand aliases"
+
+    def clean(self):
+        super().clean()
+        self.name = " ".join(self.name.split())
+        if not self.name:
+            raise ValidationError({"name": "Enter a competitor brand alias."})
+        self.normalized_name = self.name.casefold()
+        if CompetitorBrand.objects.filter(normalized_name=self.normalized_name).exists():
+            raise ValidationError({"name": "This name is already assigned to a competitor brand."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} -> {self.brand.name}"
+
+
 class RegistrationItem(models.Model):
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(
