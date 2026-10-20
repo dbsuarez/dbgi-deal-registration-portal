@@ -664,6 +664,20 @@ def list_registrations(
     page: int = 1,
     page_size: int = 25,
     search: str = "",
+    project_status: Literal[
+        "", "not_linked", "upcoming", "active", "won", "lost", "cancelled", "on_hold"
+    ] = "",
+    registration_status: Literal[
+        "",
+        "submitted",
+        "under_review",
+        "changes_requested",
+        "resubmitted",
+        "eligible_matched",
+        "review_required",
+        "approved",
+        "rejected",
+    ] = "",
     sort: Literal[
         "created_at",
         "-created_at",
@@ -691,6 +705,12 @@ def list_registrations(
             | Q(end_user_name__icontains=term)
             | Q(company__name__icontains=term)
         )
+    if project_status == "not_linked":
+        queryset = queryset.filter(opportunity_scope__isnull=True)
+    elif project_status:
+        queryset = queryset.filter(opportunity_scope__opportunity__project_status=project_status)
+    if registration_status:
+        queryset = queryset.filter(status=registration_status)
     total = queryset.count()
     grand_total = RegistrationItem.objects.filter(registration__in=queryset).aggregate(
         total=Sum(

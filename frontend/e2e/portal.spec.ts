@@ -118,6 +118,45 @@ test("company user can open the React registration form", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Add product" })).toBeVisible();
 });
 
+test("quick status filters compose and clear", async ({ page }) => {
+  await page.route("**/api/v1/registrations?**", (route) =>
+    route.fulfill({
+      json: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 25,
+        grand_total: "0.00",
+      },
+    }),
+  );
+  await page.goto("/");
+
+  await page.getByRole("combobox", { name: "Project status" }).click();
+  const projectRequest = page.waitForRequest((request) =>
+    request.url().includes("project_status=active"),
+  );
+  await page.getByRole("option", { name: "Active" }).click();
+  await projectRequest;
+
+  await page.getByRole("combobox", { name: "Registration status" }).click();
+  const combinedRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes("project_status=active") &&
+      request.url().includes("registration_status=under_review"),
+  );
+  await page.getByRole("option", { name: "Under review" }).click();
+  await combinedRequest;
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Project status" }),
+  ).toHaveText("All Project Statuses");
+  await expect(
+    page.getByRole("combobox", { name: "Registration status" }),
+  ).toHaveText("All Registration Statuses");
+});
+
 test("company user can submit a complete registration", async ({ page }) => {
   await page.route("**/api/v1/registrations", async (route) => {
     if (route.request().method() !== "POST") return route.fallback();

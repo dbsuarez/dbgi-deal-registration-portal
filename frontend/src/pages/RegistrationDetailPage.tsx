@@ -47,6 +47,7 @@ import {
   type RegistrationDetail,
 } from "../api";
 import { useSession } from "../session";
+import { getStatusColor } from "../status";
 
 const moneyCell = {
   textAlign: "right" as const,
@@ -185,17 +186,20 @@ export default function RegistrationDetailPage() {
             <Chip
               size="small"
               label={registration.status_label}
-              variant="outlined"
+              variant="filled"
+              color={getStatusColor("registration", registration.status)}
             />
             <Chip
               size="small"
               label={`Project: ${registration.project_status_label}`}
-              variant="outlined"
+              variant="filled"
+              color={getStatusColor("project", registration.project_status)}
             />
             <Chip
               size="small"
               label={`Pricing: ${registration.price_status_label}`}
-              variant="outlined"
+              variant="filled"
+              color={getStatusColor("price", registration.price_status)}
             />
             {registration.needs_review && (
               <Chip size="small" label="Review required" color="warning" />
@@ -528,7 +532,8 @@ export default function RegistrationDetailPage() {
                     <Chip
                       size="small"
                       label={approval.status_label}
-                      variant="outlined"
+                      variant="filled"
+                      color={getStatusColor("price", approval.status)}
                     />
                   </TableCell>
                   <TableCell>{approval.valid_until ?? "Not set"}</TableCell>

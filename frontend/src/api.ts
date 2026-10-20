@@ -296,6 +296,8 @@ export function getRegistrations(
   pageSize: number,
   search: string,
   sort: string,
+  projectStatus: string,
+  registrationStatus: string,
   signal?: AbortSignal,
 ) {
   const params = new URLSearchParams({
@@ -304,6 +306,8 @@ export function getRegistrations(
     search,
     sort,
   });
+  if (projectStatus) params.set("project_status", projectStatus);
+  if (registrationStatus) params.set("registration_status", registrationStatus);
   return request<RegistrationPage>(`/api/v1/registrations?${params}`, signal);
 }
 

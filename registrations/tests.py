@@ -453,6 +453,38 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 2)
 
+    def test_quick_status_filters_are_server_scoped_and_composable(self):
+        opportunity = Opportunity.objects.create(
+            title="Filtered opportunity",
+            end_user=self.end_user,
+            end_user_name=self.end_user.official_name,
+            end_user_address=self.end_user.full_address,
+            project_status=Opportunity.ProjectStatus.ACTIVE,
+            created_by=self.admin,
+        )
+        scope = OpportunityScope.objects.create(
+            opportunity=opportunity,
+            name="Whole opportunity",
+            scope_type=OpportunityScope.ScopeType.WHOLE,
+        )
+        self.registration_a.opportunity_scope = scope
+        self.registration_a.status = Registration.Status.UNDER_REVIEW
+        self.registration_a.save(update_fields=["opportunity_scope", "status"])
+        self.client.force_login(self.user_a)
+
+        matching = self.client.get(
+            "/api/v1/registrations?project_status=active&registration_status=under_review"
+        )
+        not_matching = self.client.get(
+            "/api/v1/registrations?project_status=won&registration_status=under_review"
+        )
+
+        self.assertEqual(matching.status_code, 200)
+        self.assertEqual(matching.json()["total"], 1)
+        self.assertEqual(matching.json()["items"][0]["id"], self.registration_a.pk)
+        self.assertEqual(not_matching.status_code, 200)
+        self.assertEqual(not_matching.json()["total"], 0)
+
     def test_company_user_can_reach_admin_login_to_switch_accounts(self):
         self.client.force_login(self.user_a)
 

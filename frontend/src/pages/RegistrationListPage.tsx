@@ -11,21 +11,25 @@ import {
   Container,
   InputAdornment,
   Link,
+  MenuItem,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
   DataGrid,
   type GridColDef,
   type GridColumnVisibilityModel,
+  type GridFilterModel,
   type GridSortModel,
 } from "@mui/x-data-grid";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getRegistrations, type RegistrationListItem } from "../api";
 import { useSession } from "../session";
+import { getStatusColor } from "../status";
 
 function formatDateTime(value: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -55,6 +59,32 @@ function loadGridPreference(key: string) {
   }
 }
 
+function OverflowText({ children }: { children: string }) {
+  const textRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  return (
+    <Tooltip title={isOverflowing ? children : ""} enterDelay={300}>
+      <Box
+        ref={textRef}
+        onMouseEnter={() => {
+          const element = textRef.current;
+          setIsOverflowing(
+            Boolean(element && element.scrollWidth > element.clientWidth),
+          );
+        }}
+        sx={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {children}
+      </Box>
+    </Tooltip>
+  );
+}
+
 export default function RegistrationListPage() {
   const session = useSession();
   const navigate = useNavigate();
@@ -65,6 +95,11 @@ export default function RegistrationListPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [projectStatus, setProjectStatus] = useState("");
+  const [registrationStatus, setRegistrationStatus] = useState("");
+  const [filterModel, setFilterModel] = useState<GridFilterModel>({
+    items: [],
+  });
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 25,
@@ -124,6 +159,8 @@ export default function RegistrationListPage() {
       paginationModel.pageSize,
       debouncedSearch,
       sort,
+      projectStatus,
+      registrationStatus,
       controller.signal,
     )
       .then((result) => {
@@ -142,7 +179,14 @@ export default function RegistrationListPage() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [debouncedSearch, paginationModel, refreshKey, sortModel]);
+  }, [
+    debouncedSearch,
+    paginationModel,
+    projectStatus,
+    refreshKey,
+    registrationStatus,
+    sortModel,
+  ]);
 
   const baseColumns = useMemo<GridColDef<RegistrationListItem>[]>(
     () => [
@@ -152,20 +196,41 @@ export default function RegistrationListPage() {
         minWidth: 140,
         renderCell: ({ row }) =>
           row.id === -1 ? (
-            <Typography fontWeight={700}>Grand total</Typography>
+            <Box component="span" sx={{ font: "inherit", fontWeight: 700 }}>
+              Grand total
+            </Box>
           ) : (
             <Link href={`/registrations/${row.id}/`}>{row.reference}</Link>
           ),
       },
-      { field: "project_title", headerName: "Project", minWidth: 220, flex: 1 },
+      {
+        field: "project_title",
+        headerName: "Project",
+        minWidth: 220,
+        flex: 1,
+        renderCell: ({ row, value }) =>
+          row.id === -1 ? null : <OverflowText>{String(value)}</OverflowText>,
+      },
       ...(session.is_dbgi_admin
-        ? [{ field: "company_name", headerName: "Company", minWidth: 180 }]
+        ? [
+            {
+              field: "company_name",
+              headerName: "Company",
+              minWidth: 180,
+              renderCell: ({ row, value }) =>
+                row.id === -1 ? null : (
+                  <OverflowText>{String(value)}</OverflowText>
+                ),
+            } as GridColDef<RegistrationListItem>,
+          ]
         : []),
       {
         field: "end_user_name",
         headerName: "End-user",
         minWidth: 200,
         flex: 1,
+        renderCell: ({ row, value }) =>
+          row.id === -1 ? null : <OverflowText>{String(value)}</OverflowText>,
       },
       {
         field: "status_label",
@@ -174,7 +239,14 @@ export default function RegistrationListPage() {
         sortable: false,
         renderCell: ({ row, value }) =>
           row.id === -1 ? null : (
-            <Chip label={value} size="small" variant="outlined" />
+            <Tooltip title={String(value)} enterDelay={300}>
+              <Chip
+                label={value}
+                size="small"
+                variant="filled"
+                color={getStatusColor("registration", row.status)}
+              />
+            </Tooltip>
           ),
       },
       {
@@ -184,7 +256,14 @@ export default function RegistrationListPage() {
         sortable: false,
         renderCell: ({ row, value }) =>
           row.id === -1 ? null : (
-            <Chip label={value} size="small" variant="outlined" />
+            <Tooltip title={String(value)} enterDelay={300}>
+              <Chip
+                label={value}
+                size="small"
+                variant="filled"
+                color={getStatusColor("project", row.project_status)}
+              />
+            </Tooltip>
           ),
       },
       {
@@ -194,7 +273,14 @@ export default function RegistrationListPage() {
         sortable: false,
         renderCell: ({ row, value }) =>
           row.id === -1 ? null : (
-            <Chip label={value} size="small" variant="outlined" />
+            <Tooltip title={String(value)} enterDelay={300}>
+              <Chip
+                label={value}
+                size="small"
+                variant="filled"
+                color={getStatusColor("price", row.price_status)}
+              />
+            </Tooltip>
           ),
       },
       {
@@ -205,11 +291,14 @@ export default function RegistrationListPage() {
         align: "right",
         headerAlign: "right",
         renderCell: ({ row, value }) => (
-          <Typography fontWeight={row.id === -1 ? 700 : 400}>
+          <Box
+            component="span"
+            sx={{ font: "inherit", fontWeight: row.id === -1 ? 700 : 400 }}
+          >
             {Number(value).toLocaleString("en-PH", {
               minimumFractionDigits: 2,
             })}
-          </Typography>
+          </Box>
         ),
       },
       {
@@ -235,7 +324,9 @@ export default function RegistrationListPage() {
         sortable: false,
         renderCell: ({ value }) =>
           value ? (
-            <Chip label="Review required" size="small" color="warning" />
+            <Tooltip title="Review required" enterDelay={300}>
+              <Chip label="Review required" size="small" color="warning" />
+            </Tooltip>
           ) : null,
       },
       {
@@ -314,7 +405,13 @@ export default function RegistrationListPage() {
           </Button>
         )}
       </Stack>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 3 }}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={2}
+        useFlexGap
+        flexWrap="wrap"
+        sx={{ my: 3 }}
+      >
         <TextField
           label="Search registrations"
           value={search}
@@ -330,6 +427,74 @@ export default function RegistrationListPage() {
             },
           }}
         />
+        <TextField
+          select
+          label="Project status"
+          value={projectStatus}
+          onChange={(event) => {
+            setProjectStatus(event.target.value);
+            setPaginationModel((current) => ({ ...current, page: 0 }));
+          }}
+          slotProps={{
+            inputLabel: { shrink: true },
+            select: { displayEmpty: true },
+          }}
+          sx={{ minWidth: { xs: "100%", sm: 210 } }}
+        >
+          <MenuItem value="">All Project Statuses</MenuItem>
+          <MenuItem value="not_linked">Not linked</MenuItem>
+          <MenuItem value="upcoming">Upcoming</MenuItem>
+          <MenuItem value="active">Active</MenuItem>
+          <MenuItem value="won">Won</MenuItem>
+          <MenuItem value="lost">Lost</MenuItem>
+          <MenuItem value="cancelled">Cancelled</MenuItem>
+          <MenuItem value="on_hold">On hold</MenuItem>
+        </TextField>
+        <TextField
+          select
+          label="Registration status"
+          value={registrationStatus}
+          onChange={(event) => {
+            setRegistrationStatus(event.target.value);
+            setPaginationModel((current) => ({ ...current, page: 0 }));
+          }}
+          slotProps={{
+            inputLabel: { shrink: true },
+            select: { displayEmpty: true },
+          }}
+          sx={{ minWidth: { xs: "100%", sm: 230 } }}
+        >
+          <MenuItem value="">All Registration Statuses</MenuItem>
+          <MenuItem value="submitted">Submitted</MenuItem>
+          <MenuItem value="under_review">Under review</MenuItem>
+          <MenuItem value="changes_requested">Changes requested</MenuItem>
+          <MenuItem value="resubmitted">Resubmitted</MenuItem>
+          <MenuItem value="eligible_matched">Registered</MenuItem>
+          <MenuItem value="review_required">
+            Review required after edit
+          </MenuItem>
+          <MenuItem value="approved">Approved</MenuItem>
+          <MenuItem value="rejected">Rejected</MenuItem>
+        </TextField>
+        <Button
+          variant="text"
+          disabled={
+            !search &&
+            !projectStatus &&
+            !registrationStatus &&
+            filterModel.items.length === 0
+          }
+          onClick={() => {
+            setSearch("");
+            setDebouncedSearch("");
+            setProjectStatus("");
+            setRegistrationStatus("");
+            setFilterModel({ items: [] });
+            setPaginationModel((current) => ({ ...current, page: 0 }));
+          }}
+        >
+          Clear filters
+        </Button>
         <Button
           variant="outlined"
           startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
@@ -398,6 +563,8 @@ export default function RegistrationListPage() {
           onPaginationModelChange={setPaginationModel}
           sortModel={sortModel}
           onSortModelChange={setSortModel}
+          filterModel={filterModel}
+          onFilterModelChange={setFilterModel}
           pageSizeOptions={[10, 25, 50, 100]}
           disableRowSelectionOnClick
           onRowDoubleClick={({ row }) => navigate(`/registrations/${row.id}/`)}
