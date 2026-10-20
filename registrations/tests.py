@@ -207,6 +207,37 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(pending.verified_by, self.admin)
         self.assertIsNotNone(pending.verified_at)
 
+    def test_equal_top_scores_are_ambiguous_instead_of_first_wins(self):
+        target = self.registration_a
+        for index in range(2):
+            opportunity = Opportunity.objects.create(
+                title=f"TEST procurement {index}",
+                end_user=self.end_user,
+                end_user_name=f"{target.end_user_name} Annex",
+                end_user_address=target.end_user_address,
+                created_by=self.admin,
+            )
+            scope = OpportunityScope.objects.create(
+                opportunity=opportunity,
+                name="Whole opportunity",
+                scope_type=OpportunityScope.ScopeType.WHOLE,
+            )
+            other = self.make_registration(self.company_b, self.user_b, f"TEST other {index}")
+            other.status = Registration.Status.ELIGIBLE_MATCHED
+            other.opportunity_scope = scope
+            other.save(update_fields=["status", "opportunity_scope"])
+
+        suggestion = generate_matching_suggestion(target)
+
+        target.refresh_from_db()
+        self.assertGreaterEqual(suggestion.score, 75)
+        self.assertEqual(suggestion.outcome, "clarify")
+        self.assertEqual(suggestion.confidence, "medium")
+        self.assertIsNone(suggestion.candidate_scope_id)
+        self.assertIn("2 opportunity scopes scored identically", suggestion.conflicting_factors[0])
+        self.assertEqual(target.status, Registration.Status.SUBMITTED)
+        self.assertIsNone(target.opportunity_scope_id)
+
     @override_settings(DEBUG=True)
     def test_development_login_lists_grouped_accounts_and_signs_in(self):
         response = self.client.get("/accounts/login/")

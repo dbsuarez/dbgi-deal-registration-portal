@@ -86,6 +86,9 @@ def generate_matching_suggestion(registration):
         for candidate in candidates
         if candidate[1] == 1 and candidate[2] == 1 and candidate[4]
     ]
+    tied_candidates = (
+        [candidate for candidate in candidates if candidate[0] == best[0]] if best else []
+    )
 
     factors = []
     conflicts = []
@@ -123,10 +126,22 @@ def generate_matching_suggestion(registration):
         else:
             conflicts.append("No requested catalog product overlap was found.")
 
-        if len(exact_candidates) > 1:
+        if len(tied_candidates) > 1:
             outcome = MatchingSuggestion.Outcome.CLARIFY
             confidence = MatchingSuggestion.Confidence.MEDIUM
-            conflicts.append("More than one opportunity scope is an exact match.")
+            candidate_scope = None
+            tied_exact = [
+                candidate
+                for candidate in tied_candidates
+                if candidate[1] == 1 and candidate[2] == 1 and candidate[4]
+            ]
+            if len(tied_exact) == len(tied_candidates):
+                conflicts.append("More than one opportunity scope is an exact match.")
+            else:
+                conflicts.append(
+                    f"{len(tied_candidates)} opportunity scopes scored identically "
+                    f"({score}), so the match cannot be decided automatically."
+                )
         elif score >= 75:
             outcome = MatchingSuggestion.Outcome.SAME_SCOPE
             confidence = MatchingSuggestion.Confidence.HIGH
