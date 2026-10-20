@@ -1,8 +1,10 @@
 import {
+  Alert,
   AppBar,
   Box,
   Button,
   CircularProgress,
+  Stack,
   Toolbar,
   Typography,
 } from "@mui/material";
@@ -23,15 +25,41 @@ const OpportunityRankingsPage = lazy(
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const [sessionError, setSessionError] = useState("");
+  const [sessionAttempt, setSessionAttempt] = useState(0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     getSession(controller.signal)
       .then(setSession)
-      .catch(() => undefined);
+      .catch((reason: Error) => {
+        if (reason.name === "AbortError") return;
+        setSessionError(
+          reason.message || "The portal could not reach the server.",
+        );
+      });
     return () => controller.abort();
-  }, []);
+  }, [sessionAttempt]);
+
+  if (sessionError && !session) {
+    return (
+      <Box sx={{ display: "grid", minHeight: "100vh", placeItems: "center" }}>
+        <Stack spacing={2} alignItems="center" sx={{ maxWidth: 480, px: 3 }}>
+          <Alert severity="error">{sessionError}</Alert>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setSessionError("");
+              setSessionAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Try again
+          </Button>
+        </Stack>
+      </Box>
+    );
+  }
 
   if (!session) {
     return (

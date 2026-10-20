@@ -84,6 +84,8 @@ export default function RegistrationDetailPage() {
   const [createNewOpportunity, setCreateNewOpportunity] = useState(false);
   const [rationale, setRationale] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [refreshingSuggestion, setRefreshingSuggestion] = useState(false);
+  const [suggestionError, setSuggestionError] = useState("");
   const [explanationOpen, setExplanationOpen] = useState(false);
 
   useEffect(() => {
@@ -259,22 +261,40 @@ export default function RegistrationDetailPage() {
             </Box>
             <Button
               variant="outlined"
-              disabled={reviewing}
+              disabled={reviewing || refreshingSuggestion}
               onClick={async () => {
-                if (!registration) return;
-                const suggestion = await refreshMatchingSuggestion(
-                  registration.id,
-                  session.csrf_token,
-                );
-                const updated = await getRegistration(registration.id);
-                setRegistration(updated);
-                if (suggestion.candidate_scope_id)
-                  setScopeId(String(suggestion.candidate_scope_id));
+                if (!registration || refreshingSuggestion) return;
+                setRefreshingSuggestion(true);
+                setSuggestionError("");
+                try {
+                  const suggestion = await refreshMatchingSuggestion(
+                    registration.id,
+                    session.csrf_token,
+                  );
+                  const updated = await getRegistration(registration.id);
+                  setRegistration(updated);
+                  if (suggestion.candidate_scope_id)
+                    setScopeId(String(suggestion.candidate_scope_id));
+                } catch (reason) {
+                  setSuggestionError(
+                    reason instanceof Error
+                      ? reason.message
+                      : "The suggestion could not be refreshed.",
+                  );
+                } finally {
+                  setRefreshingSuggestion(false);
+                }
               }}
             >
-              Refresh suggestion
+              {refreshingSuggestion ? "Refreshing..." : "Refresh suggestion"}
             </Button>
           </Stack>
+
+          {suggestionError && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              {suggestionError}
+            </Alert>
+          )}
 
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid size={{ xs: 12, md: 7 }}>

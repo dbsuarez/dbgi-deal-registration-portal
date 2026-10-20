@@ -202,13 +202,17 @@ export class RequestError extends Error {
   }
 }
 
+function redirectToLogin() {
+  const next = encodeURIComponent(
+    window.location.pathname + window.location.search,
+  );
+  window.location.assign(`/accounts/login/?next=${next}`);
+}
+
 async function request<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { credentials: "same-origin", signal });
   if (response.status === 401) {
-    const next = encodeURIComponent(
-      window.location.pathname + window.location.search,
-    );
-    window.location.assign(`/accounts/login/?next=${next}`);
+    redirectToLogin();
     throw new RequestError("Sign in to continue.", 401);
   }
   if (!response.ok) {
@@ -237,7 +241,7 @@ async function mutation<T>(
     body,
   });
   if (response.status === 401) {
-    window.location.assign("/accounts/login/");
+    redirectToLogin();
     throw new RequestError("Sign in to continue.", 401);
   }
   if (!response.ok) {
