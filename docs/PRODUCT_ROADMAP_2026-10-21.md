@@ -34,6 +34,7 @@ The application is a working internal beta with these foundations implemented:
 - Constant-query matching product overlap and composite indexes for company lists and eligible-scope rankings.
 - Explicit Django Admin authorization through a DBGI-specific admin site permission gate.
 - Immutable before-and-resulting snapshots for Django Admin registration and child-inline edits.
+- PostgreSQL-safe row locking and concurrency coverage for simultaneous edits, evidence finalization, matching refresh, and normalized End-user uniqueness.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, notifications, reporting, operational automation, and several policies remain incomplete.
@@ -72,7 +73,7 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
    - [x] Add a safe application-level not-found route.
    - [x] Replace broad admin URL-prefix assumptions with explicit authorization.
    - [x] Verify that Django Admin child-inline edits capture complete before-and-after audit evidence.
-2. Add PostgreSQL integration tests for row locks, concurrent registration edits, matching refresh, evidence finalization, and duplicate normalized master data.
+2. [x] Add PostgreSQL integration tests for row locks, concurrent registration edits, matching refresh, evidence finalization, and duplicate normalized master data.
 3. Add CI quality gates for backend tests, frontend tests, Ruff, migration drift, build, and representative Playwright workflows.
 4. Reconcile stale documentation, especially the README current-scope section and the old MVP gap analysis.
 5. Add focused accessibility coverage for dialogs, keyboard navigation, focus restoration, and error states.

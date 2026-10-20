@@ -157,6 +157,12 @@ npm run test:e2e
 npm run build
 ```
 
+`registrations.test_postgresql` contains concurrency tests that run only when `DB_HOST` selects PostgreSQL. Configure `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`, then run:
+
+```powershell
+python manage.py test registrations.test_postgresql
+```
+
 ## Current scope
 
 This implementation includes registration intake, DBGI review, strict automatic matching for unambiguous exact matches, and permission-scoped opportunity rankings. Withdrawal, merge and split workflows, pricing and discount approvals, conditional required-field rules, VAT and rounding policy, catalog pricing, notifications, backup automation, and production operating procedures still need DBGI decisions or implementation. Do not treat the starter statuses or this setup as production approval of those remaining policies.

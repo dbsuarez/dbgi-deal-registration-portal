@@ -1207,7 +1207,9 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
     }[payload.decision]
     with transaction.atomic():
         registration = get_object_or_404(
-            Registration.objects.select_for_update().select_related("company", "opportunity_scope"),
+            Registration.objects.select_for_update(of=("self",)).select_related(
+                "company", "opportunity_scope"
+            ),
             pk=registration_id,
         )
         if registration.version != payload.version:
@@ -1312,7 +1314,7 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
         )
     with transaction.atomic():
         approval = get_object_or_404(
-            RegistrationCategoryApproval.objects.select_for_update().select_related(
+            RegistrationCategoryApproval.objects.select_for_update(of=("self",)).select_related(
                 "registration", "reviewed_by"
             ),
             pk=approval_id,
@@ -1517,7 +1519,7 @@ def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput
         )
     with transaction.atomic():
         renewal = get_object_or_404(
-            PriceApprovalRenewal.objects.select_for_update().select_related(
+            PriceApprovalRenewal.objects.select_for_update(of=("self",)).select_related(
                 "category_approval__registration", "category_approval__reviewed_by"
             ),
             pk=renewal_id,
