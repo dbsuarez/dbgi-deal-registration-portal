@@ -6,6 +6,14 @@ Company-scoped project registration portal built with Django Ninja, Django Unfol
 
 Requires Python 3.13 and Node.js 24 for the selected starter-kit stack.
 
+`DEBUG` defaults to off. Set it explicitly for local work:
+
+```powershell
+$env:DJANGO_DEBUG = "true"
+```
+
+Then:
+
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
