@@ -1,10 +1,18 @@
 import re
+from collections import defaultdict
 from difflib import SequenceMatcher
 
 from django.db import transaction
 
 from .audit import registration_snapshot
-from .models import EndUser, MatchingSuggestion, OpportunityScope, Registration, RegistrationEvent
+from .models import (
+    EndUser,
+    MatchingSuggestion,
+    OpportunityScope,
+    Registration,
+    RegistrationEvent,
+    RegistrationItem,
+)
 
 RULE_VERSION = "matching-v2"
 ADDRESS_ALIASES = {
@@ -45,25 +53,35 @@ def generate_matching_suggestion(registration):
                 ],
                 rule_version=RULE_VERSION,
             )
-    scopes = OpportunityScope.objects.filter(
-        is_active=True,
-        opportunity__is_active=True,
-        opportunity__end_user__status=EndUser.Status.VERIFIED,
-    ).select_related("opportunity")
+    scopes = list(
+        OpportunityScope.objects.filter(
+            is_active=True,
+            opportunity__is_active=True,
+            opportunity__end_user__status=EndUser.Status.VERIFIED,
+        ).select_related("opportunity")
+    )
     requested_products = set(
         registration.items.exclude(product_id=None).values_list("product_id", flat=True)
     )
+    products_by_scope = defaultdict(set)
+    product_rows = (
+        RegistrationItem.objects.filter(
+            registration__opportunity_scope_id__in=[scope.pk for scope in scopes],
+            product_id__isnull=False,
+        )
+        .exclude(registration_id=registration.pk)
+        .values_list("registration__opportunity_scope_id", "product_id")
+    )
+    for scope_id, product_id in product_rows:
+        products_by_scope[scope_id].add(product_id)
+
     candidates = []
     for scope in scopes:
         name_score = _similarity(registration.end_user_name, scope.opportunity.end_user_name)
         address_score = _similarity(
             registration.end_user_address, scope.opportunity.end_user_address
         )
-        existing_products = set(
-            scope.registrations.exclude(pk=registration.pk)
-            .filter(items__product_id__isnull=False)
-            .values_list("items__product_id", flat=True)
-        )
+        existing_products = products_by_scope[scope.pk]
         product_overlap = bool(requested_products & existing_products)
         complete_product_overlap = bool(requested_products) and requested_products.issubset(
             existing_products

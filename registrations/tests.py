@@ -12,8 +12,9 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import Client, RequestFactory, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from .admin import RegistrationAdmin
@@ -249,6 +250,45 @@ class RegistrationApiTests(TestCase):
         self.assertIn("2 opportunity scopes scored identically", suggestion.conflicting_factors[0])
         self.assertEqual(target.status, Registration.Status.SUBMITTED)
         self.assertIsNone(target.opportunity_scope_id)
+
+    def test_matching_product_queries_do_not_scale_with_scope_count(self):
+        target = self.registration_a
+        other_product = Product.objects.create(
+            code="TEST-OTHER", name="Other item", category="Test category"
+        )
+
+        def add_scope(index):
+            opportunity = Opportunity.objects.create(
+                title=f"Unrelated procurement {index}",
+                end_user=self.end_user,
+                end_user_name=f"Unrelated agency {index}",
+                end_user_address=f"Unrelated address {index}",
+                created_by=self.admin,
+            )
+            scope = OpportunityScope.objects.create(
+                opportunity=opportunity,
+                name="Whole opportunity",
+                scope_type=OpportunityScope.ScopeType.WHOLE,
+            )
+            registration = self.make_registration(
+                self.company_b, self.user_b, f"Unrelated registration {index}"
+            )
+            registration.opportunity_scope = scope
+            registration.save(update_fields=["opportunity_scope"])
+            item = registration.items.get()
+            item.product = other_product
+            item.save(update_fields=["product"])
+
+        add_scope(0)
+        with CaptureQueriesContext(connection) as one_scope_queries:
+            generate_matching_suggestion(target)
+
+        for index in range(1, 5):
+            add_scope(index)
+        with CaptureQueriesContext(connection) as five_scope_queries:
+            generate_matching_suggestion(target)
+
+        self.assertEqual(len(five_scope_queries), len(one_scope_queries))
 
     @override_settings(DEBUG=True)
     def test_development_login_lists_grouped_accounts_and_signs_in(self):

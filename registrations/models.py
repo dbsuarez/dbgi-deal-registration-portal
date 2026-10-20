@@ -307,6 +307,13 @@ class Registration(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["company", "-created_at"], name="reg_company_created_idx"),
+            models.Index(
+                fields=["status", "opportunity_scope", "original_submitted_at", "id"],
+                name="reg_rank_lookup_idx",
+            ),
+        ]
 
     # Evidence is frozen once a reviewer has it or a decision exists, so an
     # upload or delete can never change what a decision was based on.
