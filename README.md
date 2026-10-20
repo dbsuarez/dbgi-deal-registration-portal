@@ -34,6 +34,42 @@ npm run dev
 
 Open `http://127.0.0.1:5173/`. The React development server proxies API, authentication, admin, and attachment routes to Django on port 8000. API documentation is available to authorized developers at `/api/v1/docs` through Django.
 
+### Windows development with local-network access
+
+Use two PowerShell terminals. These commands make the portal available on this computer and to testers on the same local network. Replace `192.168.100.100` everywhere below if the development computer's local IP address changes.
+
+In the first terminal, start Django:
+
+```powershell
+Set-Location D:\Development\project-registration-portal
+
+$env:DJANGO_DEBUG = "true"
+$env:DJANGO_ALLOWED_HOSTS = "localhost,127.0.0.1,192.168.100.100"
+$env:DJANGO_CSRF_TRUSTED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://192.168.100.100:5173"
+
+.\.venv\Scripts\Activate.ps1
+python manage.py migrate
+python manage.py seed_development_accounts
+python manage.py runserver 0.0.0.0:8000
+```
+
+In the second terminal, start React:
+
+```powershell
+Set-Location D:\Development\project-registration-portal\frontend
+npm install
+npm run dev -- --host 0.0.0.0
+```
+
+Open one of these URLs:
+
+- This computer: `http://127.0.0.1:5173/`
+- Local network: `http://192.168.100.100:5173/`
+- Django Admin: `http://192.168.100.100:5173/admin/`
+- API documentation: `http://192.168.100.100:5173/api/v1/docs`
+
+After dependencies and migrations are installed, the ordinary daily startup only requires the environment variables, Django `runserver`, and the React development server. Keep both terminal windows open while testing.
+
 The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`. See the development-only login policy in [`SECURITY_STANDARDS.md`](SECURITY_STANDARDS.md).
 
 `seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized End-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
