@@ -112,4 +112,10 @@ Playwright e2e was not run because it needs Django and the Vite server running. 
 
 ## Correction to the audit report
 
-The report and an independent reviewer flagged `registrations/migrations/0009_seed_common_philgeps_end_users.py` for corrupted text, `Concepcion PequeAa`. That is wrong. The bytes are UTF-8 `Concepcion Pequeña` (U+00F1 followed by `a`); the corruption was an artifact of how the file was displayed. No repair migration was written, and none is needed. Do not "fix" that literal.
+The report and an independent reviewer flagged `registrations/migrations/0009_seed_common_philgeps_end_users.py` for corrupted text, reading it as `Concepcion PequeAa`. That is wrong. The byte sequence in that string is `P e q u e 0xF1 a`, which is correct UTF-8 for the Spanish word with a tilde over the n; the corruption was an artifact of how the reviewer's tool displayed the file. No repair migration was written, and none is needed. Do not "fix" that literal.
+
+## These fixes assume PostgreSQL for row locking
+
+Local development and the test suite run on SQLite, which has no `SELECT ... FOR UPDATE`. Django accepts a plain `select_for_update()` there and silently ignores it, verified on Django 5.2.18, so every lock added in this pass is a no-op on SQLite. On PostgreSQL, which is what `docker-compose.yml` provisions and what production runs, the locks behave as intended.
+
+Consequence: the tests prove the new guards (status, version, audit) but they cannot prove mutual exclusion. If you need a regression test for the race itself, it has to run against PostgreSQL. Do not conclude from a green SQLite run that the locking works.
