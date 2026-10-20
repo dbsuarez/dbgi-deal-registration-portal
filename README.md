@@ -70,6 +70,14 @@ Open one of these URLs:
 
 After dependencies and migrations are installed, the ordinary daily startup only requires the environment variables, Django `runserver`, and the React development server. Keep both terminal windows open while testing.
 
+After every `git pull`, apply any new migrations before opening the portal. This prevents the running backend from querying columns that the local database does not have yet:
+
+```powershell
+$env:DJANGO_DEBUG = "true"
+python manage.py showmigrations registrations
+python manage.py migrate
+```
+
 The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`. See the development-only login policy in [`SECURITY_STANDARDS.md`](SECURITY_STANDARDS.md).
 
 `seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized End-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.

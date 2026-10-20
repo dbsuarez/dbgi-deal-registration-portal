@@ -37,6 +37,7 @@ The application is a working internal beta with these foundations implemented:
 - PostgreSQL-safe row locking and concurrency coverage for simultaneous edits, evidence finalization, matching refresh, and normalized End-user uniqueness.
 - GitHub Actions quality gates for backend, PostgreSQL, frontend, build, formatting, and Playwright checks.
 - Browser accessibility coverage for dialog naming, keyboard activation, initial focus, Escape dismissal, focus restoration, and API error alerts.
+- Development runbook guidance to apply pending migrations after pulling application changes.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, notifications, reporting, operational automation, and several policies remain incomplete.
