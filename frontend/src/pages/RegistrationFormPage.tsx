@@ -119,8 +119,12 @@ export default function RegistrationFormPage() {
   const registrationId = id ? Number(id) : null;
   const session = useSession();
   const navigate = useNavigate();
+  const [savedRegistrationId, setSavedRegistrationId] = useState<number | null>(
+    registrationId,
+  );
   const [main, setMain] = useState<MainFields>(emptyMain);
   const [version, setVersion] = useState<number | undefined>();
+  const [evidencePendingFinalize, setEvidencePendingFinalize] = useState(false);
   const [competitors, setCompetitors] = useState<CompetitorItem[]>([]);
   const [items, setItems] = useState<RequestedItem[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -199,7 +203,7 @@ export default function RegistrationFormPage() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const title = registrationId ? "Edit registration" : "New registration";
+  const title = savedRegistrationId ? "Edit registration" : "New registration";
   const productMap = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
     [products],
@@ -289,9 +293,13 @@ export default function RegistrationFormPage() {
     }
     setSaving(true);
     setError("");
+    const evidenceChanged =
+      evidencePendingFinalize ||
+      pendingAttachments.length > 0 ||
+      attachmentIdsToDelete.length > 0;
     const payload: RegistrationPayload = {
       ...main,
-      ...(registrationId ? { version } : {}),
+      ...(savedRegistrationId ? { version } : {}),
       competitor_items: competitors.map(
         ({ brand, item_name, bid_price, remarks }) => ({
           brand,
@@ -317,10 +325,17 @@ export default function RegistrationFormPage() {
       ),
     };
     try {
-      const saved = registrationId
-        ? await updateRegistration(registrationId, payload, session.csrf_token)
+      const saved = savedRegistrationId
+        ? await updateRegistration(
+            savedRegistrationId,
+            payload,
+            session.csrf_token,
+          )
         : await createRegistration(payload, session.csrf_token);
-      for (const attachment of pendingAttachments) {
+      setSavedRegistrationId(saved.id);
+      setVersion(saved.version);
+      if (evidenceChanged) setEvidencePendingFinalize(true);
+      for (const attachment of [...pendingAttachments]) {
         await uploadAttachment(
           saved.id,
           attachment.file,
@@ -328,19 +343,25 @@ export default function RegistrationFormPage() {
           saved.version,
           session.csrf_token,
         );
+        setPendingAttachments((current) =>
+          current.filter((item) => item !== attachment),
+        );
       }
-      for (const attachmentId of attachmentIdsToDelete) {
+      for (const attachmentId of [...attachmentIdsToDelete]) {
         await deleteAttachment(attachmentId, saved.version, session.csrf_token);
+        setAttachmentIdsToDelete((current) =>
+          current.filter((id) => id !== attachmentId),
+        );
       }
-      const evidenceChanged =
-        pendingAttachments.length > 0 || attachmentIdsToDelete.length > 0;
       if (evidenceChanged) {
-        await finalizeRegistration(
+        const finalized = await finalizeRegistration(
           saved.id,
           saved.version,
           evidenceChanged,
           session.csrf_token,
         );
+        setVersion(finalized.version);
+        setEvidencePendingFinalize(false);
       }
       setDirty(false);
       navigate(`/registrations/${saved.id}/`, { replace: true });
@@ -359,8 +380,8 @@ export default function RegistrationFormPage() {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}>
         <Link href="/">Registrations</Link>
-        {registrationId && (
-          <Link href={`/registrations/${registrationId}/`}>
+        {savedRegistrationId && (
+          <Link href={`/registrations/${savedRegistrationId}/`}>
             Registration details
           </Link>
         )}
@@ -711,7 +732,9 @@ export default function RegistrationFormPage() {
             onClick={() => {
               if (!dirty || window.confirm("Discard unsaved changes?"))
                 navigate(
-                  registrationId ? `/registrations/${registrationId}/` : "/",
+                  savedRegistrationId
+                    ? `/registrations/${savedRegistrationId}/`
+                    : "/",
                 );
             }}
           >
@@ -720,7 +743,7 @@ export default function RegistrationFormPage() {
           <Button type="submit" variant="contained" disabled={saving}>
             {saving
               ? "Saving..."
-              : registrationId
+              : savedRegistrationId
                 ? "Save changes"
                 : "Create registration"}
           </Button>

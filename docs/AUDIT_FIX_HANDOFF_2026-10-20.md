@@ -102,7 +102,11 @@ npm run lint                           -> clean
 npm test                               -> 1 file, 1 test passed
 ```
 
-Playwright e2e was not run because it needs Django and the Vite server running. It touches the form path that changed, so run it before merging.
+Playwright was run after the handoff review. All six tests pass, including a regression that interrupts the first evidence upload and verifies that retrying updates the same registration, transfers only unfinished evidence, and completes finalization without creating a duplicate registration.
+
+## Post-handoff retry correction
+
+The original finalize implementation retained the form's old version and new-registration mode when an evidence transfer failed after the registration save. A retry could therefore receive a guaranteed version conflict or create another registration. The form now adopts the saved registration ID and version immediately, removes each completed transfer from its retry queue, and retains a pending-finalization flag until finalization succeeds.
 
 ## Deliberately not done
 

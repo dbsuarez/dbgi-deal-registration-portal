@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const session = {
   username: "dealer-a",
@@ -48,6 +48,40 @@ test.beforeEach(async ({ page }) => {
     }),
   );
 });
+
+async function fillCompleteRegistration(page: Page) {
+  await page.goto("/registrations/new/");
+  await page.getByLabel("End-user").click();
+  await page.getByRole("option", { name: /Sample municipality/ }).click();
+  await page
+    .getByLabel("Project opportunity title")
+    .fill("Municipal printer project");
+  await page.getByLabel("Bid date").fill("2026-11-30");
+  await page.getByLabel("Delivery date").fill("2027-01-30");
+  await page.getByLabel("Contact person").fill("Test person");
+  await page.getByLabel("Designation").fill("Buyer");
+  await page.getByLabel("Contact email").fill("test@example.invalid");
+  await page.getByLabel("Contact number").fill("0000000000");
+
+  await page.getByRole("button", { name: "Add competitor" }).click();
+  await page.getByLabel("Brand").fill("Brand X");
+  await page.getByLabel("Item / model").fill("Model Y");
+  await page.getByLabel("Bid price").fill("100.00");
+  await page.getByRole("button", { name: "Save item" }).click();
+
+  await page.getByRole("button", { name: "Add product" }).click();
+  await page.getByRole("combobox", { name: "Catalog product" }).click();
+  await page.getByRole("option", { name: /M1820W/ }).click();
+  await page.getByLabel("Quantity").fill("2");
+  await page.getByLabel("Requested unit price").fill("90.00");
+  await page.getByLabel("Justification").fill("Project request");
+  await page.getByRole("button", { name: "Save item" }).click();
+
+  await page
+    .getByLabel("Evidence description")
+    .fill("Public procurement notice");
+  await page.getByRole("checkbox").check();
+}
 
 test("authenticated user can log out", async ({ page }) => {
   await page.route("**/api/v1/registrations?**", (route) =>
@@ -165,43 +199,104 @@ test("company user can submit a complete registration", async ({ page }) => {
     }),
   );
 
-  await page.goto("/registrations/new/");
-  await page.getByLabel("End-user").click();
-  await page.getByRole("option", { name: /Sample municipality/ }).click();
-  await page
-    .getByLabel("Project opportunity title")
-    .fill("Municipal printer project");
-  await page.getByLabel("Bid date").fill("2026-11-30");
-  await page.getByLabel("Delivery date").fill("2027-01-30");
-  await page.getByLabel("Contact person").fill("Test person");
-  await page.getByLabel("Designation").fill("Buyer");
-  await page.getByLabel("Contact email").fill("test@example.invalid");
-  await page.getByLabel("Contact number").fill("0000000000");
-
-  await page.getByRole("button", { name: "Add competitor" }).click();
-  await page.getByLabel("Brand").fill("Brand X");
-  await page.getByLabel("Item / model").fill("Model Y");
-  await page.getByLabel("Bid price").fill("100.00");
-  await page.getByRole("button", { name: "Save item" }).click();
-
-  await page.getByRole("button", { name: "Add product" }).click();
-  await page.getByRole("combobox", { name: "Catalog product" }).click();
-  await page.getByRole("option", { name: /M1820W/ }).click();
-  await page.getByLabel("Quantity").fill("2");
-  await page.getByLabel("Requested unit price").fill("90.00");
-  await page.getByLabel("Justification").fill("Project request");
-  await page.getByRole("button", { name: "Save item" }).click();
-
-  await page
-    .getByLabel("Evidence description")
-    .fill("Public procurement notice");
-  await page.getByRole("checkbox").check();
+  await fillCompleteRegistration(page);
   await page.getByRole("button", { name: "Create registration" }).click();
 
   await expect(page).toHaveURL(/\/registrations\/21\/$/);
   await expect(
     page.getByRole("heading", { name: "Municipal printer project" }),
   ).toBeVisible();
+});
+
+test("failed evidence upload retries the same registration", async ({
+  page,
+}) => {
+  let createCount = 0;
+  let updateCount = 0;
+  let uploadCount = 0;
+  let finalizeCount = 0;
+  const registrationResponse = (version: number) => ({
+    id: 31,
+    reference: "DBGI-000031",
+    project_title: "Municipal printer project",
+    company_name: "North Dealer",
+    end_user_name: "Sample municipality",
+    end_user_id: 7,
+    end_user_status: "verified",
+    end_user_status_label: "Verified",
+    status: "submitted",
+    status_label: "Submitted",
+    needs_review: false,
+    created_at: "2026-10-20T08:00:00Z",
+    version,
+  });
+
+  await page.route("**/api/v1/registrations", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    createCount += 1;
+    await route.fulfill({ status: 201, json: registrationResponse(1) });
+  });
+  await page.route("**/api/v1/registrations/31", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    updateCount += 1;
+    expect(route.request().postDataJSON().version).toBe(1);
+    await route.fulfill({ json: registrationResponse(2) });
+  });
+  await page.route(
+    "**/api/v1/registrations/31/attachments?**",
+    async (route) => {
+      uploadCount += 1;
+      const version = new URL(route.request().url()).searchParams.get(
+        "version",
+      );
+      expect(version).toBe(uploadCount === 1 ? "1" : "2");
+      if (uploadCount === 1) {
+        await route.fulfill({
+          status: 503,
+          json: {
+            code: "temporary_failure",
+            message: "Upload interrupted.",
+            details: [],
+          },
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 201,
+        json: {
+          id: 9,
+          original_name: "evidence.pdf",
+          description: "",
+          uploaded_at: "2026-10-20T08:01:00Z",
+          download_url: "/attachments/9/download/",
+        },
+      });
+    },
+  );
+  await page.route("**/api/v1/registrations/31/finalize", async (route) => {
+    finalizeCount += 1;
+    expect(route.request().postDataJSON()).toEqual({
+      version: 2,
+      evidence_changed: true,
+    });
+    await route.fulfill({ json: registrationResponse(3) });
+  });
+
+  await fillCompleteRegistration(page);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "evidence.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.7 test"),
+  });
+  await page.getByRole("button", { name: "Create registration" }).click();
+  await expect(page.getByText("Upload interrupted.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page).toHaveURL(/\/registrations\/31\/$/);
+  expect(createCount).toBe(1);
+  expect(updateCount).toBe(1);
+  expect(uploadCount).toBe(2);
+  expect(finalizeCount).toBe(1);
 });
 
 test("DBGI administrator can view opportunity rankings", async ({ page }) => {
