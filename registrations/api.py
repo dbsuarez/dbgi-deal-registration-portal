@@ -27,6 +27,7 @@ from .models import (
     EndUser,
     Opportunity,
     OpportunityScope,
+    PortalSetting,
     PriceApprovalRenewal,
     Product,
     Registration,
@@ -311,6 +312,7 @@ class SessionResponse(Schema):
     phone_number: str
     is_dbgi_admin: bool
     is_debug: bool
+    show_end_user_field_help: bool
     csrf_token: str
 
 
@@ -407,6 +409,11 @@ def validation_error(request, exc):
 
 @api.get("/session", auth=django_auth, response=SessionResponse)
 def session(request):
+    show_end_user_field_help = (
+        PortalSetting.objects.filter(key="portal")
+        .values_list("show_end_user_field_help", flat=True)
+        .first()
+    )
     return {
         "username": request.user.username,
         "display_name": request.user.get_full_name() or request.user.username,
@@ -415,6 +422,9 @@ def session(request):
         "phone_number": request.user.phone_number,
         "is_dbgi_admin": request.user.is_dbgi_admin,
         "is_debug": settings.DEBUG,
+        "show_end_user_field_help": (
+            True if show_end_user_field_help is None else show_end_user_field_help
+        ),
         "csrf_token": get_token(request),
     }
 

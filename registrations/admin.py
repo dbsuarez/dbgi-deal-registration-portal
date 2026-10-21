@@ -24,6 +24,7 @@ from .models import (
     Opportunity,
     OpportunityRanking,
     OpportunityScope,
+    PortalSetting,
     PriceApprovalRenewal,
     Product,
     Registration,
@@ -153,6 +154,28 @@ class CompetitorModelAdmin(ModelAdmin):
     @admin.action(description="Restore selected competitor models")
     def restore_selected(self, request, queryset):
         queryset.update(is_active=True)
+
+
+@admin.register(PortalSetting)
+class PortalSettingAdmin(ModelAdmin):
+    list_display = ("__str__", "show_end_user_field_help", "updated_at")
+    readonly_fields = ("updated_at",)
+    fields = ("show_end_user_field_help", "updated_at")
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser and not PortalSetting.objects.exists()
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class EndUserAliasInline(TabularInline):

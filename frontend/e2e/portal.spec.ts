@@ -8,6 +8,7 @@ const session = {
   phone_number: "09170000000",
   is_dbgi_admin: false,
   is_debug: true,
+  show_end_user_field_help: true,
   csrf_token: "test-token",
 };
 
@@ -197,6 +198,40 @@ test("company user can open the React registration form", async ({ page }) => {
     page.getByRole("option", { name: "imageCLASS LBP246dw" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "Add missing End-user" }).click();
+  const endUserDialog = page.getByRole("dialog", {
+    name: "Add missing End-user",
+  });
+  await expect(
+    endUserDialog.getByRole("button", { name: /^Help for / }),
+  ).toHaveCount(12);
+  await endUserDialog
+    .getByRole("button", { name: "Help for Official name" })
+    .click();
+  await expect(
+    page.getByText(
+      /Examples: Department of Education; Pasig City General Services Office/,
+    ),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await endUserDialog.getByRole("button", { name: "Cancel" }).click();
+});
+
+test("superadmin setting can hide End-user field help", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, show_end_user_field_help: false },
+    }),
+  );
+  await page.goto("/registrations/new/");
+
+  await page.getByRole("button", { name: "Add missing End-user" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Add missing End-user" });
+  await expect(dialog.getByRole("button", { name: /^Help for / })).toHaveCount(
+    0,
+  );
 });
 
 test("debug test-data panel fills five registration scenarios", async ({
@@ -245,7 +280,9 @@ test("debug test-data panel fills five registration scenarios", async ({
   await page.getByRole("button", { name: "Test data", exact: true }).click();
   await expect(page.getByText("My Pasig test", { exact: true })).toBeVisible();
 
-  const savedCard = page.getByText("My Pasig test", { exact: true }).locator("..");
+  const savedCard = page
+    .getByText("My Pasig test", { exact: true })
+    .locator("..");
   await savedCard.getByRole("button", { name: "Edit" }).click();
   await expect(
     page.getByRole("button", { name: "Update test data" }),

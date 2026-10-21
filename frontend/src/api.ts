@@ -12,6 +12,7 @@ export type Session = {
   phone_number: string;
   is_dbgi_admin: boolean;
   is_debug: boolean;
+  show_end_user_field_help: boolean;
   csrf_token: string;
 };
 

@@ -206,6 +206,12 @@ UNFOLD = {
                         "permission": "config.admin_navigation.can_manage_notification_settings",
                     },
                     {
+                        "title": "Portal settings",
+                        "icon": "tune",
+                        "link": reverse_lazy("admin:registrations_portalsetting_changelist"),
+                        "permission": "config.admin_navigation.can_manage_portal_settings",
+                    },
+                    {
                         "title": "Scenario Lab",
                         "icon": "science",
                         "link": reverse_lazy("admin:devtools_scenariolab_changelist"),

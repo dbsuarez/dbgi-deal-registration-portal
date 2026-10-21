@@ -54,6 +54,7 @@ The application is a working internal beta with these foundations implemented:
 - Managed competitor item/model suggestions linked to canonical brands, with starter Canon, Epson, HP, and Lexmark models plus user-driven catalog growth and administrator archive or restore controls.
 - Debug-only floating registration test-data panel with five one-click presets, including two differently titled submissions for the same Pasig competition.
 - User-owned debug registration presets that can be created from the current form, loaded and updated, or permanently deleted from the test-data panel.
+- Accessible example popovers for every Add missing End-user field, enabled by default and globally toggleable by a Django superuser through Portal settings.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

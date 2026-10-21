@@ -57,6 +57,10 @@ def can_view_competitor_models(request):
     return request.user.has_perm("registrations.view_competitormodel")
 
 
+def can_manage_portal_settings(request):
+    return request.user.is_superuser
+
+
 def can_view_end_users(request):
     return request.user.has_perm("registrations.view_enduser")
 

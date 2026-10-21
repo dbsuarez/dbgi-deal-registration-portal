@@ -12,6 +12,7 @@ const session = {
   phone_number: "09170000000",
   is_dbgi_admin: false,
   is_debug: true,
+  show_end_user_field_help: true,
   csrf_token: "test-token",
 };
 

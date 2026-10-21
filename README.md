@@ -108,6 +108,8 @@ While `DEBUG=True`, the new-registration page also shows a floating **Test data*
 
 Company users can save the current unsaved form as private test data, load it for editing, update it, or delete it. These user-owned presets are stored in the development database and every related API returns not found when `DEBUG=False`. Uploaded files are not included in a preset.
 
+The **Add missing End-user** dialog shows example help popovers on every field by default. A Django superuser can turn all of these field-help controls on or off under **Administration > Portal settings**.
+
 ## End-user directory
 
 Registrations select an End-user from shared master data instead of entering a new name and address each time. DBGI administrators maintain the directory in Django Admin under **Master data > End-users**. Records include organization classification, address, PhilGEPS reference details, aliases, verification status, source, and audit fields.

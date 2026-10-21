@@ -34,6 +34,7 @@ from .models import (
     NotificationEventSetting,
     Opportunity,
     OpportunityScope,
+    PortalSetting,
     PriceApprovalRenewal,
     Product,
     Registration,
@@ -900,6 +901,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(session.json()["designation"], "Product Specialist")
         self.assertEqual(session.json()["phone_number"], "09227667968")
         self.assertTrue(session.json()["is_debug"])
+        self.assertTrue(session.json()["show_end_user_field_help"])
         self.assertEqual(products.status_code, 200)
         self.assertIn(self.product.code, {item["code"] for item in products.json()})
 
@@ -911,6 +913,21 @@ class RegistrationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["is_debug"])
+
+    def test_superuser_can_toggle_end_user_field_help(self):
+        setting = PortalSetting.objects.get(key="portal")
+        changelist_url = reverse("admin:registrations_portalsetting_changelist")
+
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.client.get(changelist_url).status_code, 302)
+
+        setting.show_end_user_field_help = False
+        setting.save(update_fields=["show_end_user_field_help", "updated_at"])
+        response = self.client.get("/api/v1/session")
+        self.assertFalse(response.json()["show_end_user_field_help"])
+
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(changelist_url).status_code, 200)
 
     @override_settings(DEBUG=True)
     def test_user_can_manage_only_their_registration_test_presets(self):

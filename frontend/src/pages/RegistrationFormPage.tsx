@@ -2,6 +2,7 @@ import AddIcon from "@mui/icons-material/Add";
 import BugReportIcon from "@mui/icons-material/BugReport";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
   Alert,
   Autocomplete,
@@ -18,9 +19,11 @@ import {
   FormControlLabel,
   Grid,
   IconButton,
+  InputAdornment,
   Link,
   MenuItem,
   Paper,
+  Popover,
   Stack,
   Table,
   TableBody,
@@ -29,6 +32,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -1110,6 +1114,7 @@ export default function RegistrationFormPage() {
         open={endUserDialogOpen}
         value={endUserDraft}
         saving={savingEndUser}
+        showFieldHelp={session.show_end_user_field_help}
         onChange={setEndUserDraft}
         onClose={() => setEndUserDialogOpen(false)}
         onSave={saveEndUser}
@@ -1575,6 +1580,7 @@ function EndUserDialog({
   open,
   value,
   saving,
+  showFieldHelp,
   onChange,
   onClose,
   onSave,
@@ -1582,6 +1588,7 @@ function EndUserDialog({
   open: boolean;
   value: EndUserCreatePayload;
   saving: boolean;
+  showFieldHelp: boolean;
   onChange: (value: EndUserCreatePayload) => void;
   onClose: () => void;
   onSave: () => void;
@@ -1591,6 +1598,18 @@ function EndUserDialog({
     onChange: (event: ChangeEvent<HTMLInputElement>) =>
       onChange({ ...value, [name]: event.target.value }),
   });
+  const help = (label: string, text: string) =>
+    showFieldHelp
+      ? {
+          input: {
+            endAdornment: (
+              <InputAdornment position="end">
+                <EndUserFieldHelp label={label} text={text} />
+              </InputAdornment>
+            ),
+          },
+        }
+      : undefined;
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>Add missing End-user</DialogTitle>
@@ -1606,16 +1625,32 @@ function EndUserDialog({
               fullWidth
               required
               label="Official name"
+              slotProps={help(
+                "Official name",
+                "Use the organization name shown on official documents. Examples: Department of Education; Pasig City General Services Office.",
+              )}
               {...field("official_name")}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField fullWidth label="Acronym" {...field("acronym")} />
+            <TextField
+              fullWidth
+              label="Acronym"
+              slotProps={help(
+                "Acronym",
+                "Enter the commonly used short name, if one exists. Examples: DepEd; PCGSO.",
+              )}
+              {...field("acronym")}
+            />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               fullWidth
               label="Government branch"
+              slotProps={help(
+                "Government branch",
+                "Choose the level or branch that controls the organization. Examples: National government; Local government.",
+              )}
               {...field("government_branch")}
             />
           </Grid>
@@ -1623,23 +1658,55 @@ function EndUserDialog({
             <TextField
               fullWidth
               label="Organization type"
+              slotProps={help(
+                "Organization type",
+                "Describe the specific kind of organization. Examples: City government; Public school.",
+              )}
               {...field("organization_type")}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField fullWidth label="Sector" {...field("sector")} />
+            <TextField
+              fullWidth
+              label="Sector"
+              slotProps={help(
+                "Sector",
+                "Enter the broad service area. Examples: Government; Education.",
+              )}
+              {...field("sector")}
+            />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField fullWidth label="Region" {...field("region")} />
+            <TextField
+              fullWidth
+              label="Region"
+              slotProps={help(
+                "Region",
+                "Use the official Philippine region name or code. Examples: NCR; Region IV-A.",
+              )}
+              {...field("region")}
+            />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField fullWidth label="Province" {...field("province")} />
+            <TextField
+              fullWidth
+              label="Province"
+              slotProps={help(
+                "Province",
+                "Enter the province when applicable. Examples: Rizal; Cavite.",
+              )}
+              {...field("province")}
+            />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               fullWidth
               required
               label="City / municipality"
+              slotProps={help(
+                "City or municipality",
+                "Enter the city or municipality in the official address. Examples: Pasig City; Antipolo City.",
+              )}
               {...field("city_municipality")}
             />
           </Grid>
@@ -1650,6 +1717,10 @@ function EndUserDialog({
               multiline
               rows={2}
               label="Street address"
+              slotProps={help(
+                "Street address",
+                "Enter the building, street, and barangay details. Examples: Caruncho Avenue, Barangay San Nicolas; City Hall Complex, M.L. Quezon Street.",
+              )}
               {...field("street_address")}
             />
           </Grid>
@@ -1657,6 +1728,10 @@ function EndUserDialog({
             <TextField
               fullWidth
               label="Postal code"
+              slotProps={help(
+                "Postal code",
+                "Enter the four-digit Philippine postal code. Examples: 1600; 1900.",
+              )}
               {...field("postal_code")}
             />
           </Grid>
@@ -1664,6 +1739,10 @@ function EndUserDialog({
             <TextField
               fullWidth
               label="PhilGEPS reference"
+              slotProps={help(
+                "PhilGEPS reference",
+                "Enter the reference from the procurement notice, if available. Examples: PB-2027-001; RFQ-2027-014.",
+              )}
               {...field("philgeps_reference")}
             />
           </Grid>
@@ -1672,6 +1751,10 @@ function EndUserDialog({
               fullWidth
               type="url"
               label="Source URL"
+              slotProps={help(
+                "Source URL",
+                "Link to an official page that confirms the organization or procurement. Examples: a PhilGEPS notice page; the agency procurement page.",
+              )}
               {...field("source_url")}
             />
           </Grid>
@@ -1695,6 +1778,31 @@ function EndUserDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+function EndUserFieldHelp({ label, text }: { label: string; text: string }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  return (
+    <>
+      <Tooltip title={`Help for ${label}`}>
+        <IconButton
+          size="small"
+          aria-label={`Help for ${label}`}
+          onClick={(event) => setAnchor(event.currentTarget)}
+        >
+          <InfoOutlinedIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Typography sx={{ p: 2, maxWidth: 320 }}>{text}</Typography>
+      </Popover>
+    </>
   );
 }
 

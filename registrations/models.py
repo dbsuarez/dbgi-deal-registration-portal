@@ -790,6 +790,22 @@ class RegistrationNotification(models.Model):
         return f"{self.recipient}: {self.title}"
 
 
+class PortalSetting(models.Model):
+    key = models.CharField(max_length=40, unique=True, default="portal", editable=False)
+    show_end_user_field_help = models.BooleanField(
+        default=True,
+        help_text="Show example popovers beside fields in the Add missing End-user dialog.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "portal setting"
+        verbose_name_plural = "portal settings"
+
+    def __str__(self):
+        return "Portal settings"
+
+
 class NotificationEventSetting(models.Model):
     AVAILABLE_PLACEHOLDERS = frozenset({"title", "message", "registration_reference", "portal_url"})
     DEFAULT_EMAIL_SUBJECT = "DBGI Project Registration: {title}"
