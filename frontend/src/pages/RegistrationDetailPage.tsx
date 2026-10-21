@@ -632,78 +632,98 @@ export default function RegistrationDetailPage() {
         </Typography>
       </Paper>
 
-      <Paper sx={{ mt: 3, p: 3 }}>
+      <Paper sx={{ mt: 3, p: 2 }}>
         <Typography variant="h2" gutterBottom>
           Activity
         </Typography>
         <List disablePadding>
           {registration.events.map((event) => (
-            <ListItem key={event.id} divider sx={{ px: 0, py: 1.5 }}>
+            <ListItem key={event.id} divider sx={{ px: 0, py: 1 }}>
               <Box sx={{ width: "100%" }}>
                 <Stack
                   direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  alignItems={{ xs: "flex-start", sm: "center" }}
+                  spacing={{ xs: 0, sm: 1 }}
+                  alignItems={{ xs: "flex-start", sm: "baseline" }}
                 >
-                  <Typography variant="h3">{event.event_type}</Typography>
-                  {!!event.changes.length && (
-                    <Chip
-                      size="small"
-                      label={`${event.changes.length} ${event.changes.length === 1 ? "change" : "changes"}`}
-                    />
-                  )}
+                  <Typography variant="body1" fontWeight={700}>
+                    {event.event_type}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {event.actor_name} |{" "}
+                    {formatEventTimestamp(event.created_at)}
+                  </Typography>
                 </Stack>
-                <Typography variant="caption" color="text.secondary">
-                  {event.actor_name} | {formatEventTimestamp(event.created_at)}
-                </Typography>
                 {!event.changes.length && (
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  <Typography variant="body2" color="text.secondary">
                     {event.details}
                   </Typography>
                 )}
                 {!!event.changes.length && (
                   <Box
+                    component="details"
                     sx={{
-                      display: "grid",
-                      gap: 0.75,
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        md: "minmax(140px, 0.7fr) 1fr auto 1fr",
-                      },
-                      mt: 1,
+                      mt: 0.25,
+                      "&[open] > summary": { mb: 0.75 },
                     }}
                   >
-                    {event.changes.map((change) => (
-                      <Box key={change.label} sx={{ display: "contents" }}>
-                        <Typography variant="body2" fontWeight={600}>
-                          {change.label}
-                        </Typography>
-                        {change.previous ? (
-                          <>
-                            <Typography variant="body2" color="text.secondary">
-                              {change.previous}
-                            </Typography>
+                    <Typography
+                      component="summary"
+                      variant="caption"
+                      color="primary"
+                      sx={{ cursor: "pointer", width: "fit-content" }}
+                    >
+                      View {event.changes.length}{" "}
+                      {event.changes.length === 1 ? "change" : "changes"}
+                    </Typography>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 1,
+                        display: "grid",
+                        gap: 0.5,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          md: "minmax(130px, 0.6fr) 1fr auto 1fr",
+                        },
+                        p: 1,
+                      }}
+                    >
+                      {event.changes.map((change) => (
+                        <Box key={change.label} sx={{ display: "contents" }}>
+                          <Typography variant="caption" fontWeight={700}>
+                            {change.label}
+                          </Typography>
+                          {change.previous ? (
+                            <>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {change.previous}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                aria-hidden="true"
+                                color="text.secondary"
+                                sx={{ display: { xs: "none", md: "block" } }}
+                              >
+                                to
+                              </Typography>
+                              <Typography variant="caption">
+                                {change.current}
+                              </Typography>
+                            </>
+                          ) : (
                             <Typography
-                              aria-hidden="true"
-                              color="text.secondary"
-                              sx={{ display: { xs: "none", md: "block" } }}
+                              variant="caption"
+                              sx={{ gridColumn: { md: "2 / 5" } }}
                             >
-                              to
-                            </Typography>
-                            <Typography variant="body2">
                               {change.current}
                             </Typography>
-                          </>
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            sx={{ gridColumn: { md: "2 / 5" } }}
-                          >
-                            {change.current}
-                          </Typography>
-                        )}
-                      </Box>
-                    ))}
+                          )}
+                        </Box>
+                      ))}
+                    </Box>
                   </Box>
                 )}
               </Box>
