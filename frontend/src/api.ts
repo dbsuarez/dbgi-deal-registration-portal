@@ -107,6 +107,11 @@ export type GeographicDataset = {
   imported_at: string;
 };
 
+export type EndUserClassificationOption = {
+  name: string;
+  status: "pending" | "approved" | "rejected";
+};
+
 export type RequestedItem = {
   id?: number;
   product_id: number | null;
@@ -470,6 +475,16 @@ export function getEndUsers(signal?: AbortSignal) {
 export function getGeographicDataset(signal?: AbortSignal) {
   return request<GeographicDataset | null>(
     "/api/v1/geographic-dataset",
+    signal,
+  );
+}
+
+export function getEndUserClassifications(
+  category: "organization_type" | "sector",
+  signal?: AbortSignal,
+) {
+  return request<EndUserClassificationOption[]>(
+    `/api/v1/end-user-classifications?category=${category}`,
     signal,
   );
 }

@@ -25,6 +25,7 @@ from .models import (
     CompetitorItem,
     CompetitorModel,
     EndUser,
+    EndUserClassificationOption,
     GeographicArea,
     GeographicDataset,
     Opportunity,
@@ -40,6 +41,7 @@ from .models import (
     RegistrationItemApproval,
     RegistrationNotification,
     RegistrationReviewDecision,
+    normalize_end_user_value,
 )
 from .notifications import notify_price_decision, notify_registration_decision, notify_submission
 
@@ -284,6 +286,11 @@ class GeographicDatasetOutput(Schema):
     version: str
     source_url: str
     imported_at: datetime
+
+
+class EndUserClassificationOptionOutput(Schema):
+    name: str
+    status: str
 
 
 class EndUserOutput(Schema):
@@ -855,6 +862,30 @@ def list_end_users(request, search: str = ""):
 
 
 @api.get(
+    "/end-user-classifications",
+    auth=django_auth,
+    response=list[EndUserClassificationOptionOutput],
+)
+def list_end_user_classifications(
+    request,
+    category: Literal["organization_type", "sector"],
+):
+    queryset = EndUserClassificationOption.objects.filter(category=category, is_active=True)
+    if not request.user.is_dbgi_admin:
+        company_id = _company_id(request.user)
+        if company_id is False:
+            return []
+        queryset = queryset.filter(
+            Q(status=EndUserClassificationOption.Status.APPROVED)
+            | Q(
+                status=EndUserClassificationOption.Status.PENDING,
+                proposed_by_company_id=company_id,
+            )
+        )
+    return queryset.order_by("name").values("name", "status")
+
+
+@api.get(
     "/geographic-dataset",
     auth=django_auth,
     response=GeographicDatasetOutput | None,
@@ -912,6 +943,17 @@ def create_end_user(request, payload: EndUserCreateInput):
         return Status(
             403, {"code": "company_access_required", "message": "A company account is required."}
         )
+    if (
+        payload.government_branch
+        and payload.government_branch not in EndUser.GovernmentBranch.values
+    ):
+        return Status(
+            400,
+            {
+                "code": "invalid_government_branch",
+                "message": "Choose a government branch from the available list.",
+            },
+        )
     candidate = EndUser(
         **payload.model_dump(),
         proposed_by_company_id=company_id,
@@ -923,6 +965,25 @@ def create_end_user(request, payload: EndUserCreateInput):
     try:
         with transaction.atomic():
             candidate.save()
+            for category, name in (
+                (
+                    EndUserClassificationOption.Category.ORGANIZATION_TYPE,
+                    candidate.organization_type,
+                ),
+                (EndUserClassificationOption.Category.SECTOR, candidate.sector),
+            ):
+                normalized_name = normalize_end_user_value(name)
+                if not normalized_name:
+                    continue
+                EndUserClassificationOption.objects.get_or_create(
+                    category=category,
+                    normalized_name=normalized_name,
+                    defaults={
+                        "name": name.strip(),
+                        "proposed_by_company_id": company_id,
+                        "created_by": request.user,
+                    },
+                )
     except IntegrityError:
         return Status(
             409,

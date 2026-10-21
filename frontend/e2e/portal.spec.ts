@@ -111,6 +111,17 @@ test.beforeEach(async ({ page }) => {
       },
     }),
   );
+  await page.route("**/api/v1/end-user-classifications*", (route) => {
+    const category = new URL(route.request().url()).searchParams.get(
+      "category",
+    );
+    return route.fulfill({
+      json:
+        category === "organization_type"
+          ? [{ name: "City government", status: "approved" }]
+          : [{ name: "General government", status: "approved" }],
+    });
+  });
   await page.route("**/api/v1/geographic-areas*", (route) => {
     const level = new URL(route.request().url()).searchParams.get("level");
     if (level === "region") {
@@ -284,6 +295,31 @@ test("End-user location fields use cascading PSGC options", async ({
     endUserDialog.getByRole("textbox", { name: "Postal code" }),
   ).toHaveValue("1600");
   await endUserDialog.getByRole("button", { name: "Cancel" }).click();
+});
+
+test("End-user classification fields use controlled and proposal lists", async ({
+  page,
+}) => {
+  await page.goto("/registrations/new/");
+  await page.getByRole("button", { name: "Add missing End-user" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add missing End-user" });
+
+  await dialog.getByRole("combobox", { name: "Government branch" }).click();
+  await page.getByText("Local government", { exact: true }).click();
+  await dialog
+    .getByRole("combobox", { name: "Organization type" })
+    .fill("City government");
+  await expect(
+    page
+      .locator(".MuiAutocomplete-option")
+      .filter({ hasText: "City government" }),
+  ).toBeVisible();
+  await dialog.getByRole("combobox", { name: "Sector" }).fill("New sector");
+  await expect(
+    dialog.getByText(
+      "A new value will be sent to an administrator for approval.",
+    ),
+  ).toHaveCount(2);
 });
 
 test("superadmin setting can hide End-user field help", async ({ page }) => {

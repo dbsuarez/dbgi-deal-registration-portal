@@ -31,6 +31,7 @@ from .models import (
     CompetitorItem,
     CompetitorModel,
     EndUser,
+    EndUserClassificationOption,
     GeographicArea,
     GeographicDataset,
     NotificationEventSetting,
@@ -1032,6 +1033,82 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(cities.status_code, 200)
         self.assertEqual(cities.json()[0]["postal_code"], "1600")
         self.assertEqual(dataset.json()["version"], "TEST-PSGC")
+
+    def test_company_sees_approved_and_own_pending_classifications(self):
+        EndUserClassificationOption.objects.create(
+            category=EndUserClassificationOption.Category.ORGANIZATION_TYPE,
+            name="Approved type",
+            status=EndUserClassificationOption.Status.APPROVED,
+        )
+        EndUserClassificationOption.objects.create(
+            category=EndUserClassificationOption.Category.ORGANIZATION_TYPE,
+            name="Dealer A proposal",
+            proposed_by_company=self.company_a,
+        )
+        EndUserClassificationOption.objects.create(
+            category=EndUserClassificationOption.Category.ORGANIZATION_TYPE,
+            name="Dealer B proposal",
+            proposed_by_company=self.company_b,
+        )
+        self.client.force_login(self.user_a)
+
+        response = self.client.get(
+            "/api/v1/end-user-classifications?category=organization_type"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        names = {item["name"] for item in response.json()}
+        self.assertIn("Approved type", names)
+        self.assertIn("Dealer A proposal", names)
+        self.assertNotIn("Dealer B proposal", names)
+
+    def test_new_end_user_proposes_missing_classification_values(self):
+        self.client.force_login(self.user_a)
+        payload = {
+            "official_name": "New City Office",
+            "government_branch": "Local government",
+            "organization_type": "City procurement office",
+            "sector": "Procurement",
+            "city_municipality": "City of Pasig",
+            "street_address": "City Hall Complex",
+        }
+
+        response = self.client.post(
+            "/api/v1/end-users",
+            data=payload,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        proposals = EndUserClassificationOption.objects.filter(
+            proposed_by_company=self.company_a,
+            status=EndUserClassificationOption.Status.PENDING,
+        )
+        self.assertEqual(
+            set(proposals.values_list("category", "name")),
+            {
+                ("organization_type", "City procurement office"),
+                ("sector", "Procurement"),
+            },
+        )
+
+    def test_new_end_user_rejects_unknown_government_branch(self):
+        self.client.force_login(self.user_a)
+        payload = {
+            "official_name": "New City Office",
+            "government_branch": "LGU",
+            "city_municipality": "City of Pasig",
+            "street_address": "City Hall Complex",
+        }
+
+        response = self.client.post(
+            "/api/v1/end-users",
+            data=payload,
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "invalid_government_branch")
 
     def test_registration_adds_new_competitor_brand_to_master_data(self):
         self.client.force_login(self.user_a)

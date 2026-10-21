@@ -56,6 +56,7 @@ The application is a working internal beta with these foundations implemented:
 - User-owned debug registration presets that can be created from the current form, loaded and updated, or permanently deleted from the test-data panel.
 - Accessible example popovers for every Add missing End-user field, enabled by default and globally toggleable by a Django superuser through Portal settings.
 - Versioned local PSGC Region, Province, and City/Municipality reference data with an explicit import command and reusable cascading selectors in Add missing End-user.
+- Controlled End-user classification selectors with fixed government branches and administrator-reviewed Organization type and Sector catalogs.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

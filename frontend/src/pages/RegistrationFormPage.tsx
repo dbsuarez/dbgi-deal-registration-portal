@@ -55,6 +55,7 @@ import {
   finalizeRegistration,
   getCompetitorBrands,
   getCompetitorModels,
+  getEndUserClassifications,
   getEndUsers,
   getGeographicAreas,
   getGeographicDataset,
@@ -65,6 +66,7 @@ import {
   type CompetitorItem,
   type CompetitorModelOption,
   type EndUser,
+  type EndUserClassificationOption,
   type EndUserCreatePayload,
   type GeographicArea,
   type GeographicDataset,
@@ -1598,6 +1600,17 @@ function EndUserDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const governmentBranches = [
+    "National government",
+    "Local government",
+    "Government-owned or controlled corporation",
+    "Constitutional office",
+    "Other government entity",
+  ];
+  const [organizationTypes, setOrganizationTypes] = useState<
+    EndUserClassificationOption[]
+  >([]);
+  const [sectors, setSectors] = useState<EndUserClassificationOption[]>([]);
   const [regions, setRegions] = useState<GeographicArea[]>([]);
   const [provinces, setProvinces] = useState<GeographicArea[]>([]);
   const [cities, setCities] = useState<GeographicArea[]>([]);
@@ -1626,6 +1639,12 @@ function EndUserDialog({
         setDataset(null);
         setRegions([]);
       });
+    getEndUserClassifications("organization_type", controller.signal)
+      .then(setOrganizationTypes)
+      .catch(() => setOrganizationTypes([]));
+    getEndUserClassifications("sector", controller.signal)
+      .then(setSectors)
+      .catch(() => setSectors([]));
     return () => controller.abort();
   }, [open]);
 
@@ -1740,36 +1759,70 @@ function EndUserDialog({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              label="Government branch"
-              slotProps={help(
-                "Government branch",
-                "Choose the level or branch that controls the organization. Examples: National government; Local government.",
+            <Autocomplete
+              disablePortal
+              options={governmentBranches}
+              value={value.government_branch || null}
+              onChange={(_, option) =>
+                onChange({ ...value, government_branch: option ?? "" })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Government branch"
+                  slotProps={autocompleteHelp(
+                    params,
+                    "Government branch",
+                    "Choose the level or branch that controls the organization. Examples: National government; Local government.",
+                  )}
+                />
               )}
-              {...field("government_branch")}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              label="Organization type"
-              slotProps={help(
-                "Organization type",
-                "Describe the specific kind of organization. Examples: City government; Public school.",
+            <Autocomplete
+              disablePortal
+              freeSolo
+              options={organizationTypes.map((option) => option.name)}
+              value={value.organization_type}
+              onInputChange={(_, option) =>
+                onChange({ ...value, organization_type: option })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Organization type"
+                  helperText="A new value will be sent to an administrator for approval."
+                  slotProps={autocompleteHelp(
+                    params,
+                    "Organization type",
+                    "Choose a specific organization type or enter a missing one for administrator review. Examples: City government; Public school.",
+                  )}
+                />
               )}
-              {...field("organization_type")}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              label="Sector"
-              slotProps={help(
-                "Sector",
-                "Enter the broad service area. Examples: Government; Education.",
+            <Autocomplete
+              disablePortal
+              freeSolo
+              options={sectors.map((option) => option.name)}
+              value={value.sector}
+              onInputChange={(_, option) =>
+                onChange({ ...value, sector: option })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Sector"
+                  helperText="A new value will be sent to an administrator for approval."
+                  slotProps={autocompleteHelp(
+                    params,
+                    "Sector",
+                    "Choose a broad service area or enter a missing one for administrator review. Examples: Education; Health.",
+                  )}
+                />
               )}
-              {...field("sector")}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>

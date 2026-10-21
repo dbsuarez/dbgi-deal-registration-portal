@@ -156,6 +156,14 @@ UNFOLD = {
                         "permission": "config.admin_navigation.can_view_end_users",
                     },
                     {
+                        "title": "End-user classifications",
+                        "icon": "category",
+                        "link": reverse_lazy(
+                            "admin:registrations_enduserclassificationoption_changelist"
+                        ),
+                        "permission": "config.admin_navigation.can_view_end_users",
+                    },
+                    {
                         "title": "Companies",
                         "icon": "business",
                         "link": reverse_lazy("admin:registrations_company_changelist"),

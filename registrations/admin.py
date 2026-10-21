@@ -19,6 +19,7 @@ from .models import (
     CompetitorModel,
     EndUser,
     EndUserAlias,
+    EndUserClassificationOption,
     MatchingSuggestion,
     NotificationEventSetting,
     Opportunity,
@@ -181,6 +182,62 @@ class PortalSettingAdmin(ModelAdmin):
 class EndUserAliasInline(TabularInline):
     model = EndUserAlias
     extra = 0
+
+
+@admin.register(EndUserClassificationOption)
+class EndUserClassificationOptionAdmin(ModelAdmin):
+    list_display = (
+        "name",
+        "category",
+        "status",
+        "proposed_by_company",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("category", "status", "is_active")
+    search_fields = ("name", "normalized_name", "proposed_by_company__name")
+    readonly_fields = (
+        "normalized_name",
+        "proposed_by_company",
+        "created_by",
+        "reviewed_by",
+        "reviewed_at",
+        "created_at",
+        "updated_at",
+    )
+    actions = ("approve_selected", "reject_selected", "archive_selected", "restore_selected")
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk and not obj.created_by_id:
+            obj.created_by = request.user
+        if "status" in form.changed_data:
+            obj.reviewed_by = request.user
+            obj.reviewed_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="Approve selected classification options")
+    def approve_selected(self, request, queryset):
+        queryset.update(
+            status=EndUserClassificationOption.Status.APPROVED,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+
+    @admin.action(description="Reject selected classification options")
+    def reject_selected(self, request, queryset):
+        queryset.update(
+            status=EndUserClassificationOption.Status.REJECTED,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+
+    @admin.action(description="Archive selected classification options")
+    def archive_selected(self, request, queryset):
+        queryset.update(is_active=False)
+
+    @admin.action(description="Restore selected classification options")
+    def restore_selected(self, request, queryset):
+        queryset.update(is_active=True)
 
 
 @admin.register(EndUser)

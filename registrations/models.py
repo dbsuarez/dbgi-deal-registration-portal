@@ -156,18 +156,84 @@ class GeographicArea(models.Model):
         return self.name
 
 
+class EndUserClassificationOption(models.Model):
+    class Category(models.TextChoices):
+        ORGANIZATION_TYPE = "organization_type", "Organization type"
+        SECTOR = "sector", "Sector"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    category = models.CharField(max_length=32, choices=Category.choices)
+    name = models.CharField(max_length=160)
+    normalized_name = models.CharField(max_length=160, editable=False)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    is_active = models.BooleanField(default=True)
+    proposed_by_company = models.ForeignKey(
+        Company,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="proposed_end_user_classifications",
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_end_user_classifications",
+    )
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_end_user_classifications",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["category", "name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["category", "normalized_name"],
+                name="unique_end_user_classification_name",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        self.normalized_name = normalize_end_user_value(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class EndUser(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending verification"
         VERIFIED = "verified", "Verified"
         REJECTED = "rejected", "Rejected"
 
+    class GovernmentBranch(models.TextChoices):
+        NATIONAL = "National government", "National Government"
+        LOCAL = "Local government", "Local Government"
+        GOCC = "Government-owned or controlled corporation", "GOCC"
+        CONSTITUTIONAL = "Constitutional office", "Constitutional Office"
+        OTHER = "Other government entity", "Other Government Entity"
+
     official_name = models.CharField(max_length=240)
     acronym = models.CharField(max_length=80, blank=True)
     parent = models.ForeignKey(
         "self", on_delete=models.PROTECT, null=True, blank=True, related_name="sub_organizations"
     )
-    government_branch = models.CharField(max_length=120, blank=True)
+    government_branch = models.CharField(
+        max_length=120, choices=GovernmentBranch.choices, blank=True
+    )
     organization_type = models.CharField(max_length=160, blank=True)
     sector = models.CharField(max_length=160, blank=True)
     region = models.CharField(max_length=160, blank=True)

@@ -128,6 +128,8 @@ If a company cannot find the organization, it can use **Add missing End-user** o
 
 Administrators should compare proposals with an authoritative source, correct the official name and address if necessary, add useful aliases, and use **Verify selected End-users**. Business records are archived with `is_active` instead of being deleted. Existing registration and opportunity text is retained as an audit snapshot even though records are linked to the directory.
 
+Government branch uses a fixed list. Organization type and Sector use searchable managed lists. Company users may enter a missing Organization type or Sector while proposing an End-user; the new classification is saved as pending and is visible only to that company and DBGI administrators until an administrator approves it under **Master data > End-user classifications**.
+
 Migration `registrations.0009_seed_common_philgeps_end_users` provides a starter catalog based on the top procuring entities by bid and award notice volume in the PhilGEPS 2023 Statistical Bulletin. It also consolidates active duplicates only when both the normalized name and normalized address match, moves transaction links to the canonical record, and archives the redundant record for recovery.
 
 ## Visible build time
