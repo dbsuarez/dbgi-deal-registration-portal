@@ -1143,6 +1143,14 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(self.registration_a.needs_review)
         event = RegistrationEvent.objects.get(registration=self.registration_a)
         self.assertEqual(event.snapshot["project_title"], "Company A secret project")
+        detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}")
+        self.assertEqual(detail.status_code, 200, detail.content)
+        event_payload = detail.json()["events"][0]
+        project_change = next(
+            change for change in event_payload["changes"] if change["label"] == "Project title"
+        )
+        self.assertEqual(project_change["previous"], "Company A secret project")
+        self.assertEqual(project_change["current"], "Edited project")
 
     def test_update_rejects_stale_version(self):
         self.client.force_login(self.user_a)

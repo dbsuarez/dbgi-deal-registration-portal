@@ -43,6 +43,7 @@ The application is a working internal beta with these foundations implemented:
 - Shared MemPalace access for Claude Code through a git-ignored, project-scoped MCP registration, with per-agent diaries for Claude and Codex handoffs.
 - Durable, recipient-scoped portal and email notifications for submissions, registration decisions, and category price decisions, with read tracking, delivery tracking, administrator retries, per-event subject and body templates, rendered administrator previews, immutable delivery-content snapshots, and a dedicated post-submission Help page.
 - Environment-backed MXroute SMTP delivery using the DBGI support mailbox, with credentials excluded from tracked source.
+- Compact registration activity history with scannable action metadata and structured previous-to-current field changes.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

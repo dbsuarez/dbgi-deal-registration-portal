@@ -65,6 +65,15 @@ CHANGE_LABELS = {
 
 
 def registration_change_summary(before, after):
+    return [
+        f"{change['label']}: {change['previous']} to {change['current']}"
+        if change["previous"]
+        else f"{change['label']}: {change['current'].lower()}"
+        for change in registration_change_details(before, after)
+    ]
+
+
+def registration_change_details(before, after):
     if not before or not after:
         return []
     changes = []
@@ -72,14 +81,20 @@ def registration_change_summary(before, after):
         if before.get(field) != after.get(field):
             old_value = before.get(field)
             new_value = after.get(field)
-            changes.append(f"{label}: {_display_value(old_value)} to {_display_value(new_value)}")
+            changes.append(
+                {
+                    "label": label,
+                    "previous": _display_value(old_value),
+                    "current": _display_value(new_value),
+                }
+            )
     for field, label in (
         ("competitor_items", "Competitor items"),
         ("items", "Requested products"),
         ("attachments", "Attachments"),
     ):
         if before.get(field) != after.get(field):
-            changes.append(f"{label}: updated")
+            changes.append({"label": label, "previous": "", "current": "Updated"})
     return changes
 
 

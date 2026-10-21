@@ -54,6 +54,17 @@ const moneyCell = {
   fontVariantNumeric: "tabular-nums",
 };
 
+function formatEventTimestamp(value: string) {
+  return new Date(value).toLocaleString("sv-SE", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function Detail({
   label,
   children,
@@ -625,13 +636,77 @@ export default function RegistrationDetailPage() {
         <Typography variant="h2" gutterBottom>
           Activity
         </Typography>
-        <List>
+        <List disablePadding>
           {registration.events.map((event) => (
-            <ListItem key={event.id} divider>
-              <ListItemText
-                primary={event.event_type}
-                secondary={`${event.actor_name} | ${new Date(event.created_at).toLocaleString("sv-SE", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} | ${event.details}${event.changes?.length ? ` | Changes: ${event.changes.join("; ")}` : ""}`}
-              />
+            <ListItem key={event.id} divider sx={{ px: 0, py: 1.5 }}>
+              <Box sx={{ width: "100%" }}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  alignItems={{ xs: "flex-start", sm: "center" }}
+                >
+                  <Typography variant="h3">{event.event_type}</Typography>
+                  {!!event.changes.length && (
+                    <Chip
+                      size="small"
+                      label={`${event.changes.length} ${event.changes.length === 1 ? "change" : "changes"}`}
+                    />
+                  )}
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                  {event.actor_name} | {formatEventTimestamp(event.created_at)}
+                </Typography>
+                {!event.changes.length && (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    {event.details}
+                  </Typography>
+                )}
+                {!!event.changes.length && (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 0.75,
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: "minmax(140px, 0.7fr) 1fr auto 1fr",
+                      },
+                      mt: 1,
+                    }}
+                  >
+                    {event.changes.map((change) => (
+                      <Box key={change.label} sx={{ display: "contents" }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          {change.label}
+                        </Typography>
+                        {change.previous ? (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              {change.previous}
+                            </Typography>
+                            <Typography
+                              aria-hidden="true"
+                              color="text.secondary"
+                              sx={{ display: { xs: "none", md: "block" } }}
+                            >
+                              to
+                            </Typography>
+                            <Typography variant="body2">
+                              {change.current}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography
+                            variant="body2"
+                            sx={{ gridColumn: { md: "2 / 5" } }}
+                          >
+                            {change.current}
+                          </Typography>
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
             </ListItem>
           ))}
         </List>

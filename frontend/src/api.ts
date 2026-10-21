@@ -114,7 +114,11 @@ export type RegistrationEvent = {
   details: string;
   actor_name: string;
   created_at: string;
-  changes: string[];
+  changes: Array<{
+    label: string;
+    previous: string;
+    current: string;
+  }>;
 };
 
 export type RegistrationNotification = {

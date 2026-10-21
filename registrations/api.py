@@ -16,7 +16,7 @@ from ninja.errors import AuthenticationError
 from ninja.errors import ValidationError as NinjaValidationError
 from ninja.security import django_auth
 
-from .audit import registration_change_summary, registration_snapshot
+from .audit import registration_change_details, registration_snapshot
 from .matching import generate_matching_suggestion
 from .models import (
     CompetitorBrand,
@@ -187,13 +187,19 @@ class AttachmentOutput(Schema):
     download_url: str
 
 
+class EventChangeOutput(Schema):
+    label: str
+    previous: str
+    current: str
+
+
 class EventOutput(Schema):
     id: int
     event_type: str
     details: str
     actor_name: str
     created_at: datetime
-    changes: list[str]
+    changes: list[EventChangeOutput]
 
 
 class MatchingSuggestionOutput(Schema):
@@ -569,7 +575,7 @@ def _serialize_registration_detail(registration, user):
                         else "System"
                     ),
                     "created_at": event.created_at,
-                    "changes": registration_change_summary(
+                    "changes": registration_change_details(
                         event.snapshot, event.resulting_snapshot
                     ),
                 }
