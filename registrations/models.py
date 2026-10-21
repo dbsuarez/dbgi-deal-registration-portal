@@ -76,6 +76,8 @@ class User(AbstractUser):
         related_name="users",
     )
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.COMPANY)
+    designation = models.CharField(max_length=160, blank=True)
+    phone_number = models.CharField(max_length=40, blank=True)
 
     @property
     def is_dbgi_admin(self):

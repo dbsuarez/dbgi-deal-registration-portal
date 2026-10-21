@@ -7,6 +7,9 @@ export type ApiError = {
 export type Session = {
   username: string;
   display_name: string;
+  email: string;
+  designation: string;
+  phone_number: string;
   is_dbgi_admin: boolean;
   csrf_token: string;
 };

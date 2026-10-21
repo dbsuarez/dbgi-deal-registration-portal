@@ -7,6 +7,9 @@ import App from "./App";
 const session = {
   username: "dealer-a",
   display_name: "Dealer A",
+  email: "dealer-a@example.invalid",
+  designation: "Product Specialist",
+  phone_number: "09170000000",
   is_dbgi_admin: false,
   csrf_token: "test-token",
 };

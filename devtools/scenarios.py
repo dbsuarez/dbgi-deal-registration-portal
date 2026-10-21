@@ -78,7 +78,8 @@ def _company_user(company_name, email):
     company.is_active = True
     company.save(update_fields=["is_active"])
     user, _ = User.objects.get_or_create(username=email)
-    user.email = email
+    if not user.email:
+        user.email = email
     user.role = User.Role.COMPANY
     user.company = company
     user.is_active = True

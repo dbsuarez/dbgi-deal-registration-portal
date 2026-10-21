@@ -3,6 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 const session = {
   username: "dealer-a",
   display_name: "Dealer A",
+  email: "dealer-a@example.invalid",
+  designation: "Product Specialist",
+  phone_number: "09170000000",
   is_dbgi_admin: false,
   csrf_token: "test-token",
 };
@@ -126,6 +129,14 @@ test("company user can open the React registration form", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "New registration" }),
   ).toBeVisible();
+  await expect(page.getByLabel("Contact person")).toHaveValue("Dealer A");
+  await expect(page.getByLabel("Designation")).toHaveValue(
+    "Product Specialist",
+  );
+  await expect(page.getByLabel("Contact email")).toHaveValue(
+    "dealer-a@example.invalid",
+  );
+  await expect(page.getByLabel("Contact number")).toHaveValue("09170000000");
   await expect(
     page.getByRole("button", { name: "Add competitor" }),
   ).toBeVisible();

@@ -124,7 +124,13 @@ export default function RegistrationFormPage() {
   const [savedRegistrationId, setSavedRegistrationId] = useState<number | null>(
     registrationId,
   );
-  const [main, setMain] = useState<MainFields>(emptyMain);
+  const [main, setMain] = useState<MainFields>(() => ({
+    ...emptyMain,
+    contact_person: session.display_name,
+    contact_designation: session.designation,
+    contact_email: session.email,
+    contact_number: session.phone_number,
+  }));
   const [version, setVersion] = useState<number | undefined>();
   const [evidencePendingFinalize, setEvidencePendingFinalize] = useState(false);
   const [competitors, setCompetitors] = useState<CompetitorItem[]>([]);

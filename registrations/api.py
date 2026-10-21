@@ -285,6 +285,9 @@ class EndUserCreateInput(Schema):
 class SessionResponse(Schema):
     username: str
     display_name: str
+    email: str
+    designation: str
+    phone_number: str
     is_dbgi_admin: bool
     csrf_token: str
 
@@ -385,6 +388,9 @@ def session(request):
     return {
         "username": request.user.username,
         "display_name": request.user.get_full_name() or request.user.username,
+        "email": request.user.email,
+        "designation": request.user.designation,
+        "phone_number": request.user.phone_number,
         "is_dbgi_admin": request.user.is_dbgi_admin,
         "csrf_token": get_token(request),
     }

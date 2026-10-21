@@ -537,7 +537,7 @@ export default function HelpPage() {
               <ListItem disableGutters>
                 <ListItemText
                   primary="Users and companies"
-                  secondary="Assign company users to the correct company. Company membership controls tenant access and must be checked carefully."
+                  secondary="Assign company users to the correct company and maintain their name, designation, email, and phone. New registrations use these values as editable contact defaults. Company membership controls tenant access and must be checked carefully."
                 />
               </ListItem>
               <ListItem disableGutters>

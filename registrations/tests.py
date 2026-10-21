@@ -872,11 +872,29 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_session_and_product_options(self):
+        self.user_a.first_name = "Dante"
+        self.user_a.last_name = "Suarez Jr"
+        self.user_a.email = "dante.suarez@example.invalid"
+        self.user_a.designation = "Product Specialist"
+        self.user_a.phone_number = "09227667968"
+        self.user_a.save(
+            update_fields=[
+                "first_name",
+                "last_name",
+                "email",
+                "designation",
+                "phone_number",
+            ]
+        )
         self.client.force_login(self.user_a)
         session = self.client.get("/api/v1/session")
         products = self.client.get("/api/v1/products")
         self.assertEqual(session.status_code, 200)
         self.assertTrue(session.json()["csrf_token"])
+        self.assertEqual(session.json()["display_name"], "Dante Suarez Jr")
+        self.assertEqual(session.json()["email"], "dante.suarez@example.invalid")
+        self.assertEqual(session.json()["designation"], "Product Specialist")
+        self.assertEqual(session.json()["phone_number"], "09227667968")
         self.assertEqual(products.status_code, 200)
         self.assertIn(self.product.code, {item["code"] for item in products.json()})
 

@@ -54,17 +54,50 @@ class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
-    fieldsets = (*BaseUserAdmin.fieldsets, ("Portal access", {"fields": ("company", "role")}))
+    fieldsets = (
+        *BaseUserAdmin.fieldsets,
+        (
+            "Portal profile",
+            {"fields": ("company", "role", "designation", "phone_number")},
+        ),
+    )
     add_fieldsets = (
         *BaseUserAdmin.add_fieldsets,
         (
             "Portal access",
-            {"fields": ("company", "role", "is_staff", "is_superuser", "is_active")},
+            {
+                "fields": (
+                    "company",
+                    "role",
+                    "designation",
+                    "phone_number",
+                    "is_staff",
+                    "is_superuser",
+                    "is_active",
+                )
+            },
         ),
     )
-    list_display = ("username", "email", "company", "role", "is_staff", "is_active")
+    list_display = (
+        "username",
+        "email",
+        "designation",
+        "phone_number",
+        "company",
+        "role",
+        "is_staff",
+        "is_active",
+    )
     list_filter = ("role", "is_staff", "is_active", "company")
-    search_fields = ("username", "email", "company__name")
+    search_fields = (
+        "username",
+        "first_name",
+        "last_name",
+        "email",
+        "designation",
+        "phone_number",
+        "company__name",
+    )
 
 
 @admin.register(Product)
