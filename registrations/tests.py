@@ -19,6 +19,8 @@ from django.test import Client, RequestFactory, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
+from devtools.models import RegistrationTestPreset
+
 from .admin import RegistrationAdmin
 from .audit import registration_change_summary
 from .matching import generate_matching_suggestion
@@ -909,6 +911,63 @@ class RegistrationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["is_debug"])
+
+    @override_settings(DEBUG=True)
+    def test_user_can_manage_only_their_registration_test_presets(self):
+        self.client.force_login(self.user_a)
+        create_response = self.client.post(
+            "/api/v1/development/registration-test-presets",
+            data=json.dumps(
+                {
+                    "name": "My reusable test",
+                    "description": "Development only",
+                    "payload": self.payload(),
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(create_response.status_code, 201, create_response.content)
+        preset_id = create_response.json()["id"]
+        RegistrationTestPreset.objects.create(
+            owner=self.user_b,
+            name="Other user's test",
+            payload=self.payload(),
+        )
+        list_response = self.client.get("/api/v1/development/registration-test-presets")
+        self.assertEqual([item["name"] for item in list_response.json()], ["My reusable test"])
+
+        updated_payload = self.payload(project_title="Updated test project")
+        update_response = self.client.put(
+            f"/api/v1/development/registration-test-presets/{preset_id}",
+            data=json.dumps(
+                {
+                    "name": "My reusable test",
+                    "description": "Updated",
+                    "payload": updated_payload,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(update_response.status_code, 200, update_response.content)
+        self.assertEqual(
+            update_response.json()["payload"]["project_title"],
+            "Updated test project",
+        )
+
+        delete_response = self.client.delete(
+            f"/api/v1/development/registration-test-presets/{preset_id}"
+        )
+        self.assertEqual(delete_response.status_code, 204)
+        self.assertFalse(RegistrationTestPreset.objects.filter(pk=preset_id).exists())
+
+    @override_settings(DEBUG=False)
+    def test_registration_test_presets_are_unavailable_outside_debug_mode(self):
+        self.client.force_login(self.user_a)
+
+        response = self.client.get("/api/v1/development/registration-test-presets")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_competitor_brand_options_return_active_master_data(self):
         CompetitorBrand.objects.create(name="Active brand")

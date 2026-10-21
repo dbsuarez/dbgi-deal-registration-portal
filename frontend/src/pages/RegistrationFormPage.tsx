@@ -43,14 +43,17 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import {
   createRegistration,
+  createRegistrationTestPreset,
   createEndUser,
   deleteAttachment,
+  deleteRegistrationTestPreset,
   finalizeRegistration,
   getCompetitorBrands,
   getCompetitorModels,
   getEndUsers,
   getProducts,
   getRegistration,
+  getRegistrationTestPresets,
   type Attachment,
   type CompetitorItem,
   type CompetitorModelOption,
@@ -58,8 +61,10 @@ import {
   type EndUserCreatePayload,
   type ProductOption,
   type RegistrationPayload,
+  type RegistrationTestPreset,
   type RequestedItem,
   updateRegistration,
+  updateRegistrationTestPreset,
   uploadAttachment,
 } from "../api";
 import { useSession } from "../session";
@@ -283,6 +288,16 @@ export default function RegistrationFormPage() {
   const [error, setError] = useState("");
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [loadedPreset, setLoadedPreset] = useState("");
+  const [savedPresets, setSavedPresets] = useState<RegistrationTestPreset[]>(
+    [],
+  );
+  const [editingPresetId, setEditingPresetId] = useState<number | null>(null);
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [presetDescription, setPresetDescription] = useState("");
+  const [presetSaving, setPresetSaving] = useState(false);
+  const [presetDeleteTarget, setPresetDeleteTarget] =
+    useState<RegistrationTestPreset | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -306,6 +321,13 @@ export default function RegistrationFormPage() {
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       });
+    if (session.is_debug && !registrationId) {
+      getRegistrationTestPresets(controller.signal)
+        .then(setSavedPresets)
+        .catch((reason: Error) => {
+          if (reason.name !== "AbortError") setError(reason.message);
+        });
+    }
     if (registrationId) {
       getRegistration(registrationId, controller.signal)
         .then((registration) => {
@@ -334,7 +356,7 @@ export default function RegistrationFormPage() {
         });
     }
     return () => controller.abort();
-  }, [registrationId]);
+  }, [registrationId, session.is_debug]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -470,11 +492,117 @@ export default function RegistrationFormPage() {
       },
     ]);
     setPendingAttachments([]);
+    setEditingPresetId(null);
     setError("");
     setDirty(true);
     setLoadedPreset(preset.title);
     setTestPanelOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const currentTestPayload = (): RegistrationPayload => ({
+    ...main,
+    competitor_items: competitors.map(
+      ({ brand, item_name, bid_price, remarks }) => ({
+        brand,
+        item_name,
+        bid_price,
+        remarks,
+      }),
+    ),
+    items: items.map(
+      ({
+        product_id,
+        non_catalog_name,
+        quantity,
+        requested_unit_price,
+        justification,
+      }) => ({
+        product_id,
+        non_catalog_name,
+        quantity,
+        requested_unit_price,
+        justification,
+      }),
+    ),
+  });
+
+  const loadSavedPreset = (preset: RegistrationTestPreset) => {
+    const {
+      competitor_items,
+      items: presetItems,
+      ...presetMain
+    } = preset.payload;
+    setMain(presetMain);
+    setCompetitors(competitor_items);
+    setItems(presetItems);
+    setPendingAttachments([]);
+    setEditingPresetId(preset.id);
+    setPresetName(preset.name);
+    setPresetDescription(preset.description);
+    setLoadedPreset(preset.name);
+    setDirty(true);
+    setTestPanelOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const openSavePresetDialog = () => {
+    setPresetName(main.project_title || "New registration test data");
+    setPresetDescription("");
+    setPresetDialogOpen(true);
+  };
+
+  const saveNewPreset = async () => {
+    if (!presetName.trim()) return;
+    setPresetSaving(true);
+    setError("");
+    try {
+      const created = await createRegistrationTestPreset(
+        presetName,
+        presetDescription,
+        currentTestPayload(),
+        session.csrf_token,
+      );
+      setSavedPresets((current) => [...current, created]);
+      setEditingPresetId(created.id);
+      setLoadedPreset(created.name);
+      setPresetDialogOpen(false);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Test data could not be saved.",
+      );
+    } finally {
+      setPresetSaving(false);
+    }
+  };
+
+  const updateSavedPreset = async () => {
+    const preset = savedPresets.find((item) => item.id === editingPresetId);
+    if (!preset) return;
+    setPresetSaving(true);
+    try {
+      const updated = await updateRegistrationTestPreset(
+        preset.id,
+        preset.name,
+        preset.description,
+        currentTestPayload(),
+        session.csrf_token,
+      );
+      setSavedPresets((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setLoadedPreset(updated.name);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Test data could not be updated.",
+      );
+    } finally {
+      setPresetSaving(false);
+    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -938,6 +1066,19 @@ export default function RegistrationFormPage() {
           >
             Cancel
           </Button>
+          {session.is_debug && !savedRegistrationId && (
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<BugReportIcon />}
+              disabled={presetSaving}
+              onClick={
+                editingPresetId ? updateSavedPreset : openSavePresetDialog
+              }
+            >
+              {editingPresetId ? "Update test data" : "Save as test data"}
+            </Button>
+          )}
           <Button type="submit" variant="contained" disabled={saving}>
             {saving
               ? "Saving..."
@@ -1061,12 +1202,120 @@ export default function RegistrationFormPage() {
                 </Paper>
               ))}
             </Stack>
+            <Typography variant="h3" sx={{ mt: 3, mb: 1 }}>
+              My saved test data
+            </Typography>
+            {savedPresets.length === 0 ? (
+              <Typography color="text.secondary" variant="body2">
+                No saved test data yet. Fill the form and use Save as test data.
+              </Typography>
+            ) : (
+              <Stack spacing={2}>
+                {savedPresets.map((preset) => (
+                  <Paper key={preset.id} variant="outlined" sx={{ p: 2 }}>
+                    <Typography fontWeight={700}>{preset.name}</Typography>
+                    {preset.description && (
+                      <Typography color="text.secondary" variant="body2">
+                        {preset.description}
+                      </Typography>
+                    )}
+                    <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                      <Button onClick={() => loadSavedPreset(preset)}>
+                        Edit
+                      </Button>
+                      <Button
+                        color="error"
+                        onClick={() => setPresetDeleteTarget(preset)}
+                      >
+                        Delete
+                      </Button>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
             <Button sx={{ mt: 2 }} onClick={() => setTestPanelOpen(false)}>
               Close
             </Button>
           </Drawer>
         </>
       )}
+      <Dialog
+        open={presetDialogOpen}
+        onClose={() => !presetSaving && setPresetDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Save registration as test data</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              autoFocus
+              required
+              label="Test data name"
+              value={presetName}
+              onChange={(event) => setPresetName(event.target.value)}
+            />
+            <TextField
+              label="Description"
+              value={presetDescription}
+              onChange={(event) => setPresetDescription(event.target.value)}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPresetDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={presetSaving || !presetName.trim()}
+            onClick={saveNewPreset}
+          >
+            Save test data
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={Boolean(presetDeleteTarget)}
+        onClose={() => setPresetDeleteTarget(null)}
+      >
+        <DialogTitle>Delete saved test data?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {presetDeleteTarget?.name} will be permanently removed from your
+            development presets.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPresetDeleteTarget(null)}>Cancel</Button>
+          <Button
+            color="error"
+            onClick={async () => {
+              if (!presetDeleteTarget) return;
+              try {
+                await deleteRegistrationTestPreset(
+                  presetDeleteTarget.id,
+                  session.csrf_token,
+                );
+                setSavedPresets((current) =>
+                  current.filter((item) => item.id !== presetDeleteTarget.id),
+                );
+                if (editingPresetId === presetDeleteTarget.id) {
+                  setEditingPresetId(null);
+                }
+                setPresetDeleteTarget(null);
+              } catch (reason) {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : "Test data could not be deleted.",
+                );
+              }
+            }}
+          >
+            Delete test data
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

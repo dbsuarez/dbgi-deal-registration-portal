@@ -8,6 +8,7 @@ from django.contrib.auth import logout as django_logout
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
+from django.http import Http404
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -88,6 +89,20 @@ class RegistrationInput(Schema):
     evidence_sharing_confirmed: bool
     competitor_items: list[CompetitorInput]
     items: list[RegistrationItemInput]
+
+
+class RegistrationTestPresetInput(Schema):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=240)
+    payload: RegistrationInput
+
+
+class RegistrationTestPresetOutput(Schema):
+    id: int
+    name: str
+    description: str
+    payload: dict
+    updated_at: datetime
 
 
 class RegistrationUpdate(RegistrationInput):
@@ -407,6 +422,94 @@ def session(request):
 @api.post("/session/logout", auth=django_auth, response={204: None})
 def logout_session(request):
     django_logout(request)
+    return Status(204, None)
+
+
+def _require_debug_mode():
+    if not settings.DEBUG:
+        raise Http404
+
+
+def _test_preset_payload(payload):
+    return payload.model_dump(mode="json")
+
+
+@api.get(
+    "/development/registration-test-presets",
+    auth=django_auth,
+    response=list[RegistrationTestPresetOutput],
+)
+def list_registration_test_presets(request):
+    _require_debug_mode()
+    from devtools.models import RegistrationTestPreset
+
+    return RegistrationTestPreset.objects.filter(owner=request.user)
+
+
+@api.post(
+    "/development/registration-test-presets",
+    auth=django_auth,
+    response={201: RegistrationTestPresetOutput, 409: ErrorResponse},
+)
+def create_registration_test_preset(request, payload: RegistrationTestPresetInput):
+    _require_debug_mode()
+    from devtools.models import RegistrationTestPreset
+
+    try:
+        preset = RegistrationTestPreset.objects.create(
+            owner=request.user,
+            name=" ".join(payload.name.split()),
+            description=" ".join(payload.description.split()),
+            payload=_test_preset_payload(payload.payload),
+        )
+    except IntegrityError:
+        return Status(
+            409,
+            {
+                "code": "duplicate_test_preset",
+                "message": "You already have test data with this name.",
+            },
+        )
+    return Status(201, preset)
+
+
+@api.put(
+    "/development/registration-test-presets/{preset_id}",
+    auth=django_auth,
+    response={200: RegistrationTestPresetOutput, 409: ErrorResponse},
+)
+def update_registration_test_preset(request, preset_id: int, payload: RegistrationTestPresetInput):
+    _require_debug_mode()
+    from devtools.models import RegistrationTestPreset
+
+    preset = get_object_or_404(RegistrationTestPreset, pk=preset_id, owner=request.user)
+    preset.name = " ".join(payload.name.split())
+    preset.description = " ".join(payload.description.split())
+    preset.payload = _test_preset_payload(payload.payload)
+    try:
+        preset.save()
+    except IntegrityError:
+        return Status(
+            409,
+            {
+                "code": "duplicate_test_preset",
+                "message": "You already have test data with this name.",
+            },
+        )
+    return preset
+
+
+@api.delete(
+    "/development/registration-test-presets/{preset_id}",
+    auth=django_auth,
+    response={204: None},
+)
+def delete_registration_test_preset(request, preset_id: int):
+    _require_debug_mode()
+    from devtools.models import RegistrationTestPreset
+
+    preset = get_object_or_404(RegistrationTestPreset, pk=preset_id, owner=request.user)
+    preset.delete()
     return Status(204, None)
 
 

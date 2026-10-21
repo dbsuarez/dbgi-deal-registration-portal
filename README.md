@@ -106,6 +106,8 @@ Django superusers can open **Administration > Scenario Lab** in Django admin whi
 
 While `DEBUG=True`, the new-registration page also shows a floating **Test data** button. It opens five one-click form presets, including two differently titled Pasig registrations that use the same End-user and requested product for competition testing. A preset only fills the unsaved form; review the values and click **Create registration** when ready. The button is absent when `DEBUG=False` and on existing-registration edit pages.
 
+Company users can save the current unsaved form as private test data, load it for editing, update it, or delete it. These user-owned presets are stored in the development database and every related API returns not found when `DEBUG=False`. Uploaded files are not included in a preset.
+
 ## End-user directory
 
 Registrations select an End-user from shared master data instead of entering a new name and address each time. DBGI administrators maintain the directory in Django Admin under **Master data > End-users**. Records include organization classification, address, PhilGEPS reference details, aliases, verification status, source, and audit fields.
@@ -173,6 +175,7 @@ In Django admin, create the DBGI partner companies and assign company users. The
   ```
 
   Back up the `media_data` Docker volume separately; a database dump alone does not include evidence files. Store and test backups off the VPS.
+
 - Keep `.env`, database dumps, uploaded evidence, and TLS material private. Establish and test retention, restore, monitoring, and incident-response procedures before production use.
 
 ## Verification

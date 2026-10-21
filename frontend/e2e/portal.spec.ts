@@ -12,6 +12,7 @@ const session = {
 };
 
 test.beforeEach(async ({ page }) => {
+  let savedTestPresets: Array<Record<string, unknown>> = [];
   await page.route("**/api/v1/session", (route) =>
     route.fulfill({ json: session }),
   );
@@ -43,6 +44,38 @@ test.beforeEach(async ({ page }) => {
         { brand: "HP", item_name: "LaserJet Pro 4003dn" },
       ],
     }),
+  );
+  await page.route(
+    "**/api/v1/development/registration-test-presets**",
+    async (route) => {
+      const method = route.request().method();
+      const id = Number(route.request().url().split("/").pop());
+      if (method === "GET") return route.fulfill({ json: savedTestPresets });
+      if (method === "POST") {
+        const body = route.request().postDataJSON();
+        const created = {
+          id: 91,
+          ...body,
+          updated_at: "2026-10-22T06:00:00Z",
+        };
+        savedTestPresets = [...savedTestPresets, created];
+        return route.fulfill({ status: 201, json: created });
+      }
+      if (method === "PUT") {
+        const body = route.request().postDataJSON();
+        const updated = {
+          id,
+          ...body,
+          updated_at: "2026-10-22T06:05:00Z",
+        };
+        savedTestPresets = savedTestPresets.map((item) =>
+          item.id === id ? updated : item,
+        );
+        return route.fulfill({ json: updated });
+      }
+      savedTestPresets = savedTestPresets.filter((item) => item.id !== id);
+      return route.fulfill({ status: 204 });
+    },
   );
   await page.route("**/api/v1/end-users", (route) =>
     route.fulfill({
@@ -171,7 +204,7 @@ test("debug test-data panel fills five registration scenarios", async ({
 }) => {
   await page.goto("/registrations/new/");
 
-  await page.getByRole("button", { name: "Test data" }).click();
+  await page.getByRole("button", { name: "Test data", exact: true }).click();
   const drawer = page.getByRole("presentation").filter({
     has: page.getByRole("heading", { name: "Registration test data" }),
   });
@@ -202,6 +235,31 @@ test("debug test-data panel fills five registration scenarios", async ({
   await expect(
     page.getByText(/Loaded test data: Pasig competing bid A/),
   ).toBeVisible();
+
+  await page.getByRole("button", { name: "Save as test data" }).click();
+  await page.getByLabel("Test data name").fill("My Pasig test");
+  await page
+    .getByRole("textbox", { name: "Description", exact: true })
+    .fill("Reusable test registration");
+  await page.getByRole("button", { name: "Save test data" }).click();
+  await page.getByRole("button", { name: "Test data", exact: true }).click();
+  await expect(page.getByText("My Pasig test", { exact: true })).toBeVisible();
+
+  const savedCard = page.getByText("My Pasig test", { exact: true }).locator("..");
+  await savedCard.getByRole("button", { name: "Edit" }).click();
+  await expect(
+    page.getByRole("button", { name: "Update test data" }),
+  ).toBeVisible();
+  await page.getByLabel("Project opportunity title").fill("Updated Pasig test");
+  await page.getByRole("button", { name: "Update test data" }).click();
+  await page.getByRole("button", { name: "Test data", exact: true }).click();
+  await page
+    .getByText("My Pasig test", { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await page.getByRole("button", { name: "Delete test data" }).click();
+  await expect(page.getByText("My Pasig test", { exact: true })).toHaveCount(0);
 });
 
 test("test-data panel is hidden outside debug mode", async ({ page }) => {
@@ -211,7 +269,9 @@ test("test-data panel is hidden outside debug mode", async ({ page }) => {
 
   await page.goto("/registrations/new/");
 
-  await expect(page.getByRole("button", { name: "Test data" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Test data", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("quick status filters compose and clear", async ({ page }) => {

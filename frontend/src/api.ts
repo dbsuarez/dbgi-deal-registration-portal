@@ -255,6 +255,14 @@ export type RegistrationPayload = {
   >;
 };
 
+export type RegistrationTestPreset = {
+  id: number;
+  name: string;
+  description: string;
+  payload: RegistrationPayload;
+  updated_at: string;
+};
+
 export class RequestError extends Error {
   readonly status: number;
   readonly code: string;
@@ -336,6 +344,52 @@ export function getSession(signal?: AbortSignal) {
 
 export function logoutSession(csrfToken: string) {
   return mutation<void>("/api/v1/session/logout", "POST", csrfToken);
+}
+
+export function getRegistrationTestPresets(signal?: AbortSignal) {
+  return request<RegistrationTestPreset[]>(
+    "/api/v1/development/registration-test-presets",
+    signal,
+  );
+}
+
+export function createRegistrationTestPreset(
+  name: string,
+  description: string,
+  payload: RegistrationPayload,
+  csrfToken: string,
+) {
+  return mutation<RegistrationTestPreset>(
+    "/api/v1/development/registration-test-presets",
+    "POST",
+    csrfToken,
+    JSON.stringify({ name, description, payload }),
+    "application/json",
+  );
+}
+
+export function updateRegistrationTestPreset(
+  id: number,
+  name: string,
+  description: string,
+  payload: RegistrationPayload,
+  csrfToken: string,
+) {
+  return mutation<RegistrationTestPreset>(
+    `/api/v1/development/registration-test-presets/${id}`,
+    "PUT",
+    csrfToken,
+    JSON.stringify({ name, description, payload }),
+    "application/json",
+  );
+}
+
+export function deleteRegistrationTestPreset(id: number, csrfToken: string) {
+  return mutation<void>(
+    `/api/v1/development/registration-test-presets/${id}`,
+    "DELETE",
+    csrfToken,
+  );
 }
 
 export function getRegistrations(
