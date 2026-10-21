@@ -276,19 +276,23 @@ function ScenarioCard({ scenario }: { scenario: PracticeScenario }) {
 
 export default function HelpPage() {
   const session = useSession();
+  const isStandalone =
+    new URLSearchParams(window.location.search).get("standalone") === "1";
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}>
-        <Link href="/">Registrations</Link>
-        <Typography color="text.primary">Help</Typography>
-      </Breadcrumbs>
+      {!isStandalone && (
+        <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}>
+          <Link href="/">Registrations</Link>
+          <Typography color="text.primary">Help</Typography>
+        </Breadcrumbs>
+      )}
       <Typography variant="h1" gutterBottom>
         Help and user guide
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Follow this guide from your first registration through DBGI review and
-        pricing approval.
+        You do not need to memorize the system. Keep this page open and follow
+        one numbered step at a time.
       </Typography>
       <Alert severity="info" sx={{ mb: 3 }}>
         You are signed in as {session.display_name}. This guide is showing the{" "}
@@ -298,29 +302,56 @@ export default function HelpPage() {
 
       <Paper variant="outlined" sx={{ mb: 3, p: 2 }}>
         <Typography variant="h2" gutterBottom>
+          How to use this guide
+        </Typography>
+        <List disablePadding>
+          <NumberedStep number={1} title="Choose what you need to do">
+            Open the section with the name that matches your task. You can close
+            the other sections.
+          </NumberedStep>
+          <NumberedStep number={2} title="Keep Help beside the portal">
+            {isStandalone
+              ? "Move this Help window to one side of your screen and keep the portal on the other side."
+              : "From the Help menu, choose Open in new window. Move Help to one side of your screen and the portal to the other side."}
+          </NumberedStep>
+          <NumberedStep number={3} title="Do one step, then come back here">
+            Finish the current numbered step in the portal. Return to this guide
+            and continue with the next number.
+          </NumberedStep>
+          <NumberedStep number={4} title="Check the expected result">
+            When you finish, compare what you see with the expected result. If
+            they are different, open If something goes wrong.
+          </NumberedStep>
+        </List>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ mb: 3, p: 2 }}>
+        <Typography variant="h2" gutterBottom>
           Start here
         </Typography>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          sx={{ mb: 1.5 }}
-        >
-          <Button variant="contained" href="/">
-            View registrations
-          </Button>
-          {!session.is_dbgi_admin && (
-            <Button variant="outlined" href="/registrations/new/">
-              Create a registration
+        {!isStandalone && (
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            sx={{ mb: 1.5 }}
+          >
+            <Button variant="contained" href="/">
+              View registrations
             </Button>
-          )}
-          <Button variant="outlined" href="/notifications/">
-            Check notifications
-          </Button>
-        </Stack>
+            {!session.is_dbgi_admin && (
+              <Button variant="outlined" href="/registrations/new/">
+                Create a registration
+              </Button>
+            )}
+            <Button variant="outlined" href="/notifications/">
+              Check notifications
+            </Button>
+          </Stack>
+        )}
         <Typography variant="body2" color="text.secondary">
-          A registration is your company's claim for a specific End-user
-          procurement opportunity. Requested prices are proposals until DBGI
-          approves them.
+          A registration tells DBGI that your company is working on a customer
+          project and wants DBGI to review it. A price you ask for is only a
+          request until DBGI approves it.
         </Typography>
       </Paper>
 

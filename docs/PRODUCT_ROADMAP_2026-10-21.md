@@ -47,6 +47,7 @@ The application is a working internal beta with these foundations implemented:
 - Role-aware Help page with beginner company walkthroughs, administrator operating procedures, status explanations, direct task links, and troubleshooting guidance.
 - Role-specific end-to-end practice scenarios with prerequisites, exact actions, and expected outcomes for registration, correction, matching, pricing, notification recovery, and governed End-user workflows.
 - Django Admin operations dashboard with actionable review, pricing, End-user verification, failed-email, and expiring-approval queues.
+- Beginner-friendly, role-aware Help instructions that users can follow one step at a time, with options to open Help in the current page, a new tab, or a distraction-free side-by-side window.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
@@ -65,14 +66,14 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 
 ## 4. Roadmap overview
 
-| Milestone | Outcome | Priority | Depends on |
-| --- | --- | --- | --- |
-| 0. Stabilize the internal beta | Known technical and test risks are closed | P0 | Current codebase |
-| 1. Close workflow policy and lifecycle gaps | Withdrawal, merge, split, and clear status rules are usable | P0 | Product-owner decisions |
-| 2. Complete commercial pricing | Prices and approvals are historically authoritative | P1 | Finance and pricing decisions |
-| 3. Deliver reorder verification | Approved terms can support controlled repeat orders | P1 | Milestone 2 |
-| 4. Add notifications, dashboards, and reports | Work is visible, actionable, and auditable | P2 | Stable workflows |
-| 5. Production readiness and launch | The portal can safely operate at registration.dbgi.ph | P0 launch gate | All launch-scope milestones |
+| Milestone                                     | Outcome                                                     | Priority       | Depends on                    |
+| --------------------------------------------- | ----------------------------------------------------------- | -------------- | ----------------------------- |
+| 0. Stabilize the internal beta                | Known technical and test risks are closed                   | P0             | Current codebase              |
+| 1. Close workflow policy and lifecycle gaps   | Withdrawal, merge, split, and clear status rules are usable | P0             | Product-owner decisions       |
+| 2. Complete commercial pricing                | Prices and approvals are historically authoritative         | P1             | Finance and pricing decisions |
+| 3. Deliver reorder verification               | Approved terms can support controlled repeat orders         | P1             | Milestone 2                   |
+| 4. Add notifications, dashboards, and reports | Work is visible, actionable, and auditable                  | P2             | Stable workflows              |
+| 5. Production readiness and launch            | The portal can safely operate at registration.dbgi.ph       | P0 launch gate | All launch-scope milestones   |
 
 ## 5. Milestone 0: Stabilize the internal beta
 
@@ -259,19 +260,19 @@ This slice reduces technical risk before the portal accumulates price history an
 
 ## 12. Decision register for the next product meeting
 
-| Decision | Needed by | Owner |
-| --- | --- | --- |
-| Final registration labels and transitions | Milestone 1 | DBGI product owner |
-| Submitted-record editing rule | Milestone 1 | DBGI product owner |
-| Withdrawal and restoration policy | Milestone 1 | DBGI product owner |
-| Opportunity merge and split effects | Milestone 1 | DBGI product owner |
-| Initial commercial validity | Milestone 2 | DBGI commercial owner |
-| VAT and rounding policy | Milestone 2 | DBGI finance or pricing owner |
-| Non-catalog approval rule | Milestone 2 | DBGI commercial owner |
-| Reorder evidence and duplicate-review policy | Milestone 3 | DBGI operations owner |
-| Postponed, failed, cancelled, and reposted notice policy | Milestone 1 | DBGI product owner |
-| Notification recipients and email provider | Milestone 4 | DBGI operations and IT |
-| Retention, backup targets, and restore objectives | Milestone 5 | DBGI IT and management |
+| Decision                                                 | Needed by   | Owner                         |
+| -------------------------------------------------------- | ----------- | ----------------------------- |
+| Final registration labels and transitions                | Milestone 1 | DBGI product owner            |
+| Submitted-record editing rule                            | Milestone 1 | DBGI product owner            |
+| Withdrawal and restoration policy                        | Milestone 1 | DBGI product owner            |
+| Opportunity merge and split effects                      | Milestone 1 | DBGI product owner            |
+| Initial commercial validity                              | Milestone 2 | DBGI commercial owner         |
+| VAT and rounding policy                                  | Milestone 2 | DBGI finance or pricing owner |
+| Non-catalog approval rule                                | Milestone 2 | DBGI commercial owner         |
+| Reorder evidence and duplicate-review policy             | Milestone 3 | DBGI operations owner         |
+| Postponed, failed, cancelled, and reposted notice policy | Milestone 1 | DBGI product owner            |
+| Notification recipients and email provider               | Milestone 4 | DBGI operations and IT        |
+| Retention, backup targets, and restore objectives        | Milestone 5 | DBGI IT and management        |
 
 ## 13. Deferred work
 

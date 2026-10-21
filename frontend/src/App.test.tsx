@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -91,6 +92,67 @@ describe("App", () => {
     ).toHaveAttribute("href", "/");
   });
 
+  it("offers three ways to open the Help guide", async () => {
+    window.history.pushState({}, "", "/missing-page/");
+    const openWindow = vi.fn();
+    vi.stubGlobal("open", openWindow);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(session), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Help" }));
+    expect(screen.getByRole("menuitem", { name: "Open here" })).toHaveAttribute(
+      "href",
+      "/help/",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Open in new tab" }),
+    ).toHaveAttribute("target", "_blank");
+
+    await user.click(
+      screen.getByRole("menuitem", { name: "Open in new window" }),
+    );
+    expect(openWindow).toHaveBeenCalledWith(
+      "/help/?standalone=1",
+      "dbgi-help-guide",
+      "popup=yes,width=900,height=900,resizable=yes,scrollbars=yes",
+    );
+  });
+
+  it("shows a distraction-free guide in the separate-window view", async () => {
+    window.history.pushState({}, "", "/help/?standalone=1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(session), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Help and user guide" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "View registrations" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the current user's notification inbox", async () => {
     window.history.pushState({}, "", "/notifications/");
     vi.stubGlobal(
@@ -157,6 +219,8 @@ describe("App", () => {
     expect(
       screen.getByText("Create your first registration"),
     ).toBeInTheDocument();
+    expect(screen.getByText("How to use this guide")).toBeInTheDocument();
+    expect(screen.getByText("Keep Help beside the portal")).toBeInTheDocument();
     expect(screen.getByText("Choose the End-user")).toBeInTheDocument();
     expect(screen.getByText("Submission confirmed")).toBeInTheDocument();
     expect(screen.getByText("Registration decision")).toBeInTheDocument();

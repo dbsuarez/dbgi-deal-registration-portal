@@ -4,6 +4,8 @@ import {
   Box,
   Button,
   CircularProgress,
+  Menu,
+  MenuItem,
   Stack,
   Toolbar,
   Typography,
@@ -33,6 +35,12 @@ function App() {
   const [sessionError, setSessionError] = useState("");
   const [sessionAttempt, setSessionAttempt] = useState(0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [helpMenuAnchor, setHelpMenuAnchor] = useState<null | HTMLElement>(
+    null,
+  );
+  const isStandaloneHelp =
+    window.location.pathname === "/help/" &&
+    new URLSearchParams(window.location.search).get("standalone") === "1";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,55 +92,94 @@ function App() {
     }
   };
 
+  const closeHelpMenu = () => setHelpMenuAnchor(null);
+
+  const openHelpWindow = () => {
+    closeHelpMenu();
+    window.open(
+      "/help/?standalone=1",
+      "dbgi-help-guide",
+      "popup=yes,width=900,height=900,resizable=yes,scrollbars=yes",
+    );
+  };
+
   return (
     <SessionContext.Provider value={session}>
       <BrowserRouter>
         <Box
           sx={{ display: "flex", minHeight: "100vh", flexDirection: "column" }}
         >
-          <AppBar position="static">
-            <Toolbar>
-              <Typography
-                variant="h6"
-                component="a"
-                href="/"
-                color="inherit"
-                sx={{ flexGrow: 1 }}
-              >
-                DBGI Project Registration
-              </Typography>
-              <Typography sx={{ mr: 2 }}>{session.display_name}</Typography>
-              <Button color="inherit" href="/rankings/">
-                Rankings
-              </Button>
-              <Button
-                color="inherit"
-                href="/notifications/"
-                startIcon={<NotificationsOutlinedIcon />}
-              >
-                Notifications
-              </Button>
-              <Button
-                color="inherit"
-                href="/help/"
-                startIcon={<HelpOutlineIcon />}
-              >
-                Help
-              </Button>
-              {session.is_dbgi_admin && (
-                <Button color="inherit" href="/admin/">
-                  Administration
+          {!isStandaloneHelp && (
+            <AppBar position="static">
+              <Toolbar>
+                <Typography
+                  variant="h6"
+                  component="a"
+                  href="/"
+                  color="inherit"
+                  sx={{ flexGrow: 1 }}
+                >
+                  DBGI Project Registration
+                </Typography>
+                <Typography sx={{ mr: 2 }}>{session.display_name}</Typography>
+                <Button color="inherit" href="/rankings/">
+                  Rankings
                 </Button>
-              )}
-              <Button
-                color="inherit"
-                disabled={isLoggingOut}
-                onClick={handleLogout}
-              >
-                {isLoggingOut ? "Logging out..." : "Log out"}
-              </Button>
-            </Toolbar>
-          </AppBar>
+                <Button
+                  color="inherit"
+                  href="/notifications/"
+                  startIcon={<NotificationsOutlinedIcon />}
+                >
+                  Notifications
+                </Button>
+                <Button
+                  color="inherit"
+                  startIcon={<HelpOutlineIcon />}
+                  aria-controls={helpMenuAnchor ? "help-menu" : undefined}
+                  aria-expanded={helpMenuAnchor ? "true" : undefined}
+                  aria-haspopup="menu"
+                  onClick={(event) => setHelpMenuAnchor(event.currentTarget)}
+                >
+                  Help
+                </Button>
+                <Menu
+                  id="help-menu"
+                  anchorEl={helpMenuAnchor}
+                  open={Boolean(helpMenuAnchor)}
+                  onClose={closeHelpMenu}
+                  MenuListProps={{ "aria-label": "Choose how to open Help" }}
+                >
+                  <MenuItem component="a" href="/help/" onClick={closeHelpMenu}>
+                    Open here
+                  </MenuItem>
+                  <MenuItem
+                    component="a"
+                    href="/help/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={closeHelpMenu}
+                  >
+                    Open in new tab
+                  </MenuItem>
+                  <MenuItem onClick={openHelpWindow}>
+                    Open in new window
+                  </MenuItem>
+                </Menu>
+                {session.is_dbgi_admin && (
+                  <Button color="inherit" href="/admin/">
+                    Administration
+                  </Button>
+                )}
+                <Button
+                  color="inherit"
+                  disabled={isLoggingOut}
+                  onClick={handleLogout}
+                >
+                  {isLoggingOut ? "Logging out..." : "Log out"}
+                </Button>
+              </Toolbar>
+            </AppBar>
+          )}
           <Box component="main" sx={{ flexGrow: 1 }}>
             <Suspense
               fallback={
@@ -167,11 +214,16 @@ function App() {
               </Routes>
             </Suspense>
           </Box>
-          <Box component="footer" sx={{ px: 3, py: 1.5, textAlign: "center" }}>
-            <Typography variant="caption" color="text.secondary">
-              Build: {__BUILD_TIME__}
-            </Typography>
-          </Box>
+          {!isStandaloneHelp && (
+            <Box
+              component="footer"
+              sx={{ px: 3, py: 1.5, textAlign: "center" }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                Build: {__BUILD_TIME__}
+              </Typography>
+            </Box>
+          )}
         </Box>
       </BrowserRouter>
     </SessionContext.Provider>
