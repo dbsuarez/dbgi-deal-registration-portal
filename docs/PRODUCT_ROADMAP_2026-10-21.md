@@ -44,6 +44,7 @@ The application is a working internal beta with these foundations implemented:
 - Durable, recipient-scoped portal and email notifications for submissions, registration decisions, and category price decisions, with read tracking, delivery tracking, administrator retries, per-event subject and body templates, rendered administrator previews, immutable delivery-content snapshots, and a dedicated post-submission Help page.
 - Environment-backed MXroute SMTP delivery using the DBGI support mailbox, with credentials excluded from tracked source.
 - Compact registration activity history with small action rows and collapsed-by-default structured field changes.
+- Role-aware Help page with beginner company walkthroughs, administrator operating procedures, status explanations, direct task links, and troubleshooting guidance.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

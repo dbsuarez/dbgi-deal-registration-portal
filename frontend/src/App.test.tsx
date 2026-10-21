@@ -151,14 +151,52 @@ describe("App", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "What happens after submission?",
+        name: "Help and user guide",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Create your first registration"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Choose the End-user")).toBeInTheDocument();
     expect(screen.getByText("Submission confirmed")).toBeInTheDocument();
     expect(screen.getByText("Registration decision")).toBeInTheDocument();
     expect(screen.getByText("Price request decision")).toBeInTheDocument();
+    expect(screen.getByText("If something goes wrong")).toBeInTheDocument();
+  });
+
+  it("shows operational guidance to DBGI administrators", async () => {
+    window.history.pushState({}, "", "/help/");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...session,
+            is_dbgi_admin: true,
+            display_name: "DBGI Admin",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    render(<App />);
+
     expect(
-      screen.getByText(/Notifications page is the authoritative record/),
+      await screen.findByRole("heading", { name: "Help and user guide" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("DBGI administrator workflow")).toBeInTheDocument();
+    expect(
+      screen.getByText("Administrator daily checklist"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("How to make a pricing decision"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Create your first registration"),
+    ).not.toBeInTheDocument();
   });
 });
