@@ -46,6 +46,7 @@ The application is a working internal beta with these foundations implemented:
 - Compact registration activity history with small action rows and collapsed-by-default structured field changes.
 - Role-aware Help page with beginner company walkthroughs, administrator operating procedures, status explanations, direct task links, and troubleshooting guidance.
 - Role-specific end-to-end practice scenarios with prerequisites, exact actions, and expected outcomes for registration, correction, matching, pricing, notification recovery, and governed End-user workflows.
+- Django Admin operations dashboard with actionable review, pricing, End-user verification, failed-email, and expiring-approval queues.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

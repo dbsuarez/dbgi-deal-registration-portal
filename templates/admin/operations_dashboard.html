@@ -1,0 +1,114 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n %}
+
+{% block content %}
+  <div class="flex flex-col gap-6">
+    <div>
+      <h1 class="font-semibold text-2xl text-font-important-light dark:text-font-important-dark">Operations dashboard</h1>
+      <p class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark">Start with items that require a DBGI decision or follow-up.</p>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <a href="{{ registration_list_url }}" class="bg-white border border-base-200 p-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">Registration review</div>
+        <div class="font-semibold mt-1 text-2xl text-font-important-light dark:text-font-important-dark">{{ review_count }}</div>
+      </a>
+      <a href="{{ pricing_list_url }}" class="bg-white border border-base-200 p-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">Pricing decisions</div>
+        <div class="font-semibold mt-1 text-2xl text-font-important-light dark:text-font-important-dark">{{ pricing_count }}</div>
+      </a>
+      <a href="{{ end_user_list_url }}" class="bg-white border border-base-200 p-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">End-users to verify</div>
+        <div class="font-semibold mt-1 text-2xl text-font-important-light dark:text-font-important-dark">{{ pending_end_user_count }}</div>
+      </a>
+      <a href="{{ notification_list_url }}" class="bg-white border border-base-200 p-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">Failed emails</div>
+        <div class="font-semibold mt-1 text-2xl text-font-important-light dark:text-font-important-dark">{{ failed_notification_count }}</div>
+      </a>
+      <a href="{{ pricing_list_url }}" class="bg-white border border-base-200 p-4 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">Expiring in 30 days</div>
+        <div class="font-semibold mt-1 text-2xl text-font-important-light dark:text-font-important-dark">{{ expiring_approval_count }}</div>
+      </a>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-2">
+      <section class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="border-b border-base-200 flex items-center justify-between px-4 py-3 dark:border-base-700">
+          <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">Registration review queue</h2>
+          <a class="text-primary-600 text-sm dark:text-primary-500" href="{{ registration_list_url }}">View all</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead><tr class="text-left text-xs text-font-subtle-light dark:text-font-subtle-dark"><th class="px-4 py-2">Registration</th><th class="px-4 py-2">Company</th><th class="px-4 py-2">Status</th><th class="px-4 py-2">Submitted</th></tr></thead>
+            <tbody>
+              {% for registration in review_queue %}
+                <tr class="border-t border-base-100 dark:border-base-800"><td class="px-4 py-3"><a class="text-primary-600 dark:text-primary-500" href="{% url 'admin:registrations_registration_change' registration.pk %}">{{ registration.reference }}</a><div class="text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ registration.project_title|truncatechars:48 }}</div></td><td class="px-4 py-3 text-sm">{{ registration.company.name }}</td><td class="px-4 py-3 text-sm">{{ registration.get_status_display }}</td><td class="px-4 py-3 text-sm">{{ registration.original_submitted_at|date:"Y-m-d H:i" }}</td></tr>
+              {% empty %}
+                <tr><td colspan="4" class="px-4 py-8 text-center text-sm text-font-subtle-light dark:text-font-subtle-dark">No registrations currently require review.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="border-b border-base-200 flex items-center justify-between px-4 py-3 dark:border-base-700">
+          <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">Pricing queue</h2>
+          <a class="text-primary-600 text-sm dark:text-primary-500" href="{{ pricing_list_url }}">View all</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead><tr class="text-left text-xs text-font-subtle-light dark:text-font-subtle-dark"><th class="px-4 py-2">Registration</th><th class="px-4 py-2">Category</th><th class="px-4 py-2">Company</th><th class="px-4 py-2">Status</th></tr></thead>
+            <tbody>
+              {% for approval in pricing_queue %}
+                <tr class="border-t border-base-100 dark:border-base-800"><td class="px-4 py-3"><a class="text-primary-600 dark:text-primary-500" href="{% url 'admin:registrations_registrationcategoryapproval_change' approval.pk %}">{{ approval.registration.reference }}</a></td><td class="px-4 py-3 text-sm">{{ approval.category }}</td><td class="px-4 py-3 text-sm">{{ approval.registration.company.name }}</td><td class="px-4 py-3 text-sm">{{ approval.get_status_display }}</td></tr>
+              {% empty %}
+                <tr><td colspan="4" class="px-4 py-8 text-center text-sm text-font-subtle-light dark:text-font-subtle-dark">No pricing decisions currently require action.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="border-b border-base-200 flex items-center justify-between px-4 py-3 dark:border-base-700">
+          <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">End-users awaiting verification</h2>
+          <a class="text-primary-600 text-sm dark:text-primary-500" href="{{ end_user_list_url }}">View all</a>
+        </div>
+        <ul>
+          {% for end_user in pending_end_users %}
+            <li class="border-t border-base-100 px-4 py-3 first:border-t-0 dark:border-base-800"><a class="text-primary-600 dark:text-primary-500" href="{% url 'admin:registrations_enduser_change' end_user.pk %}">{{ end_user.official_name }}</a><div class="text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ end_user.full_address|default:"Address not provided" }}</div></li>
+          {% empty %}
+            <li class="px-4 py-8 text-center text-sm text-font-subtle-light dark:text-font-subtle-dark">No End-users are awaiting verification.</li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="border-b border-base-200 flex items-center justify-between px-4 py-3 dark:border-base-700">
+          <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">Failed email deliveries</h2>
+          <a class="text-primary-600 text-sm dark:text-primary-500" href="{{ notification_list_url }}">View all</a>
+        </div>
+        <ul>
+          {% for notification in failed_notifications %}
+            <li class="border-t border-base-100 px-4 py-3 first:border-t-0 dark:border-base-800"><a class="text-primary-600 dark:text-primary-500" href="{% url 'admin:registrations_registrationnotification_change' notification.pk %}">{{ notification.registration.reference }} | {{ notification.title }}</a><div class="text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ notification.email_address }} | {{ notification.created_at|date:"Y-m-d H:i" }}</div></li>
+          {% empty %}
+            <li class="px-4 py-8 text-center text-sm text-font-subtle-light dark:text-font-subtle-dark">No failed email deliveries.</li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+
+    {% if expiring_approvals %}
+      <section class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        <div class="border-b border-base-200 px-4 py-3 dark:border-base-700"><h2 class="font-semibold text-font-important-light dark:text-font-important-dark">Approvals expiring within 30 days</h2></div>
+        <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+          {% for approval in expiring_approvals %}
+            <a class="border border-base-200 p-3 rounded-default dark:border-base-700" href="{% url 'admin:registrations_registrationcategoryapproval_change' approval.pk %}"><div class="font-medium">{{ approval.registration.reference }} | {{ approval.category }}</div><div class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark">{{ approval.registration.company.name }} | Valid until {{ approval.valid_until|date:"Y-m-d" }}</div></a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

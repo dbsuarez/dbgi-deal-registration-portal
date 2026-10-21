@@ -616,13 +616,38 @@ class RegistrationApiTests(TestCase):
         )
 
     def test_dbgi_admin_can_open_django_administration(self):
+        RegistrationCategoryApproval.objects.create(
+            registration=self.registration_a,
+            category=self.product.category,
+        )
+        EndUser.objects.create(
+            official_name="Pending dashboard organization",
+            city_municipality="Test City",
+            street_address="Pending address",
+            created_by=self.admin,
+        )
+        RegistrationNotification.objects.create(
+            recipient=self.user_a,
+            registration=self.registration_a,
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            event_key="dashboard-failed-email",
+            title="Submission confirmed",
+            message="Registration submitted.",
+            email_address=self.user_a.email,
+            email_status=RegistrationNotification.EmailStatus.FAILED,
+        )
         self.client.force_login(self.admin)
 
         response = self.client.get("/admin/")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/static/registrations/admin.css")
-        self.assertContains(response, "Site administration")
+        self.assertContains(response, "Operations dashboard")
+        self.assertContains(response, "Registration review queue")
+        self.assertContains(response, self.registration_a.reference)
+        self.assertContains(response, "Pricing queue")
+        self.assertContains(response, "Pending dashboard organization")
+        self.assertContains(response, "Failed email deliveries")
 
     @override_settings(DEBUG=True)
     def test_django_admin_shows_read_only_opportunity_rankings(self):
