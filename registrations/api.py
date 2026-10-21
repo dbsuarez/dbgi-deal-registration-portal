@@ -33,8 +33,10 @@ from .models import (
     RegistrationEvent,
     RegistrationItem,
     RegistrationItemApproval,
+    RegistrationNotification,
     RegistrationReviewDecision,
 )
+from .notifications import notify_price_decision, notify_registration_decision, notify_submission
 
 api = NinjaAPI(
     title="DBGI Project Registration API",
@@ -326,6 +328,26 @@ class OpportunityRankingPage(Schema):
     page_size: int
 
 
+class NotificationOutput(Schema):
+    id: int
+    registration_id: int
+    registration_reference: str
+    event_type: str
+    event_type_label: str
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+
+class NotificationPage(Schema):
+    items: list[NotificationOutput]
+    total: int
+    unread_count: int
+    page: int
+    page_size: int
+
+
 @api.exception_handler(AuthenticationError)
 def authentication_error(request, exc):
     return api.create_response(
@@ -366,6 +388,66 @@ def session(request):
 def logout_session(request):
     django_logout(request)
     return Status(204, None)
+
+
+def _serialize_notification(notification):
+    return {
+        "id": notification.pk,
+        "registration_id": notification.registration_id,
+        "registration_reference": notification.registration.reference,
+        "event_type": notification.event_type,
+        "event_type_label": notification.get_event_type_display(),
+        "title": notification.title,
+        "message": notification.message,
+        "is_read": notification.read_at is not None,
+        "created_at": notification.created_at,
+    }
+
+
+@api.get(
+    "/notifications",
+    auth=django_auth,
+    response={200: NotificationPage, 400: ErrorResponse},
+)
+def list_notifications(request, page: int = 1, page_size: int = 25):
+    if page < 1 or page_size < 1 or page_size > 100:
+        return Status(
+            400,
+            {
+                "code": "invalid_pagination",
+                "message": "Page must be at least 1 and page size must be between 1 and 100.",
+            },
+        )
+    queryset = RegistrationNotification.objects.filter(recipient=request.user).select_related(
+        "registration"
+    )
+    total = queryset.count()
+    unread_count = queryset.filter(read_at__isnull=True).count()
+    start = (page - 1) * page_size
+    return {
+        "items": [_serialize_notification(item) for item in queryset[start : start + page_size]],
+        "total": total,
+        "unread_count": unread_count,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@api.post(
+    "/notifications/{notification_id}/read",
+    auth=django_auth,
+    response={200: NotificationOutput, 404: ErrorResponse},
+)
+def mark_notification_read(request, notification_id: int):
+    notification = get_object_or_404(
+        RegistrationNotification.objects.select_related("registration"),
+        pk=notification_id,
+        recipient=request.user,
+    )
+    if notification.read_at is None:
+        notification.read_at = timezone.now()
+        notification.save(update_fields=["read_at"])
+    return _serialize_notification(notification)
 
 
 def _company_id(user):
@@ -929,6 +1011,7 @@ def create_registration(request, payload: RegistrationInput):
             details="Registration submitted.",
             snapshot=registration_snapshot(registration),
         )
+        notify_submission(registration)
         generate_matching_suggestion(registration)
     return Status(201, _serialize_registration(registration))
 
@@ -1293,6 +1376,7 @@ def review_registration(request, registration_id: int, payload: ReviewDecisionIn
             snapshot=prior_snapshot,
             resulting_snapshot=registration_snapshot(registration),
         )
+        notify_registration_decision(registration, decision)
     registration = (
         _registration_queryset(request.user)
         .prefetch_related("competitor_items", "items__product", "attachments", "events__actor")
@@ -1407,6 +1491,7 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
             ),
             snapshot=prior_snapshot,
         )
+        notify_price_decision(approval)
     return _serialize_category_approval(approval)
 
 

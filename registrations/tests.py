@@ -36,6 +36,7 @@ from .models import (
     RegistrationEvent,
     RegistrationItem,
     RegistrationItemApproval,
+    RegistrationNotification,
     RegistrationReviewDecision,
     User,
 )
@@ -838,6 +839,70 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(registration.events.get().event_type, "Submitted")
         self.assertEqual(registration.matching_suggestions.filter(is_current=True).count(), 1)
 
+    def test_submission_notifies_each_active_company_user_once(self):
+        colleague = User.objects.create_user(
+            username="dealer-a-colleague",
+            password="example-password",
+            company=self.company_a,
+        )
+        inactive = User.objects.create_user(
+            username="dealer-a-inactive",
+            password="example-password",
+            company=self.company_a,
+            is_active=False,
+        )
+        self.client.force_login(self.user_a)
+
+        first = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload()),
+            content_type="application/json",
+        )
+
+        self.assertEqual(first.status_code, 201, first.content)
+        registration = Registration.objects.get(pk=first.json()["id"])
+        recipients = set(
+            RegistrationNotification.objects.filter(registration=registration).values_list(
+                "recipient__username", flat=True
+            )
+        )
+        self.assertEqual(recipients, {self.user_a.username, colleague.username})
+        self.assertNotIn(inactive.username, recipients)
+        self.assertNotIn(self.user_b.username, recipients)
+
+    def test_notification_inbox_is_recipient_scoped_and_read_is_idempotent(self):
+        own = RegistrationNotification.objects.create(
+            recipient=self.user_a,
+            registration=self.registration_a,
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            event_key="test-own",
+            title="Submission confirmed",
+            message="The registration was submitted.",
+        )
+        other = RegistrationNotification.objects.create(
+            recipient=self.user_b,
+            registration=self.registration_b,
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            event_key="test-other",
+            title="Submission confirmed",
+            message="The registration was submitted.",
+        )
+        self.client.force_login(self.user_a)
+
+        inbox = self.client.get("/api/v1/notifications")
+        first_read = self.client.post(f"/api/v1/notifications/{own.pk}/read")
+        second_read = self.client.post(f"/api/v1/notifications/{own.pk}/read")
+        hidden = self.client.post(f"/api/v1/notifications/{other.pk}/read")
+
+        self.assertEqual(inbox.status_code, 200, inbox.content)
+        self.assertEqual(inbox.json()["total"], 1)
+        self.assertEqual(inbox.json()["unread_count"], 1)
+        self.assertEqual(inbox.json()["items"][0]["registration_id"], self.registration_a.pk)
+        self.assertEqual(first_read.status_code, 200, first_read.content)
+        self.assertEqual(second_read.status_code, 200, second_read.content)
+        self.assertTrue(first_read.json()["is_read"])
+        self.assertEqual(hidden.status_code, 404)
+
     def test_create_snapshots_list_price_and_opens_category_review(self):
         self.product.list_price = "125.00"
         self.product.save(update_fields=["list_price"])
@@ -894,6 +959,13 @@ class RegistrationApiTests(TestCase):
             95,
         )
         self.assertTrue(registration.events.filter(event_type="Commercial decision").exists())
+        notice = RegistrationNotification.objects.get(
+            recipient=self.user_a,
+            registration=registration,
+            event_type=RegistrationNotification.EventType.PRICE_DECISION,
+        )
+        self.assertEqual(notice.title, "Price request approved")
+        self.assertNotIn("95", notice.message)
 
     def test_company_cannot_make_a_commercial_decision(self):
         approval = RegistrationCategoryApproval.objects.create(
@@ -1047,6 +1119,12 @@ class RegistrationApiTests(TestCase):
             RegistrationReviewDecision.objects.filter(registration=self.registration_a).count(),
             2,
         )
+        notice = RegistrationNotification.objects.get(
+            recipient=self.user_a,
+            registration=self.registration_a,
+            event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+        )
+        self.assertEqual(notice.title, "Registration confirmed")
 
     def test_admin_review_rejects_stale_version_and_invalid_transition(self):
         self.client.force_login(self.admin)
@@ -1239,6 +1317,24 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(event.resulting_snapshot["items"][0]["quantity"], 7)
         self.assertEqual(event.snapshot["version"], 1)
         self.assertEqual(event.resulting_snapshot["version"], 2)
+
+    def test_admin_status_decision_notifies_company_users(self):
+        registration_admin = RegistrationAdmin(Registration, AdminSite())
+        request = RequestFactory().post("/admin/registrations/registration/")
+        request.user = self.admin
+        obj = Registration.objects.get(pk=self.registration_a.pk)
+        obj.status = Registration.Status.REJECTED
+
+        registration_admin.save_model(request, obj, SimpleNamespace(), change=True)
+        form = SimpleNamespace(instance=obj, save_m2m=lambda: None)
+        registration_admin.save_related(request, form, [], change=True)
+
+        notice = RegistrationNotification.objects.get(
+            recipient=self.user_a,
+            registration=obj,
+            event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+        )
+        self.assertEqual(notice.title, "Registration rejected")
 
     @override_settings(DEBUG=False)
     def test_clearing_transactional_records_requires_debug(self):

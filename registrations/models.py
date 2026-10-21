@@ -699,6 +699,43 @@ class RegistrationEvent(models.Model):
         return f"{self.registration.reference}: {self.event_type}"
 
 
+class RegistrationNotification(models.Model):
+    class EventType(models.TextChoices):
+        SUBMISSION_CONFIRMED = "submission_confirmed", "Submission confirmed"
+        REGISTRATION_DECISION = "registration_decision", "Registration decision"
+        PRICE_DECISION = "price_decision", "Price decision"
+
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="registration_notifications"
+    )
+    registration = models.ForeignKey(
+        Registration, on_delete=models.CASCADE, related_name="notifications"
+    )
+    event_type = models.CharField(max_length=40, choices=EventType.choices)
+    event_key = models.CharField(max_length=120)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipient", "event_key"], name="unique_recipient_notification_event"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["recipient", "read_at", "-created_at"],
+                name="reg_notice_inbox_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.recipient}: {self.title}"
+
+
 class RegistrationAttachment(models.Model):
     registration = models.ForeignKey(
         Registration, on_delete=models.CASCADE, related_name="attachments"

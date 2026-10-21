@@ -8,6 +8,8 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+import NotificationsOutlinedIcon from "@mui/icons-material/NotificationsOutlined";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
@@ -23,6 +25,8 @@ const OpportunityRankingsPage = lazy(
   () => import("./pages/OpportunityRankingsPage"),
 );
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const HelpPage = lazy(() => import("./pages/HelpPage"));
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -101,6 +105,20 @@ function App() {
               <Button color="inherit" href="/rankings/">
                 Rankings
               </Button>
+              <Button
+                color="inherit"
+                href="/notifications/"
+                startIcon={<NotificationsOutlinedIcon />}
+              >
+                Notifications
+              </Button>
+              <Button
+                color="inherit"
+                href="/help/"
+                startIcon={<HelpOutlineIcon />}
+              >
+                Help
+              </Button>
               {session.is_dbgi_admin && (
                 <Button color="inherit" href="/admin/">
                   Administration
@@ -143,6 +161,8 @@ function App() {
                   path="/rankings/"
                   element={<OpportunityRankingsPage />}
                 />
+                <Route path="/notifications/" element={<NotificationsPage />} />
+                <Route path="/help/" element={<HelpPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>

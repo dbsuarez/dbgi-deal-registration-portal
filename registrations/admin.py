@@ -30,9 +30,11 @@ from .models import (
     RegistrationEvent,
     RegistrationItem,
     RegistrationItemApproval,
+    RegistrationNotification,
     RegistrationReviewDecision,
     User,
 )
+from .notifications import notify_admin_status_change, notify_price_decision
 
 
 @admin.register(Company)
@@ -313,9 +315,9 @@ class RegistrationAdmin(ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if change:
-            request.registration_prior_snapshot = registration_snapshot(
-                self.get_queryset(request).get(pk=obj.pk)
-            )
+            previous = self.get_queryset(request).get(pk=obj.pk)
+            request.registration_prior_snapshot = registration_snapshot(previous)
+            request.registration_prior_status = previous.status
             # Admin edits must invalidate any form or API client holding the old
             # version, otherwise a stale company save overwrites the decision.
             obj.version = obj.version + 1
@@ -336,6 +338,10 @@ class RegistrationAdmin(ModelAdmin):
                 ),
                 snapshot=request.registration_prior_snapshot or {},
                 resulting_snapshot=registration_snapshot(form.instance),
+            )
+            notify_admin_status_change(
+                form.instance,
+                request.registration_prior_status,
             )
         else:
             RegistrationEvent.objects.create(
@@ -453,6 +459,32 @@ class RegistrationEventAdmin(ModelAdmin):
         return False
 
 
+@admin.register(RegistrationNotification)
+class RegistrationNotificationAdmin(ModelAdmin):
+    list_display = ("recipient", "registration", "event_type", "read_at", "created_at")
+    list_filter = ("event_type", "read_at", "created_at")
+    search_fields = ("recipient__username", "registration__project_title", "title")
+    readonly_fields = (
+        "recipient",
+        "registration",
+        "event_type",
+        "event_key",
+        "title",
+        "message",
+        "read_at",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(MatchingSuggestion)
 class MatchingSuggestionAdmin(ModelAdmin):
     list_display = ("registration", "outcome", "confidence", "score", "rule_version", "created_at")
@@ -548,6 +580,7 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
             ),
             snapshot=request.commercial_prior_snapshot,
         )
+        notify_price_decision(form.instance)
 
 
 @admin.register(PriceApprovalRenewal)

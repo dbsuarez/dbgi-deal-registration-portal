@@ -13,6 +13,7 @@ from .models import (
     RegistrationEvent,
     RegistrationItem,
 )
+from .notifications import notify_automatic_match
 
 RULE_VERSION = "matching-v2"
 ADDRESS_ALIASES = {
@@ -210,4 +211,5 @@ def generate_matching_suggestion(registration):
                 ),
                 snapshot=prior_snapshot,
             )
+            notify_automatic_match(registration, suggestion)
         return suggestion

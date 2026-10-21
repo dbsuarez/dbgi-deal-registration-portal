@@ -117,6 +117,26 @@ export type RegistrationEvent = {
   changes: string[];
 };
 
+export type RegistrationNotification = {
+  id: number;
+  registration_id: number;
+  registration_reference: string;
+  event_type: string;
+  event_type_label: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type NotificationPage = {
+  items: RegistrationNotification[];
+  total: number;
+  unread_count: number;
+  page: number;
+  page_size: number;
+};
+
 export type MatchingSuggestion = {
   id: number;
   outcome: string;
@@ -327,6 +347,26 @@ export function getRegistrations(
 
 export function getRegistration(id: number, signal?: AbortSignal) {
   return request<RegistrationDetail>(`/api/v1/registrations/${id}`, signal);
+}
+
+export function getNotifications(
+  page: number,
+  pageSize: number,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    page: String(page + 1),
+    page_size: String(pageSize),
+  });
+  return request<NotificationPage>(`/api/v1/notifications?${params}`, signal);
+}
+
+export function markNotificationRead(id: number, csrfToken: string) {
+  return mutation<RegistrationNotification>(
+    `/api/v1/notifications/${id}/read`,
+    "POST",
+    csrfToken,
+  );
 }
 
 export function getProducts(signal?: AbortSignal) {

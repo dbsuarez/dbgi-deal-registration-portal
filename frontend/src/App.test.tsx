@@ -90,4 +90,75 @@ describe("App", () => {
       screen.getByRole("link", { name: "Go to registrations" }),
     ).toHaveAttribute("href", "/");
   });
+
+  it("renders the current user's notification inbox", async () => {
+    window.history.pushState({}, "", "/notifications/");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify(session), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 7,
+                  registration_id: 1,
+                  registration_reference: "DBGI-000001",
+                  event_type: "submission_confirmed",
+                  event_type_label: "Submission confirmed",
+                  title: "Submission confirmed",
+                  message: "DBGI-000001 was submitted successfully.",
+                  is_read: false,
+                  created_at: "2026-10-21T07:00:00Z",
+                },
+              ],
+              total: 1,
+              unread_count: 1,
+              page: 1,
+              page_size: 25,
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("DBGI-000001")).toBeInTheDocument();
+    expect(screen.getByText("Unread")).toBeInTheDocument();
+  });
+
+  it("explains the post-submission procedure on the help page", async () => {
+    window.history.pushState({}, "", "/help/");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(session), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "What happens after submission?",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Submission confirmed")).toBeInTheDocument();
+    expect(screen.getByText("Registration decision")).toBeInTheDocument();
+    expect(screen.getByText("Price request decision")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Notifications page is the authoritative record/),
+    ).toBeInTheDocument();
+  });
 });
