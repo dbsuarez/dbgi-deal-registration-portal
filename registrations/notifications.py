@@ -1,4 +1,67 @@
-from .models import RegistrationNotification, User
+import logging
+
+from django.conf import settings
+from django.core.mail import EmailMessage
+from django.db import transaction
+from django.utils import timezone
+
+from .models import NotificationEventSetting, RegistrationNotification, User
+
+logger = logging.getLogger(__name__)
+
+
+def deliver_notification_email(notification_id):
+    notification = RegistrationNotification.objects.select_related("registration").get(
+        pk=notification_id
+    )
+    if notification.email_status != RegistrationNotification.EmailStatus.PENDING:
+        return
+    notification.email_attempts += 1
+    notification.email_last_attempt_at = timezone.now()
+    try:
+        EmailMessage(
+            subject=f"DBGI Project Registration: {notification.title}",
+            body=(
+                f"{notification.message}\n\n"
+                f"Open the portal: {settings.PORTAL_BASE_URL}/notifications/\n\n"
+                "This email contains a summary only. The portal notification is the "
+                "authoritative record."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[notification.email_address],
+        ).send(fail_silently=False)
+    except Exception as exc:
+        notification.email_status = RegistrationNotification.EmailStatus.FAILED
+        notification.email_error = str(exc)[:500]
+        logger.exception(
+            "Notification email delivery failed", extra={"notification_id": notification_id}
+        )
+    else:
+        notification.email_status = RegistrationNotification.EmailStatus.SENT
+        notification.email_sent_at = timezone.now()
+        notification.email_error = ""
+    notification.save(
+        update_fields=[
+            "email_status",
+            "email_attempts",
+            "email_last_attempt_at",
+            "email_sent_at",
+            "email_error",
+        ]
+    )
+
+
+def retry_notification_email(notification):
+    if not notification.email_address or notification.email_status not in {
+        RegistrationNotification.EmailStatus.FAILED,
+        RegistrationNotification.EmailStatus.PENDING,
+    }:
+        return False
+    notification.email_status = RegistrationNotification.EmailStatus.PENDING
+    notification.email_error = ""
+    notification.save(update_fields=["email_status", "email_error"])
+    deliver_notification_email(notification.pk)
+    return True
 
 
 def notify_company_users(
@@ -10,25 +73,40 @@ def notify_company_users(
     message,
 ):
     """Create one durable, tenant-scoped notification per active company user."""
-    recipient_ids = User.objects.filter(
+    recipients = User.objects.filter(
         company_id=registration.company_id,
         role=User.Role.COMPANY,
         is_active=True,
-    ).values_list("id", flat=True)
-    RegistrationNotification.objects.bulk_create(
-        [
-            RegistrationNotification(
-                recipient_id=recipient_id,
-                registration=registration,
-                event_type=event_type,
-                event_key=event_key,
-                title=title,
-                message=message,
+    ).only("id", "email")
+    email_enabled = NotificationEventSetting.objects.filter(
+        event_type=event_type,
+        email_enabled=True,
+    ).exists()
+    for recipient in recipients:
+        email_address = recipient.email.strip()
+        email_status = (
+            RegistrationNotification.EmailStatus.PENDING
+            if email_enabled and email_address
+            else RegistrationNotification.EmailStatus.SKIPPED
+            if email_enabled
+            else RegistrationNotification.EmailStatus.NOT_REQUESTED
+        )
+        notification, created = RegistrationNotification.objects.get_or_create(
+            recipient=recipient,
+            event_key=event_key,
+            defaults={
+                "registration": registration,
+                "event_type": event_type,
+                "title": title,
+                "message": message,
+                "email_address": email_address,
+                "email_status": email_status,
+            },
+        )
+        if created and email_status == RegistrationNotification.EmailStatus.PENDING:
+            transaction.on_commit(
+                lambda notification_id=notification.pk: deliver_notification_email(notification_id)
             )
-            for recipient_id in recipient_ids
-        ],
-        ignore_conflicts=True,
-    )
 
 
 def notify_submission(registration):

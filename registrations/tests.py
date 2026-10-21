@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
+from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -26,6 +27,7 @@ from .models import (
     CompetitorBrandAlias,
     CompetitorItem,
     EndUser,
+    NotificationEventSetting,
     Opportunity,
     OpportunityScope,
     PriceApprovalRenewal,
@@ -48,10 +50,16 @@ class RegistrationApiTests(TestCase):
         cls.company_a = Company.objects.create(name="North Dealer")
         cls.company_b = Company.objects.create(name="South Dealer")
         cls.user_a = User.objects.create_user(
-            username="dealer-a", password="example-password", company=cls.company_a
+            username="dealer-a",
+            email="dealer-a@example.invalid",
+            password="example-password",
+            company=cls.company_a,
         )
         cls.user_b = User.objects.create_user(
-            username="dealer-b", password="example-password", company=cls.company_b
+            username="dealer-b",
+            email="dealer-b@example.invalid",
+            password="example-password",
+            company=cls.company_b,
         )
         cls.admin = User.objects.create_superuser(
             username="dbgi-admin",
@@ -869,6 +877,71 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(recipients, {self.user_a.username, colleague.username})
         self.assertNotIn(inactive.username, recipients)
         self.assertNotIn(self.user_b.username, recipients)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="portal@example.invalid",
+        PORTAL_BASE_URL="https://registration.example.invalid",
+    )
+    def test_submission_email_is_sent_after_commit_without_sensitive_details(self):
+        NotificationEventSetting.objects.update_or_create(
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            defaults={"email_enabled": True},
+        )
+        self.client.force_login(self.user_a)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/registrations",
+                data=json.dumps(self.payload()),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.user_a.email])
+        self.assertIn("Submission confirmed", email.subject)
+        self.assertIn("/notifications/", email.body)
+        self.assertNotIn("TEST brand", email.body)
+        self.assertNotIn("1.00", email.body)
+        notice = RegistrationNotification.objects.get(
+            registration_id=response.json()["id"],
+            recipient=self.user_a,
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+        )
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.SENT)
+        self.assertEqual(notice.email_attempts, 1)
+        self.assertEqual(notice.email_address, self.user_a.email)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_email_failure_does_not_rollback_the_portal_notification(self):
+        NotificationEventSetting.objects.update_or_create(
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            defaults={"email_enabled": True},
+        )
+        self.client.force_login(self.user_a)
+
+        with patch(
+            "registrations.notifications.EmailMessage.send",
+            side_effect=ConnectionError("SMTP unavailable"),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    "/api/v1/registrations",
+                    data=json.dumps(self.payload()),
+                    content_type="application/json",
+                )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        notice = RegistrationNotification.objects.get(
+            registration_id=response.json()["id"],
+            recipient=self.user_a,
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+        )
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.FAILED)
+        self.assertEqual(notice.email_attempts, 1)
+        self.assertIn("SMTP unavailable", notice.email_error)
 
     def test_notification_inbox_is_recipient_scoped_and_read_is_idempotent(self):
         own = RegistrationNotification.objects.create(

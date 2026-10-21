@@ -78,6 +78,26 @@ python manage.py showmigrations registrations
 python manage.py migrate
 ```
 
+### Email notifications
+
+Portal notifications are always created first and remain authoritative. Email delivery is configured per event under **Administration > Notification settings**. Delivery results and retry actions are available under **Transactions > Notification deliveries**.
+
+The selected MXroute SMTP service uses `glacier.mxrouting.net` on port `465` with SSL. Set these values outside Git before starting Django:
+
+```powershell
+$env:PORTAL_BASE_URL = "https://registration.dbgi.ph"
+$env:DJANGO_EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+$env:DJANGO_DEFAULT_FROM_EMAIL = "DBGI Project Registration <portal@dbgi.ph>"
+$env:DJANGO_EMAIL_HOST = "glacier.mxrouting.net"
+$env:DJANGO_EMAIL_PORT = "465"
+$env:DJANGO_EMAIL_HOST_USER = "portal@dbgi.ph"
+$env:DJANGO_EMAIL_HOST_PASSWORD = "replace-with-the-mailbox-password"
+$env:DJANGO_EMAIL_USE_TLS = "false"
+$env:DJANGO_EMAIL_USE_SSL = "true"
+```
+
+Replace `portal@dbgi.ph` with the actual MXroute mailbox. Local development defaults to Django's console email backend unless these SMTP variables are set. Email summaries exclude competitor information, evidence, and detailed pricing.
+
 The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`. See the development-only login policy in [`SECURITY_STANDARDS.md`](SECURITY_STANDARDS.md).
 
 `seed_sample_matching_scenario` adds an IT Avenue registration already matched to a sample printer-procurement lot and a later Lexmark registration that is automatically matched to the same scope. Automatic matching requires exactly one scope with identical normalized End-user and address values, complete catalog-product overlap, and no conflicts. Ambiguous or partial matches remain pending for administrator review. The sample company accounts are `deals@itavenue.ph` and `deals@lexmark.com`, both with the local-only password `testpass123`.
@@ -176,6 +196,6 @@ python manage.py test registrations.test_postgresql
 
 ## Current scope
 
-This internal beta includes company-scoped registration intake and editing, governed End-user and competitor-brand master data, evidence handling, DBGI review, deterministic matching, opportunity scopes, project status, permission-scoped rankings, category commercial approvals, item-level approved prices, expiry, 30-day approval renewals, and durable portal notifications for submission, registration, and price decisions. The Help page explains the post-submission procedure, and the Notifications page is the authoritative update channel while email policy remains unresolved. PostgreSQL concurrency behavior and the complete backend and frontend suites are configured as GitHub Actions quality gates.
+This internal beta includes company-scoped registration intake and editing, governed End-user and competitor-brand master data, evidence handling, DBGI review, deterministic matching, opportunity scopes, project status, permission-scoped rankings, category commercial approvals, item-level approved prices, expiry, 30-day approval renewals, and durable portal and email notifications for submission, registration, and price decisions. The Help page explains the post-submission procedure, and the Notifications page remains the authoritative update channel if email delivery fails. PostgreSQL concurrency behavior and the complete backend and frontend suites are configured as GitHub Actions quality gates.
 
-It does not yet include withdrawal, opportunity merge or split, authoritative dated product-price versions, VAT and rounding policy, complete discount calculations, reorder processing, configurable email delivery, reports, production backup automation, or finalized operating procedures. Several lifecycle and pricing rules still require DBGI decisions. Do not treat the implemented starter behavior as production approval of unresolved policies.
+It does not yet include withdrawal, opportunity merge or split, authoritative dated product-price versions, VAT and rounding policy, complete discount calculations, reorder processing, reports, production backup automation, or finalized operating procedures. Several lifecycle and pricing rules still require DBGI decisions. Do not treat the implemented starter behavior as production approval of unresolved policies.

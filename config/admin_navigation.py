@@ -33,6 +33,14 @@ def can_view_registration_events(request):
     return request.user.has_perm("registrations.view_registrationevent")
 
 
+def can_view_notifications(request):
+    return request.user.has_perm("registrations.view_registrationnotification")
+
+
+def can_manage_notification_settings(request):
+    return request.user.has_perm("registrations.change_notificationeventsetting")
+
+
 def can_view_companies(request):
     return request.user.has_perm("registrations.view_company")
 

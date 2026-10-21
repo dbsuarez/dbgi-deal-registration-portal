@@ -705,6 +705,13 @@ class RegistrationNotification(models.Model):
         REGISTRATION_DECISION = "registration_decision", "Registration decision"
         PRICE_DECISION = "price_decision", "Price decision"
 
+    class EmailStatus(models.TextChoices):
+        NOT_REQUESTED = "not_requested", "Not requested"
+        PENDING = "pending", "Pending"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Skipped"
+
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="registration_notifications"
     )
@@ -716,6 +723,16 @@ class RegistrationNotification(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     read_at = models.DateTimeField(null=True, blank=True)
+    email_address = models.EmailField(blank=True)
+    email_status = models.CharField(
+        max_length=20,
+        choices=EmailStatus.choices,
+        default=EmailStatus.NOT_REQUESTED,
+    )
+    email_attempts = models.PositiveIntegerField(default=0)
+    email_last_attempt_at = models.DateTimeField(null=True, blank=True)
+    email_sent_at = models.DateTimeField(null=True, blank=True)
+    email_error = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -734,6 +751,22 @@ class RegistrationNotification(models.Model):
 
     def __str__(self):
         return f"{self.recipient}: {self.title}"
+
+
+class NotificationEventSetting(models.Model):
+    event_type = models.CharField(
+        max_length=40,
+        choices=RegistrationNotification.EventType.choices,
+        unique=True,
+    )
+    email_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["event_type"]
+
+    def __str__(self):
+        return self.get_event_type_display()
 
 
 class RegistrationAttachment(models.Model):

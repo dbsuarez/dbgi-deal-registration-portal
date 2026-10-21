@@ -135,6 +135,14 @@ UNFOLD = {
                         "link": reverse_lazy("admin:registrations_registrationevent_changelist"),
                         "permission": "config.admin_navigation.can_view_registration_events",
                     },
+                    {
+                        "title": "Notification deliveries",
+                        "icon": "notifications",
+                        "link": reverse_lazy(
+                            "admin:registrations_registrationnotification_changelist"
+                        ),
+                        "permission": "config.admin_navigation.can_view_notifications",
+                    },
                 ],
             },
             {
@@ -182,6 +190,14 @@ UNFOLD = {
                         "icon": "admin_panel_settings",
                         "link": reverse_lazy("admin:auth_group_changelist"),
                         "permission": "config.admin_navigation.can_view_groups",
+                    },
+                    {
+                        "title": "Notification settings",
+                        "icon": "mark_email_read",
+                        "link": reverse_lazy(
+                            "admin:registrations_notificationeventsetting_changelist"
+                        ),
+                        "permission": "config.admin_navigation.can_manage_notification_settings",
                     },
                     {
                         "title": "Scenario Lab",
@@ -330,6 +346,28 @@ AUTH_USER_MODEL = "registrations.User"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "login"
+
+PORTAL_BASE_URL = os.environ.get(
+    "PORTAL_BASE_URL",
+    "http://127.0.0.1:5173" if DEBUG else "https://registration.dbgi.ph",
+).rstrip("/")
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DJANGO_DEFAULT_FROM_EMAIL",
+    "DBGI Project Registration <no-reply@registration.dbgi.ph>",
+)
+EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("DJANGO_EMAIL_USE_TLS", "false").lower() == "true"
+EMAIL_USE_SSL = os.environ.get("DJANGO_EMAIL_USE_SSL", "false").lower() == "true"
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured("Email TLS and SSL cannot both be enabled.")
+EMAIL_TIMEOUT = int(os.environ.get("DJANGO_EMAIL_TIMEOUT", "10"))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

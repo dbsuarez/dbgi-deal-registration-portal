@@ -41,10 +41,10 @@ The application is a working internal beta with these foundations implemented:
 - Project-scoped MemPalace retrieval for the reviewed documentation and tracked application source, using the lightweight MCP server without automatic transcript or whole-repository mining.
 - A curated MemPalace conversation-continuity entry covering the available project history, operating rules, completed competitor-brand work, local setup, and known limitations.
 - Shared MemPalace access for Claude Code through a git-ignored, project-scoped MCP registration, with per-agent diaries for Claude and Codex handoffs.
-- Durable, recipient-scoped portal notifications for submissions, registration decisions, and category price decisions, with read tracking and a dedicated post-submission Help page.
+- Durable, recipient-scoped portal and email notifications for submissions, registration decisions, and category price decisions, with read tracking, delivery tracking, administrator retries, per-event configuration, and a dedicated post-submission Help page.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
-The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, configurable email delivery, reporting, operational automation, and several policies remain incomplete.
+The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
 
 ## 3. Delivery principles
 
@@ -198,9 +198,9 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 ### Scope
 
 1. [x] Add durable in-portal notifications as the authoritative channel.
-2. Add per-event portal-only or portal-plus-email configuration.
-3. Track recipients, attempts, failures, retries, and administrator follow-up.
-4. Exclude competitor details, private evidence, and detailed sensitive pricing from email.
+2. [x] Add per-event portal-only or portal-plus-email configuration.
+3. [x] Track recipients, attempts, failures, retries, and administrator follow-up.
+4. [x] Exclude competitor details, private evidence, and detailed sensitive pricing from email.
 5. Add role-specific dashboard counts and actionable review queues.
 6. Add authorized CSV or Excel exports for registrations, project pipeline, approvals, renewals, reorders, exceptions, and audit activity.
 7. Preserve active filters and make export scope explicit.

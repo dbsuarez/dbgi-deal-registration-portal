@@ -85,7 +85,7 @@ export default function NotificationsPage() {
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         Submission, registration-review, and pricing decisions appear here.
-        Email delivery is not yet enabled.
+        Enabled updates are also sent to the email address on your user account.
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>

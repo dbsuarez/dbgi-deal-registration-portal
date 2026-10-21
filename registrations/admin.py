@@ -19,6 +19,7 @@ from .models import (
     EndUser,
     EndUserAlias,
     MatchingSuggestion,
+    NotificationEventSetting,
     Opportunity,
     OpportunityRanking,
     OpportunityScope,
@@ -34,7 +35,11 @@ from .models import (
     RegistrationReviewDecision,
     User,
 )
-from .notifications import notify_admin_status_change, notify_price_decision
+from .notifications import (
+    notify_admin_status_change,
+    notify_price_decision,
+    retry_notification_email,
+)
 
 
 @admin.register(Company)
@@ -461,8 +466,16 @@ class RegistrationEventAdmin(ModelAdmin):
 
 @admin.register(RegistrationNotification)
 class RegistrationNotificationAdmin(ModelAdmin):
-    list_display = ("recipient", "registration", "event_type", "read_at", "created_at")
-    list_filter = ("event_type", "read_at", "created_at")
+    list_display = (
+        "recipient",
+        "registration",
+        "event_type",
+        "email_status",
+        "email_attempts",
+        "read_at",
+        "created_at",
+    )
+    list_filter = ("event_type", "email_status", "read_at", "created_at")
     search_fields = ("recipient__username", "registration__project_title", "title")
     readonly_fields = (
         "recipient",
@@ -472,13 +485,40 @@ class RegistrationNotificationAdmin(ModelAdmin):
         "title",
         "message",
         "read_at",
+        "email_address",
+        "email_status",
+        "email_attempts",
+        "email_last_attempt_at",
+        "email_sent_at",
+        "email_error",
         "created_at",
     )
+    actions = ("retry_failed_emails",)
+
+    @admin.action(description="Retry selected failed email deliveries")
+    def retry_failed_emails(self, request, queryset):
+        attempted = 0
+        for notification in queryset:
+            attempted += int(retry_notification_email(notification))
+        self.message_user(request, f"Retried {attempted} email delivery attempt(s).")
 
     def has_add_permission(self, request):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(NotificationEventSetting)
+class NotificationEventSettingAdmin(ModelAdmin):
+    list_display = ("event_type", "email_enabled", "updated_at")
+    list_editable = ("email_enabled",)
+    readonly_fields = ("event_type", "updated_at")
+
+    def has_add_permission(self, request):
         return False
 
     def has_delete_permission(self, request, obj=None):

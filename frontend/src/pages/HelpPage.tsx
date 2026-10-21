@@ -80,8 +80,8 @@ export default function HelpPage() {
       </Grid>
       <Alert severity="info">
         The Notifications page is the authoritative record of these updates.
-        Email delivery will be added only after DBGI approves the recipient and
-        delivery policies.
+        DBGI may also enable email delivery for each notification type. Email
+        contains a summary and links back to the portal for the full decision.
       </Alert>
     </Container>
   );
