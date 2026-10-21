@@ -162,6 +162,13 @@ describe("App", () => {
     expect(screen.getByText("Registration decision")).toBeInTheDocument();
     expect(screen.getByText("Price request decision")).toBeInTheDocument();
     expect(screen.getByText("If something goes wrong")).toBeInTheDocument();
+    expect(
+      screen.getByText("End-to-end practice scenarios"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Submit a new registration")).toBeInTheDocument();
+    expect(
+      screen.getByText("Correct a registration after DBGI requests changes"),
+    ).toBeInTheDocument();
   });
 
   it("shows operational guidance to DBGI administrators", async () => {
@@ -194,6 +201,10 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("How to make a pricing decision"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Approve category pricing")).toBeInTheDocument();
+    expect(
+      screen.getByText("Resolve a failed notification email"),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Create your first registration"),

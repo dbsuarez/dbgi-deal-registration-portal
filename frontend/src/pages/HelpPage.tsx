@@ -51,6 +51,139 @@ const registrationStatuses = [
   ["Rejected", "Open the registration to review DBGI's reason."],
 ];
 
+type PracticeScenario = {
+  title: string;
+  actor: string;
+  before: string;
+  steps: string[];
+  expected: string;
+};
+
+const companyScenarios: PracticeScenario[] = [
+  {
+    title: "Submit a new registration",
+    actor: "Company user",
+    before:
+      "Prepare the End-user, project dates, contact, evidence description, one competitor item, and one requested product.",
+    steps: [
+      "Open Registrations and select Create a registration.",
+      "Select the End-user and complete every required project and contact field.",
+      "Describe the evidence and confirm that you are authorized to share it.",
+      "Add at least one competitor item and one requested product with quantity, requested price, and justification.",
+      "Review the values and submit the registration.",
+      "Open Notifications and select the Submission confirmed message.",
+    ],
+    expected:
+      "A DBGI reference is created, the status is Submitted or a safe automatic-match result, an Activity entry is recorded, and active company users receive a portal notification and configured email.",
+  },
+  {
+    title: "Correct a registration after DBGI requests changes",
+    actor: "Company user",
+    before:
+      "Use a registration with status Changes requested and read the administrator's reason.",
+    steps: [
+      "Open the notification for the requested change.",
+      "Open the registration and identify the exact fields DBGI asked you to correct.",
+      "Select Edit, change only the necessary information, and review the complete record.",
+      "Submit the corrected registration.",
+      "Open Activity and select View changes to confirm the previous and current values.",
+    ],
+    expected:
+      "The version increases, the edit is audited, and the registration returns to DBGI for review. The previous decision is not silently retained.",
+  },
+  {
+    title: "Verify an approved price",
+    actor: "Company user",
+    before:
+      "Use a registration for which DBGI has completed a category pricing decision.",
+    steps: [
+      "Open Notifications and select the price-request decision.",
+      "Open the registration and check the Pricing status badge.",
+      "Review the category decision, validity date, and approved unit price for each covered item.",
+      "Do not use requested prices for categories or items that do not show approval.",
+    ],
+    expected:
+      "The approved terms and validity are visible in the portal. Email contains only a summary and does not replace the portal record.",
+  },
+];
+
+const adminScenarios: PracticeScenario[] = [
+  {
+    title: "Review and confirm a registration match",
+    actor: "DBGI administrator",
+    before:
+      "Use a Submitted registration with complete evidence and a matching suggestion.",
+    steps: [
+      "Open the registration and compare the End-user, address, requested products, supporting factors, and conflicts.",
+      "Select Start review and enter a useful rationale.",
+      "Recheck whether an existing opportunity scope is correct.",
+      "Select Confirm match, choose the correct scope, or create a new opportunity only when no existing scope is valid.",
+      "Open Activity and verify the reviewer, decision, rationale, and resulting status.",
+    ],
+    expected:
+      "The registration becomes Registered, its opportunity scope is recorded, ranking can be calculated, and company users receive a registration-decision notification.",
+  },
+  {
+    title: "Request corrections and review the resubmission",
+    actor: "DBGI administrator, then company user",
+    before:
+      "Use a registration whose evidence or business details need a specific correction.",
+    steps: [
+      "Start review as the DBGI administrator.",
+      "Select Request changes and write an exact, actionable reason.",
+      "Sign in as the company user, open the notification, edit the requested fields, and submit again.",
+      "Sign back in as the administrator and compare Activity's previous and current values.",
+      "Start review again and make the appropriate final decision.",
+    ],
+    expected:
+      "Both sides see a complete audit trail. The company can correct the record, and DBGI makes a new decision from the latest version.",
+  },
+  {
+    title: "Approve category pricing",
+    actor: "DBGI administrator",
+    before:
+      "Use a reviewed registration with requested catalog products and a Pending category approval.",
+    steps: [
+      "Open the registration and verify the requested products, list-price snapshots, requested prices, and justification.",
+      "Open the category pricing decision.",
+      "Choose Approved or Partially approved as appropriate.",
+      "Enter approved unit prices only for covered items, set Valid until, and write the rationale.",
+      "Save and reopen the registration to confirm the category and item results.",
+    ],
+    expected:
+      "Approved prices and validity are saved separately from requested prices, an Activity entry is recorded, and company users receive a price-decision notification without detailed prices in email.",
+  },
+  {
+    title: "Resolve a failed notification email",
+    actor: "DBGI administrator",
+    before:
+      "Use a delivery showing Failed under Administration, Notification deliveries.",
+    steps: [
+      "Open the failed delivery and read the captured error without copying credentials into notes.",
+      "Confirm that the recipient email address is correct and the portal notification exists.",
+      "Correct the mailbox or SMTP configuration if needed.",
+      "Return to Notification deliveries, select the failed record, and run Retry selected failed email deliveries.",
+      "Refresh the record and confirm Sent status, attempt count, and sent time.",
+    ],
+    expected:
+      "The email is retried and delivery history remains visible. The portal notification was available throughout the failure.",
+  },
+  {
+    title: "Verify a proposed End-user",
+    actor: "DBGI administrator",
+    before: "Use a Pending End-user proposed by a company.",
+    steps: [
+      "Open Administration, End-users, and select the pending organization.",
+      "Compare the name and address with an authoritative source.",
+      "Correct the official name and address, add useful aliases, and avoid creating a duplicate.",
+      "Record source information when available and verify the End-user.",
+      "Return to the linked registration and refresh matching review.",
+    ],
+    expected:
+      "The shared End-user becomes verified, aliases resolve to the canonical record, and eligible registrations can proceed through matching review.",
+  },
+];
+
 function NumberedStep({
   number,
   title,
@@ -107,6 +240,36 @@ function GuideSection({
         <Typography fontWeight={700}>{title}</Typography>
       </AccordionSummary>
       <AccordionDetails>{children}</AccordionDetails>
+    </Accordion>
+  );
+}
+
+function ScenarioCard({ scenario }: { scenario: PracticeScenario }) {
+  return (
+    <Accordion disableGutters variant="outlined">
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box>
+          <Typography fontWeight={700}>{scenario.title}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Actor: {scenario.actor}
+          </Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          <strong>Before you start:</strong> {scenario.before}
+        </Typography>
+        <List disablePadding>
+          {scenario.steps.map((step, index) => (
+            <NumberedStep key={step} number={index + 1} title={step}>
+              {" "}
+            </NumberedStep>
+          ))}
+        </List>
+        <Alert severity="success" sx={{ mt: 1 }}>
+          <strong>Expected result:</strong> {scenario.expected}
+        </Alert>
+      </AccordionDetails>
     </Accordion>
   );
 }
@@ -374,6 +537,23 @@ export default function HelpPage() {
           </GuideSection>
         </Stack>
       )}
+
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h2" gutterBottom>
+          End-to-end practice scenarios
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Use development or training data for practice. Do not experiment with
+          a live business registration.
+        </Typography>
+        <Stack spacing={2}>
+          {(session.is_dbgi_admin ? adminScenarios : companyScenarios).map(
+            (scenario) => (
+              <ScenarioCard key={scenario.title} scenario={scenario} />
+            ),
+          )}
+        </Stack>
+      </Box>
 
       <Typography variant="h2" gutterBottom>
         What happens after submission?
