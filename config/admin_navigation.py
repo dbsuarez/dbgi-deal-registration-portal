@@ -53,6 +53,10 @@ def can_view_competitor_brands(request):
     return request.user.has_perm("registrations.view_competitorbrand")
 
 
+def can_view_competitor_models(request):
+    return request.user.has_perm("registrations.view_competitormodel")
+
+
 def can_view_end_users(request):
     return request.user.has_perm("registrations.view_enduser")
 

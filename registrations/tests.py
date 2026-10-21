@@ -27,6 +27,7 @@ from .models import (
     CompetitorBrand,
     CompetitorBrandAlias,
     CompetitorItem,
+    CompetitorModel,
     EndUser,
     NotificationEventSetting,
     Opportunity,
@@ -913,6 +914,7 @@ class RegistrationApiTests(TestCase):
         self.client.force_login(self.user_a)
         payload = self.payload()
         payload["competitor_items"][0]["brand"] = "  New Brand  "
+        payload["competitor_items"][0]["item_name"] = "  New Model  "
 
         response = self.client.post(
             "/api/v1/registrations",
@@ -923,11 +925,35 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         brand = CompetitorBrand.objects.get(normalized_name="new brand")
         self.assertEqual(brand.name, "New Brand")
+        competitor_model = CompetitorModel.objects.get(brand=brand, normalized_name="new model")
+        self.assertEqual(competitor_model.name, "New Model")
+        registration = Registration.objects.get(pk=response.json()["id"])
+        self.assertEqual(registration.competitor_items.get().item_name, "New Model")
+
+    def test_competitor_model_options_return_only_active_master_data(self):
+        canon = CompetitorBrand.objects.get(normalized_name="canon")
+        active_model = CompetitorModel.objects.create(brand=canon, name="Active test model")
+        CompetitorModel.objects.create(brand=canon, name="Archived test model", is_active=False)
+        archived_brand = CompetitorBrand.objects.create(
+            name="Archived model brand", is_active=False
+        )
+        CompetitorModel.objects.create(brand=archived_brand, name="Hidden model")
+        self.client.force_login(self.user_a)
+
+        response = self.client.get("/api/v1/competitor-models")
+
+        self.assertEqual(response.status_code, 200)
+        options = {(item["brand"], item["item_name"]) for item in response.json()}
+        self.assertIn(("Canon", "imageCLASS LBP246dw"), options)
+        self.assertIn(("Canon", active_model.name), options)
+        self.assertNotIn(("Canon", "Archived test model"), options)
+        self.assertNotIn((archived_brand.name, "Hidden model"), options)
 
     def test_competitor_brand_alias_resolves_to_canonical_brand(self):
         self.client.force_login(self.user_a)
         payload = self.payload()
         payload["competitor_items"][0]["brand"] = "  hewlett PACKARD  "
+        payload["competitor_items"][0]["item_name"] = "  laserjet PRO 4003DN  "
 
         response = self.client.post(
             "/api/v1/registrations",
@@ -938,6 +964,14 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         registration = Registration.objects.get(pk=response.json()["id"])
         self.assertEqual(registration.competitor_items.get().brand, "HP")
+        self.assertEqual(registration.competitor_items.get().item_name, "LaserJet Pro 4003dn")
+        self.assertEqual(
+            CompetitorModel.objects.filter(
+                brand__normalized_name="hp",
+                normalized_name="laserjet pro 4003dn",
+            ).count(),
+            1,
+        )
         self.assertFalse(CompetitorBrand.objects.filter(normalized_name="hewlett packard").exists())
 
     def test_competitor_brand_normalized_name_is_database_unique(self):
@@ -966,6 +1000,10 @@ class RegistrationApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Hewlett Packard")
+        self.assertContains(response, "LaserJet Pro 4003dn")
+
+        model_changelist_url = reverse("admin:registrations_competitormodel_changelist")
+        self.assertEqual(self.client.get(model_changelist_url).status_code, 200)
 
     def test_logout_ends_authenticated_session(self):
         self.client.force_login(self.user_a)

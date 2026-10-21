@@ -554,8 +554,8 @@ export default function HelpPage() {
               </ListItem>
               <ListItem disableGutters>
                 <ListItemText
-                  primary="Competitor brands"
-                  secondary="Maintain canonical brands and aliases. For example, Hewlett Packard resolves to HP."
+                  primary="Competitor brands and models"
+                  secondary="Maintain canonical brands, aliases, and model suggestions. For example, Hewlett Packard resolves to HP. Company users can enter a missing brand or model when registering a deal; it is then added to this catalog for later use. Archive outdated choices instead of deleting historical registration details."
                 />
               </ListItem>
               <ListItem disableGutters>

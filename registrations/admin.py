@@ -16,6 +16,7 @@ from .models import (
     CompetitorBrand,
     CompetitorBrandAlias,
     CompetitorItem,
+    CompetitorModel,
     EndUser,
     EndUserAlias,
     MatchingSuggestion,
@@ -113,6 +114,12 @@ class CompetitorBrandAliasInline(TabularInline):
     fields = ("name",)
 
 
+class CompetitorModelInline(TabularInline):
+    model = CompetitorModel
+    extra = 0
+    fields = ("name", "is_active")
+
+
 @admin.register(CompetitorBrand)
 class CompetitorBrandAdmin(ModelAdmin):
     list_display = ("name", "is_active", "created_at", "updated_at")
@@ -120,13 +127,30 @@ class CompetitorBrandAdmin(ModelAdmin):
     search_fields = ("name", "aliases__name")
     readonly_fields = ("normalized_name", "created_at", "updated_at")
     actions = ("archive_selected", "restore_selected")
-    inlines = (CompetitorBrandAliasInline,)
+    inlines = (CompetitorBrandAliasInline, CompetitorModelInline)
 
     @admin.action(description="Archive selected competitor brands")
     def archive_selected(self, request, queryset):
         queryset.update(is_active=False)
 
     @admin.action(description="Restore selected competitor brands")
+    def restore_selected(self, request, queryset):
+        queryset.update(is_active=True)
+
+
+@admin.register(CompetitorModel)
+class CompetitorModelAdmin(ModelAdmin):
+    list_display = ("name", "brand", "is_active", "created_at", "updated_at")
+    list_filter = ("brand", "is_active")
+    search_fields = ("name", "brand__name", "brand__aliases__name")
+    readonly_fields = ("normalized_name", "created_at", "updated_at")
+    actions = ("archive_selected", "restore_selected")
+
+    @admin.action(description="Archive selected competitor models")
+    def archive_selected(self, request, queryset):
+        queryset.update(is_active=False)
+
+    @admin.action(description="Restore selected competitor models")
     def restore_selected(self, request, queryset):
         queryset.update(is_active=True)
 

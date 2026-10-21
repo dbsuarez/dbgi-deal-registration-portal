@@ -22,6 +22,7 @@ from .models import (
     CompetitorBrand,
     CompetitorBrandAlias,
     CompetitorItem,
+    CompetitorModel,
     EndUser,
     Opportunity,
     OpportunityScope,
@@ -246,6 +247,11 @@ class ProductOption(Schema):
     category: str
     currency: str
     list_price: Decimal
+
+
+class CompetitorModelOption(Schema):
+    brand: str
+    item_name: str
 
 
 class EndUserOutput(Schema):
@@ -866,6 +872,19 @@ def list_competitor_brands(request):
     )
 
 
+@api.get("/competitor-models", auth=django_auth, response=list[CompetitorModelOption])
+def list_competitor_models(request):
+    queryset = (
+        CompetitorModel.objects.filter(is_active=True, brand__is_active=True)
+        .select_related("brand")
+        .order_by("brand__name", "name")[:500]
+    )
+    return [
+        {"brand": competitor_model.brand.name, "item_name": competitor_model.name}
+        for competitor_model in queryset
+    ]
+
+
 def _resolve_competitor_brand(name):
     cleaned = " ".join(name.split())
     normalized = cleaned.casefold()
@@ -883,6 +902,17 @@ def _resolve_competitor_brand(name):
         normalized_name=normalized, defaults={"name": cleaned}
     )
     return brand
+
+
+def _resolve_competitor_model(brand, name):
+    cleaned = " ".join(name.split())
+    normalized = cleaned.casefold()
+    competitor_model, _ = CompetitorModel.objects.get_or_create(
+        brand=brand,
+        normalized_name=normalized,
+        defaults={"name": cleaned},
+    )
+    return competitor_model
 
 
 def _validate_input(payload):
@@ -924,11 +954,12 @@ def _save_children(registration, payload):
     competitor_rows = []
     for item in payload.competitor_items:
         brand = _resolve_competitor_brand(item.brand)
+        competitor_model = _resolve_competitor_model(brand, item.item_name)
         competitor_rows.append(
             CompetitorItem(
                 registration=registration,
                 brand=brand.name,
-                item_name=item.item_name,
+                item_name=competitor_model.name,
                 bid_price=item.bid_price,
                 remarks=item.remarks,
             )

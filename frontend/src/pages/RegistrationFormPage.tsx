@@ -45,11 +45,13 @@ import {
   deleteAttachment,
   finalizeRegistration,
   getCompetitorBrands,
+  getCompetitorModels,
   getEndUsers,
   getProducts,
   getRegistration,
   type Attachment,
   type CompetitorItem,
+  type CompetitorModelOption,
   type EndUser,
   type EndUserCreatePayload,
   type ProductOption,
@@ -138,6 +140,9 @@ export default function RegistrationFormPage() {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
   const [competitorBrands, setCompetitorBrands] = useState<string[]>([]);
+  const [competitorModels, setCompetitorModels] = useState<
+    CompetitorModelOption[]
+  >([]);
   const [endUserDialogOpen, setEndUserDialogOpen] = useState(false);
   const [endUserDraft, setEndUserDraft] =
     useState<EndUserCreatePayload>(emptyEndUser);
@@ -175,6 +180,11 @@ export default function RegistrationFormPage() {
       });
     getCompetitorBrands(controller.signal)
       .then(setCompetitorBrands)
+      .catch((reason: Error) => {
+        if (reason.name !== "AbortError") setError(reason.message);
+      });
+    getCompetitorModels(controller.signal)
+      .then(setCompetitorModels)
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       });
@@ -768,6 +778,7 @@ export default function RegistrationFormPage() {
         open={competitorEditor !== null}
         value={competitorDraft}
         brands={competitorBrands}
+        models={competitorModels}
         onChange={setCompetitorDraft}
         onClose={() => setCompetitorEditor(null)}
         onSave={saveCompetitor}
@@ -828,6 +839,7 @@ function CompetitorDialog({
   open,
   value,
   brands,
+  models,
   onChange,
   onClose,
   onSave,
@@ -835,11 +847,20 @@ function CompetitorDialog({
   open: boolean;
   value: CompetitorItem;
   brands: string[];
+  models: CompetitorModelOption[];
   onChange: (value: CompetitorItem) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
   const brandInputRef = useRef<HTMLInputElement>(null);
+  const modelOptions = models
+    .filter(
+      (model) =>
+        model.brand.localeCompare(value.brand, undefined, {
+          sensitivity: "accent",
+        }) === 0,
+    )
+    .map((model) => model.item_name);
 
   return (
     <Dialog
@@ -874,14 +895,21 @@ function CompetitorDialog({
             />
           </Grid>
           <Grid size={6}>
-            <TextField
-              fullWidth
-              required
-              label="Item / model"
-              value={value.item_name}
-              onChange={(e) =>
-                onChange({ ...value, item_name: e.target.value })
+            <Autocomplete
+              freeSolo
+              options={modelOptions}
+              inputValue={value.item_name}
+              onInputChange={(_, itemName) =>
+                onChange({ ...value, item_name: itemName })
               }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  required
+                  label="Item / model"
+                  helperText="Choose a previous model or enter a new one."
+                />
+              )}
             />
           </Grid>
           <Grid size={12}>

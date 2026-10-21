@@ -29,6 +29,14 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/competitor-brands", (route) =>
     route.fulfill({ json: ["Canon", "Epson", "HP", "Lexmark"] }),
   );
+  await page.route("**/api/v1/competitor-models", (route) =>
+    route.fulfill({
+      json: [
+        { brand: "Canon", item_name: "imageCLASS LBP246dw" },
+        { brand: "HP", item_name: "LaserJet Pro 4003dn" },
+      ],
+    }),
+  );
   await page.route("**/api/v1/end-users", (route) =>
     route.fulfill({
       json: [
@@ -141,6 +149,14 @@ test("company user can open the React registration form", async ({ page }) => {
     page.getByRole("button", { name: "Add competitor" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Add product" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add competitor" }).click();
+  await page.getByLabel("Brand").fill("Canon");
+  await page.getByLabel("Item / model").click();
+  await expect(
+    page.getByRole("option", { name: "imageCLASS LBP246dw" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
 });
 
 test("quick status filters compose and clear", async ({ page }) => {

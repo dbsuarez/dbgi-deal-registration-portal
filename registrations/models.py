@@ -541,6 +541,38 @@ class CompetitorBrandAlias(models.Model):
         return f"{self.name} -> {self.brand.name}"
 
 
+class CompetitorModel(models.Model):
+    brand = models.ForeignKey(CompetitorBrand, on_delete=models.CASCADE, related_name="models")
+    name = models.CharField(max_length=200)
+    normalized_name = models.CharField(max_length=200, editable=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["brand__name", "name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["brand", "normalized_name"],
+                name="unique_competitor_model_per_brand",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        self.name = " ".join(self.name.split())
+        if not self.name:
+            raise ValidationError({"name": "Enter a competitor item or model."})
+        self.normalized_name = self.name.casefold()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.brand.name} - {self.name}"
+
+
 class RegistrationItem(models.Model):
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(

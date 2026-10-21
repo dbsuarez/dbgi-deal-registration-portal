@@ -86,6 +86,11 @@ export type CompetitorItem = {
   remarks: string;
 };
 
+export type CompetitorModelOption = {
+  brand: string;
+  item_name: string;
+};
+
 export type RequestedItem = {
   id?: number;
   product_id: number | null;
@@ -382,6 +387,10 @@ export function getProducts(signal?: AbortSignal) {
 
 export function getCompetitorBrands(signal?: AbortSignal) {
   return request<string[]>("/api/v1/competitor-brands", signal);
+}
+
+export function getCompetitorModels(signal?: AbortSignal) {
+  return request<CompetitorModelOption[]>("/api/v1/competitor-models", signal);
 }
 
 export function getEndUsers(signal?: AbortSignal) {

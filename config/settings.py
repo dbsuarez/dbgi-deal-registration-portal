@@ -174,6 +174,12 @@ UNFOLD = {
                         "permission": "config.admin_navigation.can_view_competitor_brands",
                     },
                     {
+                        "title": "Competitor models",
+                        "icon": "print",
+                        "link": reverse_lazy("admin:registrations_competitormodel_changelist"),
+                        "permission": "config.admin_navigation.can_view_competitor_models",
+                    },
+                    {
                         "title": "Users",
                         "icon": "group",
                         "link": reverse_lazy("admin:registrations_user_changelist"),
