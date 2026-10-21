@@ -489,7 +489,11 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
     evidence_sharing_confirmed: true,
     status: "submitted",
     status_label: "Submitted",
-    needs_review: false,
+    project_status: null,
+    project_status_label: "Not linked",
+    price_status: "pending",
+    price_status_label: "Pending",
+    needs_review: true,
     created_at: "2026-10-19T02:00:00Z",
     version: 1,
     can_edit: false,
@@ -499,6 +503,7 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
     events: [],
     opportunity_scope_id: null,
     opportunity_scope_label: null,
+    category_approvals: [],
     matching_suggestion: {
       id: 1,
       outcome: "clarify",
@@ -538,6 +543,28 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
   );
 
   await page.goto("/registrations/1/");
+  await page.getByText("Submitted", { exact: true }).hover();
+  await expect(
+    page.getByRole("tooltip", { name: /DBGI received this registration/ }),
+  ).toBeVisible();
+  await page.getByText("Project: Not linked", { exact: true }).hover();
+  await expect(
+    page.getByRole("tooltip", {
+      name: /not connected to a shared project opportunity/,
+    }),
+  ).toBeVisible();
+  await page.getByText("Pricing: Pending", { exact: true }).hover();
+  await expect(
+    page.getByRole("tooltip", {
+      name: /has not made a final pricing decision/,
+    }),
+  ).toBeVisible();
+  await page.getByText("Review required", { exact: true }).hover();
+  await expect(
+    page.getByRole("tooltip", {
+      name: /A DBGI administrator must review this registration/,
+    }),
+  ).toBeVisible();
   await page.getByLabel("Explain matching suggestion").click();
   await expect(
     page.getByRole("heading", { name: "Why this match was suggested" }),

@@ -33,6 +33,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
@@ -47,7 +48,7 @@ import {
   type RegistrationDetail,
 } from "../api";
 import { useSession } from "../session";
-import { getStatusColor } from "../status";
+import { getStatusColor, getStatusExplanation } from "../status";
 
 const moneyCell = {
   textAlign: "right" as const,
@@ -194,26 +195,61 @@ export default function RegistrationDetailPage() {
             >
               <ContentCopyIcon fontSize="inherit" />
             </IconButton>
-            <Chip
-              size="small"
-              label={registration.status_label}
-              variant="filled"
-              color={getStatusColor("registration", registration.status)}
-            />
-            <Chip
-              size="small"
-              label={`Project: ${registration.project_status_label}`}
-              variant="filled"
-              color={getStatusColor("project", registration.project_status)}
-            />
-            <Chip
-              size="small"
-              label={`Pricing: ${registration.price_status_label}`}
-              variant="filled"
-              color={getStatusColor("price", registration.price_status)}
-            />
+            <Tooltip
+              arrow
+              enterDelay={300}
+              title={getStatusExplanation("registration", registration.status)}
+            >
+              <Chip
+                tabIndex={0}
+                size="small"
+                label={registration.status_label}
+                variant="filled"
+                color={getStatusColor("registration", registration.status)}
+              />
+            </Tooltip>
+            <Tooltip
+              arrow
+              enterDelay={300}
+              title={getStatusExplanation(
+                "project",
+                registration.project_status,
+              )}
+            >
+              <Chip
+                tabIndex={0}
+                size="small"
+                label={`Project: ${registration.project_status_label}`}
+                variant="filled"
+                color={getStatusColor("project", registration.project_status)}
+              />
+            </Tooltip>
+            <Tooltip
+              arrow
+              enterDelay={300}
+              title={getStatusExplanation("price", registration.price_status)}
+            >
+              <Chip
+                tabIndex={0}
+                size="small"
+                label={`Pricing: ${registration.price_status_label}`}
+                variant="filled"
+                color={getStatusColor("price", registration.price_status)}
+              />
+            </Tooltip>
             {registration.needs_review && (
-              <Chip size="small" label="Review required" color="warning" />
+              <Tooltip
+                arrow
+                enterDelay={300}
+                title="The system could not safely finish matching, or important information changed. A DBGI administrator must review this registration."
+              >
+                <Chip
+                  tabIndex={0}
+                  size="small"
+                  label="Review required"
+                  color="warning"
+                />
+              </Tooltip>
             )}
           </Stack>
           <Typography variant="h1">{registration.project_title}</Typography>
