@@ -16,3 +16,7 @@ media/
 htmlcov/
 .idea/
 .vscode/
+
+# MemPalace per-project generated files
+mempalace.yaml
+entities.json
