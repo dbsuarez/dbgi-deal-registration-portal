@@ -1,6 +1,7 @@
 import re
 from decimal import Decimal
 from pathlib import Path
+from string import Formatter
 from uuid import uuid4
 
 from django.contrib.auth.models import AbstractUser
@@ -724,6 +725,8 @@ class RegistrationNotification(models.Model):
     message = models.TextField()
     read_at = models.DateTimeField(null=True, blank=True)
     email_address = models.EmailField(blank=True)
+    email_subject = models.CharField(max_length=250, blank=True)
+    email_body = models.TextField(blank=True)
     email_status = models.CharField(
         max_length=20,
         choices=EmailStatus.choices,
@@ -754,12 +757,36 @@ class RegistrationNotification(models.Model):
 
 
 class NotificationEventSetting(models.Model):
+    AVAILABLE_PLACEHOLDERS = frozenset({"title", "message", "registration_reference", "portal_url"})
+    DEFAULT_EMAIL_SUBJECT = "DBGI Project Registration: {title}"
+    DEFAULT_EMAIL_BODY = (
+        "{message}\n\n"
+        "Open the portal: {portal_url}/notifications/\n\n"
+        "This email contains a summary only. The portal notification is the "
+        "authoritative record."
+    )
+
     event_type = models.CharField(
         max_length=40,
         choices=RegistrationNotification.EventType.choices,
         unique=True,
     )
     email_enabled = models.BooleanField(default=True)
+    email_subject_template = models.CharField(
+        max_length=250,
+        default=DEFAULT_EMAIL_SUBJECT,
+        help_text=(
+            "Available placeholders: {title}, {message}, {registration_reference}, "
+            "and {portal_url}."
+        ),
+    )
+    email_body_template = models.TextField(
+        default=DEFAULT_EMAIL_BODY,
+        help_text=(
+            "Available placeholders: {title}, {message}, {registration_reference}, "
+            "and {portal_url}."
+        ),
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -767,6 +794,30 @@ class NotificationEventSetting(models.Model):
 
     def __str__(self):
         return self.get_event_type_display()
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        for field_name in ("email_subject_template", "email_body_template"):
+            template = getattr(self, field_name)
+            try:
+                placeholders = {
+                    name for _, name, _, _ in Formatter().parse(template) if name is not None
+                }
+            except ValueError as exc:
+                errors[field_name] = f"Template syntax is invalid: {exc}"
+                continue
+            unknown = placeholders - self.AVAILABLE_PLACEHOLDERS
+            if unknown:
+                errors[field_name] = f"Unknown placeholder(s): {', '.join(sorted(unknown))}."
+        if errors:
+            raise ValidationError(errors)
+
+    def render_email(self, context):
+        return (
+            self.email_subject_template.format_map(context),
+            self.email_body_template.format_map(context),
+        )
 
 
 class RegistrationAttachment(models.Model):

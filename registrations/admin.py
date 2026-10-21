@@ -486,6 +486,8 @@ class RegistrationNotificationAdmin(ModelAdmin):
         "message",
         "read_at",
         "email_address",
+        "email_subject",
+        "email_body",
         "email_status",
         "email_attempts",
         "email_last_attempt_at",
@@ -516,7 +518,32 @@ class RegistrationNotificationAdmin(ModelAdmin):
 class NotificationEventSettingAdmin(ModelAdmin):
     list_display = ("event_type", "email_enabled", "updated_at")
     list_editable = ("email_enabled",)
-    readonly_fields = ("event_type", "updated_at")
+    readonly_fields = ("event_type", "email_preview", "updated_at")
+    fields = (
+        "event_type",
+        "email_enabled",
+        "email_subject_template",
+        "email_body_template",
+        "email_preview",
+        "updated_at",
+    )
+
+    @admin.display(description="Preview")
+    def email_preview(self, obj):
+        if not obj:
+            return "Save the setting to preview it."
+        subject, body = obj.render_email(
+            {
+                "title": "Registration confirmed",
+                "message": "DBGI updated registration DBGI-000123.",
+                "registration_reference": "DBGI-000123",
+                "portal_url": "https://registration.dbgi.ph",
+            }
+        )
+        return format_html(
+            '<pre style="white-space: pre-wrap">{}</pre>',
+            f"Subject: {subject}\n\n{body}",
+        )
 
     def has_add_permission(self, request):
         return False

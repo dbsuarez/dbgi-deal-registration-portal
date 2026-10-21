@@ -80,23 +80,23 @@ python manage.py migrate
 
 ### Email notifications
 
-Portal notifications are always created first and remain authoritative. Email delivery is configured per event under **Administration > Notification settings**. Delivery results and retry actions are available under **Transactions > Notification deliveries**.
+Portal notifications are always created first and remain authoritative. Email delivery, subject templates, and body templates are configured per event under **Administration > Notification settings**. The edit page shows a rendered preview and supports only the documented placeholders. Each delivery stores its rendered subject and body as an immutable snapshot. Delivery results and retry actions are available under **Transactions > Notification deliveries**.
 
 The selected MXroute SMTP service uses `glacier.mxrouting.net` on port `465` with SSL. Set these values outside Git before starting Django:
 
 ```powershell
 $env:PORTAL_BASE_URL = "https://registration.dbgi.ph"
 $env:DJANGO_EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-$env:DJANGO_DEFAULT_FROM_EMAIL = "DBGI Project Registration <portal@dbgi.ph>"
+$env:DJANGO_DEFAULT_FROM_EMAIL = "DBGI Support <support@dbgi.ph>"
 $env:DJANGO_EMAIL_HOST = "glacier.mxrouting.net"
 $env:DJANGO_EMAIL_PORT = "465"
-$env:DJANGO_EMAIL_HOST_USER = "portal@dbgi.ph"
+$env:DJANGO_EMAIL_HOST_USER = "support@dbgi.ph"
 $env:DJANGO_EMAIL_HOST_PASSWORD = "replace-with-the-mailbox-password"
 $env:DJANGO_EMAIL_USE_TLS = "false"
 $env:DJANGO_EMAIL_USE_SSL = "true"
 ```
 
-Replace `portal@dbgi.ph` with the actual MXroute mailbox. Local development defaults to Django's console email backend unless these SMTP variables are set. Email summaries exclude competitor information, evidence, and detailed pricing.
+Keep the mailbox password outside Git and rotate it if it is exposed. Local development defaults to Django's console email backend unless these SMTP variables are set. Email summaries exclude competitor information, evidence, and detailed pricing.
 
 The debug login shows the `preview` company account and `admin-preview` DBGI administrator account. Both use `testpass123` for standard password login. The password-free chooser and the account-seeding command are disabled when `DEBUG=False`. See the development-only login policy in [`SECURITY_STANDARDS.md`](SECURITY_STANDARDS.md).
 

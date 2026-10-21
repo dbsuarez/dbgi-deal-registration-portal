@@ -20,13 +20,8 @@ def deliver_notification_email(notification_id):
     notification.email_last_attempt_at = timezone.now()
     try:
         EmailMessage(
-            subject=f"DBGI Project Registration: {notification.title}",
-            body=(
-                f"{notification.message}\n\n"
-                f"Open the portal: {settings.PORTAL_BASE_URL}/notifications/\n\n"
-                "This email contains a summary only. The portal notification is the "
-                "authoritative record."
-            ),
+            subject=notification.email_subject,
+            body=notification.email_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[notification.email_address],
         ).send(fail_silently=False)
@@ -78,10 +73,18 @@ def notify_company_users(
         role=User.Role.COMPANY,
         is_active=True,
     ).only("id", "email")
-    email_enabled = NotificationEventSetting.objects.filter(
-        event_type=event_type,
-        email_enabled=True,
-    ).exists()
+    event_setting = NotificationEventSetting.objects.filter(event_type=event_type).first()
+    if event_setting is None:
+        event_setting = NotificationEventSetting(event_type=event_type, email_enabled=False)
+    email_enabled = event_setting.email_enabled
+    email_subject, email_body = event_setting.render_email(
+        {
+            "title": title,
+            "message": message,
+            "registration_reference": registration.reference,
+            "portal_url": settings.PORTAL_BASE_URL,
+        }
+    )
     for recipient in recipients:
         email_address = recipient.email.strip()
         email_status = (
@@ -101,6 +104,8 @@ def notify_company_users(
                 "message": message,
                 "email_address": email_address,
                 "email_status": email_status,
+                "email_subject": email_subject if email_enabled else "",
+                "email_body": email_body if email_enabled else "",
             },
         )
         if created and email_status == RegistrationNotification.EmailStatus.PENDING:

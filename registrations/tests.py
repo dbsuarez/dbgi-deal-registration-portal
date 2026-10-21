@@ -886,7 +886,11 @@ class RegistrationApiTests(TestCase):
     def test_submission_email_is_sent_after_commit_without_sensitive_details(self):
         NotificationEventSetting.objects.update_or_create(
             event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
-            defaults={"email_enabled": True},
+            defaults={
+                "email_enabled": True,
+                "email_subject_template": "Registration update: {registration_reference}",
+                "email_body_template": "{title}\n{message}\nView: {portal_url}/notifications/",
+            },
         )
         self.client.force_login(self.user_a)
 
@@ -901,7 +905,10 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         email = mail.outbox[0]
         self.assertEqual(email.to, [self.user_a.email])
-        self.assertIn("Submission confirmed", email.subject)
+        self.assertEqual(
+            email.subject,
+            f"Registration update: DBGI-{response.json()['id']:06d}",
+        )
         self.assertIn("/notifications/", email.body)
         self.assertNotIn("TEST brand", email.body)
         self.assertNotIn("1.00", email.body)
@@ -913,6 +920,19 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.SENT)
         self.assertEqual(notice.email_attempts, 1)
         self.assertEqual(notice.email_address, self.user_a.email)
+        self.assertEqual(notice.email_subject, email.subject)
+        self.assertEqual(notice.email_body, email.body)
+
+    def test_notification_email_template_rejects_unknown_placeholders(self):
+        setting = NotificationEventSetting(
+            event_type=RegistrationNotification.EventType.PRICE_DECISION,
+            email_subject_template="Price decision for {company_secret}",
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            setting.full_clean()
+
+        self.assertIn("email_subject_template", context.exception.message_dict)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_email_failure_does_not_rollback_the_portal_notification(self):
