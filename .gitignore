@@ -20,3 +20,6 @@ htmlcov/
 # MemPalace per-project generated files
 mempalace.yaml
 entities.json
+
+# Claude Code per-user MCP server registration
+.mcp.json

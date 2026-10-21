@@ -40,6 +40,7 @@ The application is a working internal beta with these foundations implemented:
 - Development runbook guidance to apply pending migrations after pulling application changes.
 - Project-scoped MemPalace retrieval for the reviewed documentation and tracked application source, using the lightweight MCP server without automatic transcript or whole-repository mining.
 - A curated MemPalace conversation-continuity entry covering the available project history, operating rules, completed competitor-brand work, local setup, and known limitations.
+- Shared MemPalace access for Claude Code through a git-ignored, project-scoped MCP registration, with per-agent diaries for Claude and Codex handoffs.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, notifications, reporting, operational automation, and several policies remain incomplete.
