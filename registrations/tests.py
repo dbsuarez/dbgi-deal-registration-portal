@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.contrib.admin.models import LogEntry
 from django.contrib.admin.sites import AdminSite
 from django.core import mail
 from django.core.cache import cache
@@ -648,6 +649,119 @@ class RegistrationApiTests(TestCase):
         self.assertContains(response, "Pricing queue")
         self.assertContains(response, "Pending dashboard organization")
         self.assertContains(response, "Failed email deliveries")
+        self.assertContains(response, "Open Danger Zone")
+
+    def test_danger_zone_requires_a_superuser(self):
+        reviewer = User.objects.create_user(
+            username="danger-zone-reviewer",
+            password="example-password",
+            role=User.Role.DBGI_ADMIN,
+            is_staff=True,
+        )
+        self.client.force_login(reviewer)
+
+        index = self.client.get("/admin/")
+        response = self.client.get(reverse("admin:danger-zone"))
+
+        self.assertNotContains(index, "Open Danger Zone")
+        self.assertEqual(response.status_code, 404)
+
+    def test_danger_zone_requires_csrf_and_exact_confirmation(self):
+        url = reverse("admin:danger-zone")
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.admin)
+
+        rejected = csrf_client.post(
+            url,
+            {
+                "acknowledge": "on",
+                "confirmation": "DELETE ALL TRANSACTIONAL DATA",
+            },
+        )
+        self.assertEqual(rejected.status_code, 403)
+
+        self.client.force_login(self.admin)
+        wrong_phrase = self.client.post(
+            url,
+            {"acknowledge": "on", "confirmation": "delete everything"},
+        )
+        missing_acknowledgement = self.client.post(
+            url,
+            {"confirmation": "DELETE ALL TRANSACTIONAL DATA"},
+        )
+
+        self.assertContains(wrong_phrase, "Type DELETE ALL TRANSACTIONAL DATA exactly")
+        self.assertContains(
+            missing_acknowledgement,
+            "Confirm that you understand this action cannot be undone",
+        )
+        self.assertTrue(Registration.objects.filter(pk=self.registration_a.pk).exists())
+
+    def test_danger_zone_clears_transactions_and_preserves_master_data(self):
+        opportunity = Opportunity.objects.create(
+            title="Danger Zone test opportunity",
+            end_user=self.end_user,
+            end_user_name=self.end_user.official_name,
+            end_user_address=self.end_user.full_address,
+            created_by=self.admin,
+        )
+        scope = OpportunityScope.objects.create(
+            opportunity=opportunity,
+            name="Whole opportunity",
+            scope_type=OpportunityScope.ScopeType.WHOLE,
+        )
+        self.registration_a.opportunity_scope = scope
+        self.registration_a.save(update_fields=["opportunity_scope"])
+        approval = RegistrationCategoryApproval.objects.create(
+            registration=self.registration_a,
+            category=self.product.category,
+        )
+        RegistrationItemApproval.objects.create(
+            category_approval=approval,
+            registration_item=self.registration_a.items.get(),
+            approved_unit_price="90.00",
+        )
+        PriceApprovalRenewal.objects.create(
+            category_approval=approval,
+            requested_by=self.user_a,
+            reason="Test renewal",
+        )
+        RegistrationNotification.objects.create(
+            recipient=self.user_a,
+            registration=self.registration_a,
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            event_key="danger-zone-test",
+            title="Submission confirmed",
+            message="Test notification",
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("admin:danger-zone"),
+            {
+                "acknowledge": "on",
+                "confirmation": "DELETE ALL TRANSACTIONAL DATA",
+            },
+        )
+
+        self.assertContains(response, "All registration transactional data was deleted")
+        self.assertFalse(Registration.objects.exists())
+        self.assertFalse(Opportunity.objects.exists())
+        self.assertFalse(OpportunityScope.objects.exists())
+        self.assertFalse(RegistrationCategoryApproval.objects.exists())
+        self.assertFalse(RegistrationItemApproval.objects.exists())
+        self.assertFalse(PriceApprovalRenewal.objects.exists())
+        self.assertFalse(RegistrationNotification.objects.exists())
+        self.assertTrue(Company.objects.filter(pk=self.company_a.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertTrue(EndUser.objects.filter(pk=self.end_user.pk).exists())
+        self.assertTrue(User.objects.filter(pk=self.user_a.pk).exists())
+        self.assertTrue(
+            LogEntry.objects.filter(
+                user=self.admin,
+                object_repr="All registration transactional data",
+            ).exists()
+        )
 
     @override_settings(DEBUG=True)
     def test_django_admin_shows_read_only_opportunity_rankings(self):

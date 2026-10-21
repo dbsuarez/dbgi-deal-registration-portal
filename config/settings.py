@@ -205,6 +205,12 @@ UNFOLD = {
                         "link": reverse_lazy("admin:devtools_scenariolab_changelist"),
                         "permission": "config.admin_navigation.can_use_scenario_lab",
                     },
+                    {
+                        "title": "Danger Zone",
+                        "icon": "warning",
+                        "link": reverse_lazy("admin:danger-zone"),
+                        "permission": "config.admin_navigation.can_use_danger_zone",
+                    },
                 ],
             },
         ],

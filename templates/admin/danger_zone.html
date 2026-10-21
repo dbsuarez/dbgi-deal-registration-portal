@@ -1,0 +1,65 @@
+{% extends "admin/base_site.html" %} {% block content %}
+<div class="danger-zone">
+  <section class="danger-panel">
+    <h1>Delete all transactional data</h1>
+    <p>
+      This permanently removes every registration and all related workflow data.
+      This action cannot be undone. Create and verify a database backup before
+      continuing.
+    </p>
+  </section>
+
+  <section class="danger-panel">
+    <h2>Records that will be deleted</h2>
+    <dl class="danger-counts">
+      <dt>Registrations</dt>
+      <dd>{{ counts.registrations }}</dd>
+      <dt>Review decisions</dt>
+      <dd>{{ counts.review_decisions }}</dd>
+      <dt>Category price approvals</dt>
+      <dd>{{ counts.category_approvals }}</dd>
+      <dt>Item price approvals</dt>
+      <dd>{{ counts.item_approvals }}</dd>
+      <dt>Price renewals</dt>
+      <dd>{{ counts.price_renewals }}</dd>
+      <dt>Opportunity scopes</dt>
+      <dd>{{ counts.opportunity_scopes }}</dd>
+      <dt>Opportunities</dt>
+      <dd>{{ counts.opportunities }}</dd>
+    </dl>
+    <p>
+      Registration items, competitor items, matching suggestions, events,
+      notifications, and uploaded attachments are removed with their
+      registrations.
+    </p>
+  </section>
+
+  <section class="danger-panel danger-preserved">
+    <h2>Records that will be preserved</h2>
+    <p>
+      Users, companies, End-users, products, competitor brands and aliases,
+      groups, permissions, notification templates, and application settings are
+      preserved.
+    </p>
+  </section>
+
+  <form method="post" class="danger-form">
+    {% csrf_token %}
+    <label class="danger-acknowledgement">
+      <input type="checkbox" name="acknowledge" />
+      I understand that this permanently deletes all registration transactional
+      data.
+    </label>
+    <label for="id_confirmation">
+      Type <strong>{{ confirmation_phrase }}</strong> to confirm:
+    </label>
+    <input
+      id="id_confirmation"
+      type="text"
+      name="confirmation"
+      autocomplete="off"
+    />
+    <button type="submit">Delete all transactional data</button>
+  </form>
+</div>
+{% endblock %}

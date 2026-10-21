@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from registrations.audit import registration_snapshot
+from registrations.maintenance import clear_transactional_records as clear_records
 from registrations.matching import generate_matching_suggestion
 from registrations.models import (
     Company,
@@ -373,14 +374,4 @@ def load_scenario(key, actor):
 def clear_transactional_records():
     if not settings.DEBUG:
         raise CommandError("Transactional records can only be cleared while DEBUG is true.")
-    counts = {
-        "review_decisions": RegistrationReviewDecision.objects.count(),
-        "registrations": Registration.objects.count(),
-        "opportunity_scopes": OpportunityScope.objects.count(),
-        "opportunities": Opportunity.objects.count(),
-    }
-    RegistrationReviewDecision.objects.all().delete()
-    Registration.objects.all().delete()
-    OpportunityScope.objects.all().delete()
-    Opportunity.objects.all().delete()
-    return counts
+    return clear_records()

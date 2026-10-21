@@ -67,3 +67,7 @@ def can_view_groups(request):
 
 def can_use_scenario_lab(request):
     return settings.DEBUG and request.user.is_superuser
+
+
+def can_use_danger_zone(request):
+    return request.user.is_superuser

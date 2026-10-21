@@ -48,6 +48,7 @@ The application is a working internal beta with these foundations implemented:
 - Role-specific end-to-end practice scenarios with prerequisites, exact actions, and expected outcomes for registration, correction, matching, pricing, notification recovery, and governed End-user workflows.
 - Django Admin operations dashboard with actionable review, pricing, End-user verification, failed-email, and expiring-approval queues.
 - Beginner-friendly, role-aware Help instructions that users can follow one step at a time, with options to open Help in the current page, a new tab, or a distraction-free side-by-side window.
+- Superuser-only Danger Zone for atomically deleting registrations and related transactional data while preserving users and governed master data.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

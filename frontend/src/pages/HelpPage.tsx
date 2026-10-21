@@ -564,6 +564,12 @@ export default function HelpPage() {
                   secondary="Enable email per event and edit the subject and body templates. Always check the preview before saving."
                 />
               </ListItem>
+              <ListItem disableGutters>
+                <ListItemText
+                  primary="Danger Zone"
+                  secondary="Only a Django superuser can open it. It permanently deletes every registration and related transaction after an exact confirmation, but preserves users and master data. Verify a backup before using it."
+                />
+              </ListItem>
             </List>
           </GuideSection>
         </Stack>
