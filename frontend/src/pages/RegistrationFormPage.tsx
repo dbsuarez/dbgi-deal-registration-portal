@@ -1,4 +1,5 @@
 import AddIcon from "@mui/icons-material/Add";
+import BugReportIcon from "@mui/icons-material/BugReport";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import {
@@ -13,6 +14,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Drawer,
   FormControlLabel,
   Grid,
   IconButton,
@@ -67,6 +69,120 @@ type MainFields = Omit<
   "version" | "competitor_items" | "items"
 >;
 type PendingAttachment = { file: File; description: string };
+type TestRegistrationPreset = {
+  title: string;
+  purpose: string;
+  projectTitle: string;
+  preferredEndUser: string;
+  bidDate: string;
+  deliveryDate: string;
+  competitor: CompetitorItem;
+  productCode: string;
+  quantity: number;
+  requestedUnitPrice: string;
+  justification: string;
+  evidenceDescription: string;
+};
+
+const testRegistrationPresets: TestRegistrationPreset[] = [
+  {
+    title: "Pasig competing bid A",
+    purpose: "First registration for the shared Pasig printer competition.",
+    projectTitle: "Pasig Schools Printer Procurement A",
+    preferredEndUser: "Pasig",
+    bidDate: "2027-01-15",
+    deliveryDate: "2027-02-15",
+    competitor: {
+      brand: "HP",
+      item_name: "LaserJet Pro 4003dn",
+      bid_price: "8500.00",
+      remarks: "Development test for the shared Pasig competition.",
+    },
+    productCode: "P1820W",
+    quantity: 25,
+    requestedUnitPrice: "7950.00",
+    justification: "Requested test price for the Pasig printer procurement.",
+    evidenceDescription: "Development evidence for Pasig competing bid A.",
+  },
+  {
+    title: "Pasig competing bid B",
+    purpose: "Different title, but the same End-user and product competition.",
+    projectTitle: "Pasig Schools Printer Procurement B",
+    preferredEndUser: "Pasig",
+    bidDate: "2027-01-15",
+    deliveryDate: "2027-02-15",
+    competitor: {
+      brand: "Lexmark",
+      item_name: "MX431adn",
+      bid_price: "8650.00",
+      remarks: "Development test for the shared Pasig competition.",
+    },
+    productCode: "P1820W",
+    quantity: 25,
+    requestedUnitPrice: "8050.00",
+    justification: "Competing test price for the Pasig printer procurement.",
+    evidenceDescription: "Development evidence for Pasig competing bid B.",
+  },
+  {
+    title: "Quezon City exact match",
+    purpose: "Exercises an exact End-user, address, and product match.",
+    projectTitle: "Quezon City Schools Printer Acquisition 2027",
+    preferredEndUser: "Quezon City",
+    bidDate: "2027-02-05",
+    deliveryDate: "2027-03-20",
+    competitor: {
+      brand: "Canon",
+      item_name: "imageCLASS LBP246dw",
+      bid_price: "8200.00",
+      remarks: "Development exact-match scenario.",
+    },
+    productCode: "M1820W",
+    quantity: 40,
+    requestedUnitPrice: "7750.00",
+    justification: "Volume pricing request for a public school deployment.",
+    evidenceDescription:
+      "Development procurement notice for Quezon City schools.",
+  },
+  {
+    title: "Makati office replacement",
+    purpose: "Exercises a separate End-user and delivery schedule.",
+    projectTitle: "Makati City Hall Printer Replacement 2027",
+    preferredEndUser: "Makati",
+    bidDate: "2027-02-20",
+    deliveryDate: "2027-04-10",
+    competitor: {
+      brand: "Epson",
+      item_name: "WorkForce Pro WF-C5890",
+      bid_price: "19500.00",
+      remarks: "Development material-edit scenario.",
+    },
+    productCode: "M1820W",
+    quantity: 18,
+    requestedUnitPrice: "7900.00",
+    justification: "Replacement units for administrative offices.",
+    evidenceDescription:
+      "Development request for the Makati replacement project.",
+  },
+  {
+    title: "Regional library rollout",
+    purpose: "Exercises a smaller quantity and an alternate competitor model.",
+    projectTitle: "Regional Public Library Printer Rollout",
+    preferredEndUser: "Library",
+    bidDate: "2027-03-12",
+    deliveryDate: "2027-05-01",
+    competitor: {
+      brand: "Canon",
+      item_name: "imageCLASS MF275dw",
+      bid_price: "11250.00",
+      remarks: "Development catalog-growth scenario.",
+    },
+    productCode: "P1820W",
+    quantity: 8,
+    requestedUnitPrice: "8350.00",
+    justification: "Pilot deployment before a regional rollout.",
+    evidenceDescription: "Development request for a regional library rollout.",
+  },
+];
 
 const emptyMain: MainFields = {
   end_user_id: 0,
@@ -165,6 +281,8 @@ export default function RegistrationFormPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [testPanelOpen, setTestPanelOpen] = useState(false);
+  const [loadedPreset, setLoadedPreset] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -309,6 +427,56 @@ export default function RegistrationFormPage() {
     setDirty(true);
   };
 
+  const applyTestPreset = (preset: TestRegistrationPreset) => {
+    const normalizedPreference = preset.preferredEndUser.toLocaleLowerCase();
+    const endUser =
+      endUsers.find((option) =>
+        `${option.official_name} ${option.full_address}`
+          .toLocaleLowerCase()
+          .includes(normalizedPreference),
+      ) ?? endUsers[0];
+    const product =
+      products.find((option) => option.code === preset.productCode) ??
+      products[0];
+
+    if (!endUser || !product) {
+      setError(
+        "Test data needs at least one active End-user and one active product.",
+      );
+      return;
+    }
+
+    setMain({
+      end_user_id: endUser.id,
+      project_title: preset.projectTitle,
+      bid_date: preset.bidDate,
+      delivery_date: preset.deliveryDate,
+      contact_person: session.display_name,
+      contact_designation: session.designation,
+      contact_email: session.email,
+      contact_number: session.phone_number,
+      evidence_description: preset.evidenceDescription,
+      evidence_url: "",
+      evidence_sharing_confirmed: true,
+    });
+    setCompetitors([{ ...preset.competitor }]);
+    setItems([
+      {
+        product_id: product.id,
+        non_catalog_name: "",
+        quantity: preset.quantity,
+        requested_unit_price: preset.requestedUnitPrice,
+        justification: preset.justification,
+      },
+    ]);
+    setPendingAttachments([]);
+    setError("");
+    setDirty(true);
+    setLoadedPreset(preset.title);
+    setTestPanelOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!competitors.length || !items.length) {
@@ -420,6 +588,12 @@ export default function RegistrationFormPage() {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
+        </Alert>
+      )}
+      {loadedPreset && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          Loaded test data: {loadedPreset}. Review the fields, then create the
+          registration when ready.
         </Alert>
       )}
       <Box component="form" onSubmit={submit}>
@@ -831,6 +1005,68 @@ export default function RegistrationFormPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      {session.is_debug && !savedRegistrationId && (
+        <>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<BugReportIcon />}
+            onClick={() => setTestPanelOpen(true)}
+            sx={{
+              position: "fixed",
+              right: 0,
+              top: "50%",
+              zIndex: (theme) => theme.zIndex.speedDial,
+              borderTopRightRadius: 0,
+              borderBottomRightRadius: 0,
+              transform: "translateY(-50%) rotate(-90deg) translateY(-100%)",
+              transformOrigin: "right top",
+            }}
+          >
+            Test data
+          </Button>
+          <Drawer
+            anchor="right"
+            open={testPanelOpen}
+            onClose={() => setTestPanelOpen(false)}
+            slotProps={{
+              paper: { sx: { width: { xs: "100%", sm: 420 }, p: 3 } },
+            }}
+          >
+            <Typography variant="h2" gutterBottom>
+              Registration test data
+            </Typography>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Development only. Loading a sample replaces the current unsaved
+              form values, but does not create a registration.
+            </Alert>
+            <Stack spacing={2}>
+              {testRegistrationPresets.map((preset) => (
+                <Paper key={preset.title} variant="outlined" sx={{ p: 2 }}>
+                  <Typography fontWeight={700}>{preset.title}</Typography>
+                  <Typography
+                    color="text.secondary"
+                    variant="body2"
+                    sx={{ mb: 2 }}
+                  >
+                    {preset.purpose}
+                  </Typography>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => applyTestPreset(preset)}
+                  >
+                    Fill this registration
+                  </Button>
+                </Paper>
+              ))}
+            </Stack>
+            <Button sx={{ mt: 2 }} onClick={() => setTestPanelOpen(false)}>
+              Close
+            </Button>
+          </Drawer>
+        </>
+      )}
     </Container>
   );
 }

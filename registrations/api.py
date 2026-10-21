@@ -295,6 +295,7 @@ class SessionResponse(Schema):
     designation: str
     phone_number: str
     is_dbgi_admin: bool
+    is_debug: bool
     csrf_token: str
 
 
@@ -398,6 +399,7 @@ def session(request):
         "designation": request.user.designation,
         "phone_number": request.user.phone_number,
         "is_dbgi_admin": request.user.is_dbgi_admin,
+        "is_debug": settings.DEBUG,
         "csrf_token": get_token(request),
     }
 

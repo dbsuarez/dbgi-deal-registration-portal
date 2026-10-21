@@ -104,6 +104,8 @@ The debug login shows the `preview` company account and `admin-preview` DBGI adm
 
 Django superusers can open **Administration > Scenario Lab** in Django admin while `DEBUG=True`. The lab explains and loads automatic-match, ambiguous-match, and material-edit scenarios. It can optionally clear transactional registrations, opportunities, scopes, items, attachments, events, suggestions, and review decisions after the user types `CLEAR TRANSACTIONS`. Companies, users, products, permissions, and login accounts are always preserved. The panel is hidden from ordinary administrators and unavailable when `DEBUG=False`.
 
+While `DEBUG=True`, the new-registration page also shows a floating **Test data** button. It opens five one-click form presets, including two differently titled Pasig registrations that use the same End-user and requested product for competition testing. A preset only fills the unsaved form; review the values and click **Create registration** when ready. The button is absent when `DEBUG=False` and on existing-registration edit pages.
+
 ## End-user directory
 
 Registrations select an End-user from shared master data instead of entering a new name and address each time. DBGI administrators maintain the directory in Django Admin under **Master data > End-users**. Records include organization classification, address, PhilGEPS reference details, aliases, verification status, source, and audit fields.

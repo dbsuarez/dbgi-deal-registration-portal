@@ -52,6 +52,7 @@ The application is a working internal beta with these foundations implemented:
 - Accessible hover and keyboard-focus explanations for registration, project, pricing, and review-required status badges on the registration page.
 - New registrations prefill editable contact name, designation, email, and phone values from the signed-in user's managed profile, while edits preserve the registration's saved contact snapshot.
 - Managed competitor item/model suggestions linked to canonical brands, with starter Canon, Epson, HP, and Lexmark models plus user-driven catalog growth and administrator archive or restore controls.
+- Debug-only floating registration test-data panel with five one-click presets, including two differently titled submissions for the same Pasig competition.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
 The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.

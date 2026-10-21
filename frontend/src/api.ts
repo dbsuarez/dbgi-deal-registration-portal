@@ -11,6 +11,7 @@ export type Session = {
   designation: string;
   phone_number: string;
   is_dbgi_admin: boolean;
+  is_debug: boolean;
   csrf_token: string;
 };
 

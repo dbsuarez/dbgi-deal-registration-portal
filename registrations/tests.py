@@ -872,6 +872,7 @@ class RegistrationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    @override_settings(DEBUG=True)
     def test_session_and_product_options(self):
         self.user_a.first_name = "Dante"
         self.user_a.last_name = "Suarez Jr"
@@ -896,8 +897,18 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(session.json()["email"], "dante.suarez@example.invalid")
         self.assertEqual(session.json()["designation"], "Product Specialist")
         self.assertEqual(session.json()["phone_number"], "09227667968")
+        self.assertTrue(session.json()["is_debug"])
         self.assertEqual(products.status_code, 200)
         self.assertIn(self.product.code, {item["code"] for item in products.json()})
+
+    @override_settings(DEBUG=False)
+    def test_session_disables_development_helpers_outside_debug_mode(self):
+        self.client.force_login(self.user_a)
+
+        response = self.client.get("/api/v1/session")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["is_debug"])
 
     def test_competitor_brand_options_return_active_master_data(self):
         CompetitorBrand.objects.create(name="Active brand")

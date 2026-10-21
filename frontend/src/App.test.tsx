@@ -11,6 +11,7 @@ const session = {
   designation: "Product Specialist",
   phone_number: "09170000000",
   is_dbgi_admin: false,
+  is_debug: true,
   csrf_token: "test-token",
 };
 
@@ -247,6 +248,7 @@ describe("App", () => {
           JSON.stringify({
             ...session,
             is_dbgi_admin: true,
+            is_debug: true,
             display_name: "DBGI Admin",
           }),
           {

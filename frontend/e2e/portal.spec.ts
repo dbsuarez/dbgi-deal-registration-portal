@@ -7,6 +7,7 @@ const session = {
   designation: "Product Specialist",
   phone_number: "09170000000",
   is_dbgi_admin: false,
+  is_debug: true,
   csrf_token: "test-token",
 };
 
@@ -21,6 +22,12 @@ test.beforeEach(async ({ page }) => {
           id: 1,
           code: "M1820W",
           name: "20 ppm monochrome laser printer",
+          category: "Laser Printers",
+        },
+        {
+          id: 2,
+          code: "P1820W",
+          name: "20 ppm monochrome multifunction printer",
           category: "Laser Printers",
         },
       ],
@@ -157,6 +164,54 @@ test("company user can open the React registration form", async ({ page }) => {
     page.getByRole("option", { name: "imageCLASS LBP246dw" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
+});
+
+test("debug test-data panel fills five registration scenarios", async ({
+  page,
+}) => {
+  await page.goto("/registrations/new/");
+
+  await page.getByRole("button", { name: "Test data" }).click();
+  const drawer = page.getByRole("presentation").filter({
+    has: page.getByRole("heading", { name: "Registration test data" }),
+  });
+  await expect(drawer.getByText("Pasig competing bid A")).toBeVisible();
+  await expect(drawer.getByText("Pasig competing bid B")).toBeVisible();
+  await expect(
+    drawer.getByRole("button", { name: "Fill this registration" }),
+  ).toHaveCount(5);
+
+  await drawer
+    .getByRole("button", { name: "Fill this registration" })
+    .first()
+    .click();
+
+  await expect(page.getByLabel("Project opportunity title")).toHaveValue(
+    "Pasig Schools Printer Procurement A",
+  );
+  await expect(page.getByLabel("End-user")).toHaveValue(
+    "Sample municipality (SM)",
+  );
+  await expect(page.getByText("LaserJet Pro 4003dn")).toBeVisible();
+  await expect(page.getByText(/P1820W/)).toBeVisible();
+  await expect(
+    page.getByLabel(
+      "I confirm that I am authorized to share this evidence with DBGI for review.",
+    ),
+  ).toBeChecked();
+  await expect(
+    page.getByText(/Loaded test data: Pasig competing bid A/),
+  ).toBeVisible();
+});
+
+test("test-data panel is hidden outside debug mode", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_debug: false } }),
+  );
+
+  await page.goto("/registrations/new/");
+
+  await expect(page.getByRole("button", { name: "Test data" })).toHaveCount(0);
 });
 
 test("quick status filters compose and clear", async ({ page }) => {
