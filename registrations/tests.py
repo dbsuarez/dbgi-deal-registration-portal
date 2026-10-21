@@ -31,6 +31,8 @@ from .models import (
     CompetitorItem,
     CompetitorModel,
     EndUser,
+    GeographicArea,
+    GeographicDataset,
     NotificationEventSetting,
     Opportunity,
     OpportunityScope,
@@ -996,6 +998,40 @@ class RegistrationApiTests(TestCase):
         self.assertTrue({"Canon", "Epson", "HP", "Lexmark"}.issubset(response.json()))
         self.assertIn("Active brand", response.json())
         self.assertNotIn("Archived brand", response.json())
+
+    def test_geographic_options_are_filtered_by_psgc_hierarchy(self):
+        region = GeographicArea.objects.create(
+            code="1300000000",
+            name="National Capital Region (NCR)",
+            level=GeographicArea.Level.REGION,
+            region_code="1300000000",
+        )
+        GeographicArea.objects.create(
+            code="1307400000",
+            name="City of Pasig",
+            level=GeographicArea.Level.CITY_MUNICIPALITY,
+            region_code=region.code,
+            city_municipality_code="1307400000",
+            postal_code="1600",
+        )
+        GeographicDataset.objects.create(
+            version="TEST-PSGC",
+            source_url="https://example.invalid/psgc",
+        )
+        self.client.force_login(self.user_a)
+
+        regions = self.client.get("/api/v1/geographic-areas?level=region")
+        cities = self.client.get(
+            "/api/v1/geographic-areas"
+            "?level=city_municipality&region_code=1300000000"
+        )
+        dataset = self.client.get("/api/v1/geographic-dataset")
+
+        self.assertEqual(regions.status_code, 200)
+        self.assertEqual(regions.json()[0]["name"], region.name)
+        self.assertEqual(cities.status_code, 200)
+        self.assertEqual(cities.json()[0]["postal_code"], "1600")
+        self.assertEqual(dataset.json()["version"], "TEST-PSGC")
 
     def test_registration_adds_new_competitor_brand_to_master_data(self):
         self.client.force_login(self.user_a)

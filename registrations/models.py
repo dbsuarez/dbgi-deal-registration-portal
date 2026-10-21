@@ -118,6 +118,44 @@ def normalize_end_user_value(value):
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", value.lower()).split())
 
 
+class GeographicDataset(models.Model):
+    version = models.CharField(max_length=40, unique=True)
+    source_url = models.URLField()
+    is_current = models.BooleanField(default=True)
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-imported_at"]
+
+    def __str__(self):
+        return self.version
+
+
+class GeographicArea(models.Model):
+    class Level(models.TextChoices):
+        REGION = "region", "Region"
+        PROVINCE = "province", "Province"
+        CITY_MUNICIPALITY = "city_municipality", "City or municipality"
+        BARANGAY = "barangay", "Barangay"
+
+    code = models.CharField(max_length=10, primary_key=True)
+    name = models.CharField(max_length=180)
+    level = models.CharField(max_length=24, choices=Level.choices)
+    region_code = models.CharField(max_length=10, db_index=True)
+    province_code = models.CharField(max_length=10, blank=True, db_index=True)
+    city_municipality_code = models.CharField(max_length=10, blank=True, db_index=True)
+    area_type = models.CharField(max_length=40, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name", "code"]
+        indexes = [models.Index(fields=["level", "is_active", "name"])]
+
+    def __str__(self):
+        return self.name
+
+
 class EndUser(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending verification"

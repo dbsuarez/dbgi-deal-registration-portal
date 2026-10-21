@@ -25,6 +25,8 @@ from .models import (
     CompetitorItem,
     CompetitorModel,
     EndUser,
+    GeographicArea,
+    GeographicDataset,
     Opportunity,
     OpportunityScope,
     PortalSetting,
@@ -268,6 +270,20 @@ class ProductOption(Schema):
 class CompetitorModelOption(Schema):
     brand: str
     item_name: str
+
+
+class GeographicAreaOutput(Schema):
+    code: str
+    name: str
+    level: str
+    area_type: str
+    postal_code: str
+
+
+class GeographicDatasetOutput(Schema):
+    version: str
+    source_url: str
+    imported_at: datetime
 
 
 class EndUserOutput(Schema):
@@ -836,6 +852,53 @@ def list_end_users(request, search: str = ""):
             | Q(province__icontains=term)
         ).distinct()
     return [_serialize_end_user(item) for item in queryset.order_by("official_name")[:100]]
+
+
+@api.get(
+    "/geographic-dataset",
+    auth=django_auth,
+    response=GeographicDatasetOutput | None,
+)
+def geographic_dataset(request):
+    return GeographicDataset.objects.filter(is_current=True).first()
+
+
+@api.get(
+    "/geographic-areas",
+    auth=django_auth,
+    response={200: list[GeographicAreaOutput], 400: ErrorResponse},
+)
+def list_geographic_areas(
+    request,
+    level: Literal["region", "province", "city_municipality", "barangay"],
+    region_code: str = "",
+    province_code: str = "",
+    city_municipality_code: str = "",
+):
+    queryset = GeographicArea.objects.filter(level=level, is_active=True)
+    if level != GeographicArea.Level.REGION and not region_code:
+        return Status(
+            400,
+            {
+                "code": "region_required",
+                "message": "Choose a region first.",
+            },
+        )
+    if region_code:
+        queryset = queryset.filter(region_code=region_code)
+    if province_code:
+        queryset = queryset.filter(province_code=province_code)
+    if level == GeographicArea.Level.BARANGAY:
+        if not city_municipality_code:
+            return Status(
+                400,
+                {
+                    "code": "city_municipality_required",
+                    "message": "Choose a city or municipality first.",
+                },
+            )
+        queryset = queryset.filter(city_municipality_code=city_municipality_code)
+    return queryset.order_by("name", "code")[:5000]
 
 
 @api.post(

@@ -34,6 +34,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  type AutocompleteRenderInputParams,
 } from "@mui/material";
 import {
   useEffect,
@@ -55,6 +56,8 @@ import {
   getCompetitorBrands,
   getCompetitorModels,
   getEndUsers,
+  getGeographicAreas,
+  getGeographicDataset,
   getProducts,
   getRegistration,
   getRegistrationTestPresets,
@@ -63,6 +66,8 @@ import {
   type CompetitorModelOption,
   type EndUser,
   type EndUserCreatePayload,
+  type GeographicArea,
+  type GeographicDataset,
   type ProductOption,
   type RegistrationPayload,
   type RegistrationTestPreset,
@@ -1593,6 +1598,72 @@ function EndUserDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const [regions, setRegions] = useState<GeographicArea[]>([]);
+  const [provinces, setProvinces] = useState<GeographicArea[]>([]);
+  const [cities, setCities] = useState<GeographicArea[]>([]);
+  const [dataset, setDataset] = useState<GeographicDataset | null>(null);
+  const selectedRegion =
+    regions.find((item) => item.name === value.region) ?? null;
+  const selectedProvince =
+    provinces.find((item) => item.name === value.province) ?? null;
+  const selectedCity =
+    cities.find((item) => item.name === value.city_municipality) ?? null;
+  const selectedRegionCode = selectedRegion?.code;
+  const selectedProvinceCode = selectedProvince?.code;
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    Promise.all([
+      getGeographicDataset(controller.signal),
+      getGeographicAreas("region", {}, controller.signal),
+    ])
+      .then(([currentDataset, regionOptions]) => {
+        setDataset(currentDataset);
+        setRegions(regionOptions);
+      })
+      .catch(() => {
+        setDataset(null);
+        setRegions([]);
+      });
+    return () => controller.abort();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !selectedRegionCode) return;
+    const controller = new AbortController();
+    Promise.all([
+      getGeographicAreas(
+        "province",
+        { region_code: selectedRegionCode },
+        controller.signal,
+      ),
+      getGeographicAreas(
+        "city_municipality",
+        { region_code: selectedRegionCode },
+        controller.signal,
+      ),
+    ]).then(([provinceOptions, cityOptions]) => {
+      setProvinces(provinceOptions);
+      setCities(cityOptions);
+    });
+    return () => controller.abort();
+  }, [open, selectedRegionCode]);
+
+  useEffect(() => {
+    if (!open || !selectedRegionCode || !selectedProvinceCode) return;
+    const controller = new AbortController();
+    getGeographicAreas(
+      "city_municipality",
+      {
+        region_code: selectedRegionCode,
+        province_code: selectedProvinceCode,
+      },
+      controller.signal,
+    ).then(setCities);
+    return () => controller.abort();
+  }, [open, selectedRegionCode, selectedProvinceCode]);
+
   const field = (name: keyof EndUserCreatePayload) => ({
     value: value[name],
     onChange: (event: ChangeEvent<HTMLInputElement>) =>
@@ -1610,6 +1681,25 @@ function EndUserDialog({
           },
         }
       : undefined;
+  const autocompleteHelp = (
+    params: AutocompleteRenderInputParams,
+    label: string,
+    text: string,
+  ) => ({
+    input: {
+      ...params.InputProps,
+      endAdornment: (
+        <>
+          {showFieldHelp && (
+            <InputAdornment position="end">
+              <EndUserFieldHelp label={label} text={text} />
+            </InputAdornment>
+          )}
+          {params.InputProps.endAdornment}
+        </>
+      ),
+    },
+  });
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>Add missing End-user</DialogTitle>
@@ -1619,6 +1709,12 @@ function EndUserDialog({
           immediately selectable, but an administrator must verify it before
           automatic matching or ranking can occur.
         </Alert>
+        {dataset && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            Location choices use Philippine Standard Geographic Code{" "}
+            {dataset.version}.
+          </Alert>
+        )}
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 8 }}>
             <TextField
@@ -1677,38 +1773,113 @@ function EndUserDialog({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              label="Region"
-              slotProps={help(
-                "Region",
-                "Use the official Philippine region name or code. Examples: NCR; Region IV-A.",
-              )}
-              {...field("region")}
-            />
+            {regions.length ? (
+              <Autocomplete
+                disablePortal
+                options={regions}
+                value={selectedRegion}
+                getOptionLabel={(option) => option.name}
+                onChange={(_, option) => {
+                  setProvinces([]);
+                  setCities([]);
+                  onChange({
+                    ...value,
+                    region: option?.name ?? "",
+                    province: "",
+                    city_municipality: "",
+                    postal_code: "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Region"
+                    slotProps={autocompleteHelp(
+                      params,
+                      "Region",
+                      "Use the official Philippine region name or code. Examples: National Capital Region (NCR); Region IV-A (CALABARZON).",
+                    )}
+                  />
+                )}
+              />
+            ) : (
+              <TextField fullWidth label="Region" {...field("region")} />
+            )}
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              label="Province"
-              slotProps={help(
-                "Province",
-                "Enter the province when applicable. Examples: Rizal; Cavite.",
-              )}
-              {...field("province")}
-            />
+            {regions.length ? (
+              <Autocomplete
+                disablePortal
+                options={provinces}
+                value={selectedProvince}
+                disabled={!selectedRegion || provinces.length === 0}
+                getOptionLabel={(option) => option.name}
+                onChange={(_, option) => {
+                  setCities([]);
+                  onChange({
+                    ...value,
+                    province: option?.name ?? "",
+                    city_municipality: "",
+                    postal_code: "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Province"
+                    helperText={
+                      selectedRegion && provinces.length === 0
+                        ? "Not applicable for this region."
+                        : ""
+                    }
+                    slotProps={autocompleteHelp(
+                      params,
+                      "Province",
+                      "Choose the province when applicable. Examples: Rizal; Cavite. NCR cities do not require a province.",
+                    )}
+                  />
+                )}
+              />
+            ) : (
+              <TextField fullWidth label="Province" {...field("province")} />
+            )}
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              required
-              label="City / municipality"
-              slotProps={help(
-                "City or municipality",
-                "Enter the city or municipality in the official address. Examples: Pasig City; Antipolo City.",
-              )}
-              {...field("city_municipality")}
-            />
+            {regions.length ? (
+              <Autocomplete
+                disablePortal
+                options={cities}
+                value={selectedCity}
+                disabled={!selectedRegion}
+                getOptionLabel={(option) => option.name}
+                onChange={(_, option) =>
+                  onChange({
+                    ...value,
+                    city_municipality: option?.name ?? "",
+                    postal_code: option?.postal_code || value.postal_code,
+                  })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    required
+                    label="City / municipality"
+                    slotProps={autocompleteHelp(
+                      params,
+                      "City or municipality",
+                      "Choose the official city or municipality. Examples: City of Pasig; City of Antipolo.",
+                    )}
+                  />
+                )}
+              />
+            ) : (
+              <TextField
+                fullWidth
+                required
+                label="City / municipality"
+                {...field("city_municipality")}
+              />
+            )}
           </Grid>
           <Grid size={12}>
             <TextField

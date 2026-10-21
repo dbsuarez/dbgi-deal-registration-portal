@@ -110,6 +110,16 @@ Company users can save the current unsaved form as private test data, load it fo
 
 The **Add missing End-user** dialog shows example help popovers on every field by default. A Django superuser can turn all of these field-help controls on or off under **Administration > Portal settings**.
 
+## Philippine geographic reference data
+
+The Add missing End-user dialog uses cascading PSGC Region, Province, and City/Municipality selectors. Location records are stored locally so normal form entry does not depend on an external service. Import or refresh a versioned snapshot with:
+
+```powershell
+python manage.py import_psgc --dataset-version "2026-Q3"
+```
+
+The importer defaults to the PSGC Cloud JSON mirror because automated downloads of the official PSA workbook are protected by Cloudflare. Treat the Philippine Statistics Authority PSGC publication as authoritative, record the imported version, and review update summaries before refreshing production. Existing End-user address text remains unchanged when reference data is refreshed.
+
 ## End-user directory
 
 Registrations select an End-user from shared master data instead of entering a new name and address each time. DBGI administrators maintain the directory in Django Admin under **Master data > End-users**. Records include organization classification, address, PhilGEPS reference details, aliases, verification status, source, and audit fields.

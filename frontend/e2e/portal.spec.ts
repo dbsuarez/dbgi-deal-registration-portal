@@ -102,6 +102,45 @@ test.beforeEach(async ({ page }) => {
       ],
     }),
   );
+  await page.route("**/api/v1/geographic-dataset", (route) =>
+    route.fulfill({
+      json: {
+        version: "2026-Q3",
+        source_url: "https://psgc.cloud/api/v2",
+        imported_at: "2026-10-22T06:30:00Z",
+      },
+    }),
+  );
+  await page.route("**/api/v1/geographic-areas*", (route) => {
+    const level = new URL(route.request().url()).searchParams.get("level");
+    if (level === "region") {
+      return route.fulfill({
+        json: [
+          {
+            code: "1300000000",
+            name: "National Capital Region (NCR)",
+            level: "region",
+            area_type: "",
+            postal_code: "",
+          },
+        ],
+      });
+    }
+    if (level === "city_municipality") {
+      return route.fulfill({
+        json: [
+          {
+            code: "1307400000",
+            name: "City of Pasig",
+            level: "city_municipality",
+            area_type: "City",
+            postal_code: "1600",
+          },
+        ],
+      });
+    }
+    return route.fulfill({ json: [] });
+  });
 });
 
 async function fillCompleteRegistration(page: Page) {
@@ -215,6 +254,35 @@ test("company user can open the React registration form", async ({ page }) => {
     ),
   ).toBeVisible();
   await page.keyboard.press("Escape");
+  await endUserDialog.getByRole("button", { name: "Cancel" }).click();
+});
+
+test("End-user location fields use cascading PSGC options", async ({
+  page,
+}) => {
+  await page.goto("/registrations/new/");
+  await page.getByRole("button", { name: "Add missing End-user" }).click();
+  const endUserDialog = page.getByRole("dialog", {
+    name: "Add missing End-user",
+  });
+  const regionField = endUserDialog.getByRole("combobox", { name: "Region" });
+  await regionField.click();
+  await page
+    .locator(".MuiAutocomplete-option")
+    .filter({ hasText: "National Capital Region (NCR)" })
+    .click();
+  const cityField = endUserDialog.getByRole("combobox", {
+    name: "City / municipality",
+  });
+  await expect(cityField).toBeEnabled();
+  await cityField.click();
+  await page
+    .locator(".MuiAutocomplete-option")
+    .filter({ hasText: "City of Pasig" })
+    .click();
+  await expect(
+    endUserDialog.getByRole("textbox", { name: "Postal code" }),
+  ).toHaveValue("1600");
   await endUserDialog.getByRole("button", { name: "Cancel" }).click();
 });
 

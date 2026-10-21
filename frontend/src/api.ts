@@ -93,6 +93,20 @@ export type CompetitorModelOption = {
   item_name: string;
 };
 
+export type GeographicArea = {
+  code: string;
+  name: string;
+  level: "region" | "province" | "city_municipality" | "barangay";
+  area_type: string;
+  postal_code: string;
+};
+
+export type GeographicDataset = {
+  version: string;
+  source_url: string;
+  imported_at: string;
+};
+
 export type RequestedItem = {
   id?: number;
   product_id: number | null;
@@ -451,6 +465,32 @@ export function getCompetitorModels(signal?: AbortSignal) {
 
 export function getEndUsers(signal?: AbortSignal) {
   return request<EndUser[]>("/api/v1/end-users", signal);
+}
+
+export function getGeographicDataset(signal?: AbortSignal) {
+  return request<GeographicDataset | null>(
+    "/api/v1/geographic-dataset",
+    signal,
+  );
+}
+
+export function getGeographicAreas(
+  level: GeographicArea["level"],
+  filters: {
+    region_code?: string;
+    province_code?: string;
+    city_municipality_code?: string;
+  } = {},
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({ level });
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return request<GeographicArea[]>(
+    `/api/v1/geographic-areas?${params}`,
+    signal,
+  );
 }
 
 export function createEndUser(
