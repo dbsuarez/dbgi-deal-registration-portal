@@ -78,6 +78,7 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.COMPANY)
     designation = models.CharField(max_length=160, blank=True)
     phone_number = models.CharField(max_length=40, blank=True)
+    show_end_user_field_help = models.BooleanField(default=True)
 
     @property
     def is_dbgi_admin(self):

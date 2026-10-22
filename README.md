@@ -108,7 +108,7 @@ While `DEBUG=True`, the new-registration page also shows a floating **Test data*
 
 Company users can save the current unsaved form as private test data, load it for editing, update it, or delete it. These user-owned presets are stored in the development database and every related API returns not found when `DEBUG=False`. Uploaded files are not included in a preset.
 
-The **Add missing End-user** dialog shows example help popovers on every field by default. A Django superuser can turn all of these field-help controls on or off under **Administration > Portal settings**.
+The **Add missing End-user** dialog shows example help popovers on every field by default. Each user can show or hide the field information buttons from the bottom of the dialog, and the preference is saved to that user's portal profile. A Django superuser can still disable these controls globally under **Administration > Portal settings**; the global setting takes precedence over individual preferences.
 
 ## Philippine geographic reference data
 

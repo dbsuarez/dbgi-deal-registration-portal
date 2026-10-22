@@ -8,6 +8,7 @@ const session = {
   phone_number: "09170000000",
   is_dbgi_admin: false,
   is_debug: true,
+  end_user_field_help_available: true,
   show_end_user_field_help: true,
   csrf_token: "test-token",
 };
@@ -325,7 +326,11 @@ test("End-user classification fields use controlled and proposal lists", async (
 test("superadmin setting can hide End-user field help", async ({ page }) => {
   await page.route("**/api/v1/session", (route) =>
     route.fulfill({
-      json: { ...session, show_end_user_field_help: false },
+      json: {
+        ...session,
+        end_user_field_help_available: false,
+        show_end_user_field_help: false,
+      },
     }),
   );
   await page.goto("/registrations/new/");
@@ -336,6 +341,46 @@ test("superadmin setting can hide End-user field help", async ({ page }) => {
   await expect(dialog.getByRole("button", { name: /^Help for / })).toHaveCount(
     0,
   );
+  await expect(
+    dialog.getByRole("switch", { name: "Show field information buttons" }),
+  ).toHaveCount(0);
+});
+
+test("user can hide End-user field help and keep the preference", async ({
+  page,
+}) => {
+  let showFieldHelp = true;
+  await page.route(
+    "**/api/v1/session/preferences/end-user-field-help",
+    async (route) => {
+      showFieldHelp = route.request().postDataJSON().show_end_user_field_help;
+      await route.fulfill({
+        json: { show_end_user_field_help: showFieldHelp },
+      });
+    },
+  );
+  await page.goto("/registrations/new/");
+  await page.getByRole("button", { name: "Add missing End-user" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add missing End-user" });
+  const toggle = dialog.getByRole("switch", {
+    name: "Show field information buttons",
+  });
+
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await expect(dialog.getByRole("button", { name: /^Help for / })).toHaveCount(
+    0,
+  );
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Add missing End-user" }).click();
+
+  await expect(
+    page
+      .getByRole("dialog", { name: "Add missing End-user" })
+      .getByRole("switch", { name: "Show field information buttons" }),
+  ).not.toBeChecked();
+  expect(showFieldHelp).toBe(false);
 });
 
 test("debug test-data panel fills five registration scenarios", async ({

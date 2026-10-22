@@ -61,7 +61,15 @@ class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
         *BaseUserAdmin.fieldsets,
         (
             "Portal profile",
-            {"fields": ("company", "role", "designation", "phone_number")},
+            {
+                "fields": (
+                    "company",
+                    "role",
+                    "designation",
+                    "phone_number",
+                    "show_end_user_field_help",
+                )
+            },
         ),
     )
     add_fieldsets = (
@@ -74,6 +82,7 @@ class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
                     "role",
                     "designation",
                     "phone_number",
+                    "show_end_user_field_help",
                     "is_staff",
                     "is_superuser",
                     "is_active",

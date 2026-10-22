@@ -335,8 +335,17 @@ class SessionResponse(Schema):
     phone_number: str
     is_dbgi_admin: bool
     is_debug: bool
+    end_user_field_help_available: bool
     show_end_user_field_help: bool
     csrf_token: str
+
+
+class EndUserFieldHelpPreferenceInput(Schema):
+    show_end_user_field_help: bool
+
+
+class EndUserFieldHelpPreferenceOutput(Schema):
+    show_end_user_field_help: bool
 
 
 class ReviewDecisionInput(Schema):
@@ -432,11 +441,12 @@ def validation_error(request, exc):
 
 @api.get("/session", auth=django_auth, response=SessionResponse)
 def session(request):
-    show_end_user_field_help = (
+    help_available = (
         PortalSetting.objects.filter(key="portal")
         .values_list("show_end_user_field_help", flat=True)
         .first()
     )
+    help_available = True if help_available is None else help_available
     return {
         "username": request.user.username,
         "display_name": request.user.get_full_name() or request.user.username,
@@ -445,10 +455,33 @@ def session(request):
         "phone_number": request.user.phone_number,
         "is_dbgi_admin": request.user.is_dbgi_admin,
         "is_debug": settings.DEBUG,
-        "show_end_user_field_help": (
-            True if show_end_user_field_help is None else show_end_user_field_help
-        ),
+        "end_user_field_help_available": help_available,
+        "show_end_user_field_help": help_available and request.user.show_end_user_field_help,
         "csrf_token": get_token(request),
+    }
+
+
+@api.put(
+    "/session/preferences/end-user-field-help",
+    auth=django_auth,
+    response=EndUserFieldHelpPreferenceOutput,
+)
+def update_end_user_field_help_preference(
+    request,
+    payload: EndUserFieldHelpPreferenceInput,
+):
+    request.user.show_end_user_field_help = payload.show_end_user_field_help
+    request.user.save(update_fields=["show_end_user_field_help"])
+    help_available = (
+        PortalSetting.objects.filter(key="portal")
+        .values_list("show_end_user_field_help", flat=True)
+        .first()
+    )
+    return {
+        "show_end_user_field_help": (
+            (True if help_available is None else help_available)
+            and request.user.show_end_user_field_help
+        )
     }
 
 

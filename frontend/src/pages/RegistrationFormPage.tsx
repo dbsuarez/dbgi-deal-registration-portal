@@ -25,6 +25,7 @@ import {
   Paper,
   Popover,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -75,6 +76,7 @@ import {
   type RegistrationTestPreset,
   type RequestedItem,
   updateRegistration,
+  updateEndUserFieldHelpPreference,
   updateRegistrationTestPreset,
   uploadAttachment,
 } from "../api";
@@ -279,6 +281,10 @@ export default function RegistrationFormPage() {
   const [endUserDraft, setEndUserDraft] =
     useState<EndUserCreatePayload>(emptyEndUser);
   const [savingEndUser, setSavingEndUser] = useState(false);
+  const [showEndUserFieldHelp, setShowEndUserFieldHelp] = useState(
+    session.show_end_user_field_help,
+  );
+  const [savingEndUserFieldHelp, setSavingEndUserFieldHelp] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachmentIdsToDelete, setAttachmentIdsToDelete] = useState<number[]>(
     [],
@@ -404,6 +410,26 @@ export default function RegistrationFormPage() {
       );
     } finally {
       setSavingEndUser(false);
+    }
+  };
+
+  const saveEndUserFieldHelpPreference = async (show: boolean) => {
+    setSavingEndUserFieldHelp(true);
+    setError("");
+    try {
+      const result = await updateEndUserFieldHelpPreference(
+        show,
+        session.csrf_token,
+      );
+      setShowEndUserFieldHelp(result.show_end_user_field_help);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The field-help preference could not be saved.",
+      );
+    } finally {
+      setSavingEndUserFieldHelp(false);
     }
   };
 
@@ -1121,8 +1147,11 @@ export default function RegistrationFormPage() {
         open={endUserDialogOpen}
         value={endUserDraft}
         saving={savingEndUser}
-        showFieldHelp={session.show_end_user_field_help}
+        helpAvailable={session.end_user_field_help_available}
+        showFieldHelp={showEndUserFieldHelp}
+        savingFieldHelp={savingEndUserFieldHelp}
         onChange={setEndUserDraft}
+        onShowFieldHelpChange={saveEndUserFieldHelpPreference}
         onClose={() => setEndUserDialogOpen(false)}
         onSave={saveEndUser}
       />
@@ -1587,16 +1616,22 @@ function EndUserDialog({
   open,
   value,
   saving,
+  helpAvailable,
   showFieldHelp,
+  savingFieldHelp,
   onChange,
+  onShowFieldHelpChange,
   onClose,
   onSave,
 }: {
   open: boolean;
   value: EndUserCreatePayload;
   saving: boolean;
+  helpAvailable: boolean;
   showFieldHelp: boolean;
+  savingFieldHelp: boolean;
   onChange: (value: EndUserCreatePayload) => void;
+  onShowFieldHelpChange: (show: boolean) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -1723,18 +1758,7 @@ function EndUserDialog({
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>Add missing End-user</DialogTitle>
       <DialogContent>
-        <Alert severity="info" sx={{ mt: 1, mb: 2 }}>
-          Use the official organization name and address. The new End-user is
-          immediately selectable, but an administrator must verify it before
-          automatic matching or ranking can occur.
-        </Alert>
-        {dataset && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            Location choices use Philippine Standard Geographic Code{" "}
-            {dataset.version}.
-          </Alert>
-        )}
-        <Grid container spacing={2}>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
           <Grid size={{ xs: 12, md: 8 }}>
             <TextField
               fullWidth
@@ -1943,7 +1967,7 @@ function EndUserDialog({
               label="Street address"
               slotProps={help(
                 "Street address",
-                "Enter the building, street, and barangay details. Examples: Caruncho Avenue, Barangay San Nicolas; City Hall Complex, M.L. Quezon Street.",
+                "Enter the building, street, and barangay details.",
               )}
               {...field("street_address")}
             />
@@ -1983,6 +2007,41 @@ function EndUserDialog({
             />
           </Grid>
         </Grid>
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          {helpAvailable && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showFieldHelp}
+                  disabled={savingFieldHelp}
+                  onChange={(event) =>
+                    onShowFieldHelpChange(event.target.checked)
+                  }
+                />
+              }
+              label="Show field information buttons"
+            />
+          )}
+          <Alert severity="info">
+            Use the official organization name and address. The new End-user is
+            immediately selectable, but an administrator must verify it before
+            automatic matching or ranking can occur.
+            <Typography component="span" display="block" sx={{ mt: 1 }}>
+              Quezon Avenue cor Evangelista St., City of Lucena, Quezon, Region
+              IV-A (CALABARZON), 4301.
+            </Typography>
+          </Alert>
+          {dataset && (
+            <Alert severity="success">
+              Location choices use Philippine Standard Geographic Code{" "}
+              {dataset.version}.
+            </Alert>
+          )}
+          <Alert severity="warning">
+            Pending verification. This registration can be submitted, but
+            matching and ranking wait for administrator verification.
+          </Alert>
+        </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>

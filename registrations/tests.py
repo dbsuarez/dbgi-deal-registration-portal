@@ -904,6 +904,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(session.json()["designation"], "Product Specialist")
         self.assertEqual(session.json()["phone_number"], "09227667968")
         self.assertTrue(session.json()["is_debug"])
+        self.assertTrue(session.json()["end_user_field_help_available"])
         self.assertTrue(session.json()["show_end_user_field_help"])
         self.assertEqual(products.status_code, 200)
         self.assertIn(self.product.code, {item["code"] for item in products.json()})
@@ -927,10 +928,43 @@ class RegistrationApiTests(TestCase):
         setting.show_end_user_field_help = False
         setting.save(update_fields=["show_end_user_field_help", "updated_at"])
         response = self.client.get("/api/v1/session")
+        self.assertFalse(response.json()["end_user_field_help_available"])
         self.assertFalse(response.json()["show_end_user_field_help"])
 
         self.client.force_login(self.admin)
         self.assertEqual(self.client.get(changelist_url).status_code, 200)
+
+    def test_user_can_save_end_user_field_help_preference(self):
+        self.client.force_login(self.user_a)
+
+        response = self.client.put(
+            "/api/v1/session/preferences/end-user-field-help",
+            data=json.dumps({"show_end_user_field_help": False}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["show_end_user_field_help"])
+        self.user_a.refresh_from_db()
+        self.assertFalse(self.user_a.show_end_user_field_help)
+        self.assertFalse(self.client.get("/api/v1/session").json()["show_end_user_field_help"])
+
+    def test_global_setting_overrides_user_end_user_field_help_preference(self):
+        setting = PortalSetting.objects.get(key="portal")
+        setting.show_end_user_field_help = False
+        setting.save(update_fields=["show_end_user_field_help", "updated_at"])
+        self.client.force_login(self.user_a)
+
+        response = self.client.put(
+            "/api/v1/session/preferences/end-user-field-help",
+            data=json.dumps({"show_end_user_field_help": True}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["show_end_user_field_help"])
+        self.user_a.refresh_from_db()
+        self.assertTrue(self.user_a.show_end_user_field_help)
 
     @override_settings(DEBUG=True)
     def test_user_can_manage_only_their_registration_test_presets(self):

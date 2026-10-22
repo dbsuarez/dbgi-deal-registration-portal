@@ -12,6 +12,7 @@ export type Session = {
   phone_number: string;
   is_dbgi_admin: boolean;
   is_debug: boolean;
+  end_user_field_help_available: boolean;
   show_end_user_field_help: boolean;
   csrf_token: string;
 };
@@ -364,6 +365,19 @@ export function getSession(signal?: AbortSignal) {
 
 export function logoutSession(csrfToken: string) {
   return mutation<void>("/api/v1/session/logout", "POST", csrfToken);
+}
+
+export function updateEndUserFieldHelpPreference(
+  showEndUserFieldHelp: boolean,
+  csrfToken: string,
+) {
+  return mutation<{ show_end_user_field_help: boolean }>(
+    "/api/v1/session/preferences/end-user-field-help",
+    "PUT",
+    csrfToken,
+    JSON.stringify({ show_end_user_field_help: showEndUserFieldHelp }),
+    "application/json",
+  );
 }
 
 export function getRegistrationTestPresets(signal?: AbortSignal) {

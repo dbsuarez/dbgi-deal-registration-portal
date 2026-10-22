@@ -54,7 +54,7 @@ The application is a working internal beta with these foundations implemented:
 - Managed competitor item/model suggestions linked to canonical brands, with starter Canon, Epson, HP, and Lexmark models plus user-driven catalog growth and administrator archive or restore controls.
 - Debug-only floating registration test-data panel with five one-click presets, including two differently titled submissions for the same Pasig competition.
 - User-owned debug registration presets that can be created from the current form, loaded and updated, or permanently deleted from the test-data panel.
-- Accessible example popovers for every Add missing End-user field, enabled by default and globally toggleable by a Django superuser through Portal settings.
+- Accessible example popovers for every Add missing End-user field, with a remembered per-user show or hide preference that remains subject to the Django superuser Portal setting.
 - Versioned local PSGC Region, Province, and City/Municipality reference data with an explicit import command and reusable cascading selectors in Add missing End-user.
 - Controlled End-user classification selectors with fixed government branches and administrator-reviewed Organization type and Sector catalogs.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
