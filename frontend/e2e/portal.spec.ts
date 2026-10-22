@@ -448,6 +448,97 @@ test("debug test-data panel fills five registration scenarios", async ({
   await expect(page.getByText("My Pasig test", { exact: true })).toHaveCount(0);
 });
 
+test("debug test-data tools can save an edited registration", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/registrations/21", (route) =>
+    route.fulfill({
+      json: {
+        id: 21,
+        reference: "DBGI-000021",
+        project_title: "Existing municipal printer project",
+        company_name: "North Dealer",
+        end_user_name: "Sample municipality",
+        end_user_id: 7,
+        end_user_status: "verified",
+        end_user_status_label: "Verified",
+        end_user_address: "Test address, Sample City",
+        bid_date: "2026-11-30",
+        delivery_date: "2027-01-30",
+        contact_person: "Test person",
+        contact_designation: "Buyer",
+        contact_email: "test@example.invalid",
+        contact_number: "0000000000",
+        evidence_description: "Public procurement notice",
+        evidence_url: "",
+        evidence_sharing_confirmed: true,
+        status: "submitted",
+        status_label: "Submitted",
+        needs_review: false,
+        created_at: "2026-10-19T02:00:00Z",
+        version: 1,
+        can_edit: true,
+        competitor_items: [
+          {
+            id: 1,
+            brand: "Brand X",
+            item_name: "Model Y",
+            bid_price: "100.00",
+            remarks: "",
+          },
+        ],
+        items: [
+          {
+            id: 1,
+            product_id: 1,
+            product_code: "M1820W",
+            product_name: "20 ppm monochrome laser printer",
+            non_catalog_name: "",
+            display_name: "M1820W - 20 ppm monochrome laser printer",
+            quantity: 2,
+            requested_unit_price: "90.00",
+            justification: "Project request",
+          },
+        ],
+        attachments: [],
+        events: [],
+      },
+    }),
+  );
+
+  await page.goto("/registrations/21/edit/");
+  await expect(page.getByLabel("Project opportunity title")).toHaveValue(
+    "Existing municipal printer project",
+  );
+  await expect(
+    page.getByRole("button", { name: "Save as test data" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Test data", exact: true }).click();
+  await expect(page.getByText("My saved test data", { exact: true })).toHaveCSS(
+    "font-size",
+    "16px",
+  );
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: "Save as test data" }).click();
+  await page.getByLabel("Test data name").fill("Existing project template");
+  const presetRequest = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/v1/development/registration-test-presets") &&
+      request.method() === "POST",
+  );
+  await page.getByRole("button", { name: "Save test data" }).click();
+
+  const payload = (await presetRequest).postDataJSON();
+  expect(payload.name).toBe("Existing project template");
+  expect(payload.payload.project_title).toBe(
+    "Existing municipal printer project",
+  );
+  expect(payload.payload.competitor_items).toHaveLength(1);
+  expect(payload.payload.items).toHaveLength(1);
+});
+
 test("test-data panel is hidden outside debug mode", async ({ page }) => {
   await page.route("**/api/v1/session", (route) =>
     route.fulfill({ json: { ...session, is_debug: false } }),

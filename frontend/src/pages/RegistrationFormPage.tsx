@@ -338,7 +338,7 @@ export default function RegistrationFormPage() {
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       });
-    if (session.is_debug && !registrationId) {
+    if (session.is_debug) {
       getRegistrationTestPresets(controller.signal)
         .then(setSavedPresets)
         .catch((reason: Error) => {
@@ -1103,7 +1103,7 @@ export default function RegistrationFormPage() {
           >
             Cancel
           </Button>
-          {session.is_debug && !savedRegistrationId && (
+          {session.is_debug && (
             <Button
               variant="outlined"
               color="warning"
@@ -1187,7 +1187,7 @@ export default function RegistrationFormPage() {
           </Button>
         </DialogActions>
       </Dialog>
-      {session.is_debug && !savedRegistrationId && (
+      {session.is_debug && (
         <>
           <Button
             variant="contained"
@@ -1243,7 +1243,11 @@ export default function RegistrationFormPage() {
                 </Paper>
               ))}
             </Stack>
-            <Typography variant="h3" sx={{ mt: 3, mb: 1 }}>
+            <Typography
+              variant="subtitle1"
+              fontWeight={700}
+              sx={{ mt: 3, mb: 1 }}
+            >
               My saved test data
             </Typography>
             {savedPresets.length === 0 ? (
