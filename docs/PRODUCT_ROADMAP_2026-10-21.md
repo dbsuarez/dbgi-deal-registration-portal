@@ -46,7 +46,7 @@ The application is a working internal beta with these foundations implemented:
 - Compact registration activity history with small action rows and collapsed-by-default structured field changes.
 - Role-aware Help page with beginner company walkthroughs, administrator operating procedures, status explanations, direct task links, and troubleshooting guidance.
 - Role-specific end-to-end practice scenarios with prerequisites, exact actions, and expected outcomes for registration, correction, matching, pricing, notification recovery, and governed End-user workflows.
-- Django Admin operations dashboard with actionable review, pricing, End-user verification, failed-email, and expiring-approval queues.
+- Django Admin operations dashboard with actionable review, pricing, End-user verification, failed-email, and expiring-approval queues, including pending-filter deep links.
 - Beginner-friendly, role-aware Help instructions that users can follow one step at a time, with options to open Help in the current page, a new tab, or a distraction-free side-by-side window.
 - Superuser-only Danger Zone for atomically deleting registrations and related transactional data while preserving users and governed master data.
 - Accessible hover and keyboard-focus explanations for registration, project, pricing, and review-required status badges on the registration page.

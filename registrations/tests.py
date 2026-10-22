@@ -658,6 +658,44 @@ class RegistrationApiTests(TestCase):
         self.assertContains(response, "Failed email deliveries")
         self.assertContains(response, "Open Danger Zone")
 
+    def test_dashboard_end_user_card_opens_the_pending_filter(self):
+        pending = EndUser.objects.create(
+            official_name="Only pending dashboard organization",
+            city_municipality="Test City",
+            street_address="Pending address",
+            created_by=self.admin,
+        )
+        EndUser.objects.create(
+            official_name="Rejected dashboard organization",
+            city_municipality="Test City",
+            street_address="Rejected address",
+            status=EndUser.Status.REJECTED,
+            created_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        dashboard = self.client.get("/admin/")
+
+        self.assertEqual(dashboard.context["pending_end_user_count"], 1)
+        self.assertEqual(
+            dashboard.context["end_user_list_url"],
+            "/admin/registrations/enduser/?status__exact=pending",
+        )
+
+        filtered_list = self.client.get(dashboard.context["end_user_list_url"])
+
+        self.assertEqual(filtered_list.status_code, 200)
+        self.assertContains(filtered_list, pending.official_name)
+        self.assertNotContains(filtered_list, self.end_user.official_name)
+        self.assertNotContains(filtered_list, "Rejected dashboard organization")
+        self.assertContains(filtered_list, "Clear all filters")
+
+        cleared_list = self.client.get("/admin/registrations/enduser/")
+
+        self.assertContains(cleared_list, pending.official_name)
+        self.assertContains(cleared_list, self.end_user.official_name)
+        self.assertContains(cleared_list, "Rejected dashboard organization")
+
     def test_danger_zone_requires_a_superuser(self):
         reviewer = User.objects.create_user(
             username="danger-zone-reviewer",
@@ -1057,8 +1095,7 @@ class RegistrationApiTests(TestCase):
 
         regions = self.client.get("/api/v1/geographic-areas?level=region")
         cities = self.client.get(
-            "/api/v1/geographic-areas"
-            "?level=city_municipality&region_code=1300000000"
+            "/api/v1/geographic-areas?level=city_municipality&region_code=1300000000"
         )
         dataset = self.client.get("/api/v1/geographic-dataset")
 
@@ -1086,9 +1123,7 @@ class RegistrationApiTests(TestCase):
         )
         self.client.force_login(self.user_a)
 
-        response = self.client.get(
-            "/api/v1/end-user-classifications?category=organization_type"
-        )
+        response = self.client.get("/api/v1/end-user-classifications?category=organization_type")
 
         self.assertEqual(response.status_code, 200)
         names = {item["name"] for item in response.json()}

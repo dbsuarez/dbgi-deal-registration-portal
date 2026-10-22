@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.admin.models import DELETION, LogEntry
@@ -131,7 +132,10 @@ class DBGIAdminSite(UnfoldAdminSite):
             "pricing_list_url": reverse(
                 "admin:registrations_registrationcategoryapproval_changelist"
             ),
-            "end_user_list_url": reverse("admin:registrations_enduser_changelist"),
+            "end_user_list_url": (
+                f"{reverse('admin:registrations_enduser_changelist')}?"
+                f"{urlencode({'status__exact': EndUser.Status.PENDING})}"
+            ),
             "notification_list_url": reverse(
                 "admin:registrations_registrationnotification_changelist"
             ),
