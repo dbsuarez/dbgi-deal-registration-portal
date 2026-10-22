@@ -773,23 +773,45 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
-      <Dialog open={explanationOpen} onClose={() => setExplanationOpen(false)}>
+      <Dialog
+        open={explanationOpen}
+        onClose={() => setExplanationOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        scroll="paper"
+      >
         <DialogTitle>Why this match was suggested</DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ overflowWrap: "anywhere" }}>
           <Typography paragraph>
             The application compares end-user names, addresses, and catalog
             product overlap. It provides guidance only. A DBGI administrator
             must confirm every matching decision.
           </Typography>
-          <Typography variant="h3">Supporting factors</Typography>
-          <List dense>
-            {(registration.matching_suggestion?.supporting_factors ?? []).map(
-              (factor) => (
-                <ListItem key={factor}>{factor}</ListItem>
-              ),
-            )}
-          </List>
-          <Typography variant="h3">Conflicting factors</Typography>
+          <Typography component="h3" variant="subtitle1" fontWeight={600}>
+            Supporting factors
+          </Typography>
+          {(registration.matching_suggestion?.supporting_factors ?? [])
+            .length ? (
+            <List dense>
+              {registration.matching_suggestion?.supporting_factors.map(
+                (factor) => (
+                  <ListItem key={factor}>{factor}</ListItem>
+                ),
+              )}
+            </List>
+          ) : (
+            <Typography color="text.secondary" sx={{ my: 1 }}>
+              No supporting factors identified.
+            </Typography>
+          )}
+          <Typography
+            component="h3"
+            variant="subtitle1"
+            fontWeight={600}
+            sx={{ mt: 2 }}
+          >
+            Conflicting factors
+          </Typography>
           <List dense>
             {(registration.matching_suggestion?.conflicting_factors ?? []).map(
               (factor) => (

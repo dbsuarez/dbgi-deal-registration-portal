@@ -871,7 +871,7 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
       confidence: "medium",
       confidence_label: "Medium",
       score: 58,
-      supporting_factors: ["The end-user names closely match."],
+      supporting_factors: [],
       conflicting_factors: ["No requested catalog product overlap was found."],
       rule_version: "matching-v1",
       candidate_scope_id: null,
@@ -929,6 +929,26 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
   await expect(
     page.getByRole("heading", { name: "Why this match was suggested" }),
   ).toBeVisible();
+  const supportingHeading = page.getByRole("heading", {
+    name: "Supporting factors",
+  });
+  const conflictingHeading = page.getByRole("heading", {
+    name: "Conflicting factors",
+  });
+  await expect(supportingHeading).toHaveCSS("font-size", "16px");
+  await expect(supportingHeading).toHaveCSS("font-weight", "600");
+  await expect(conflictingHeading).toHaveCSS("font-size", "16px");
+  await expect(conflictingHeading).toHaveCSS("font-weight", "600");
+  await expect(
+    page.getByText("No supporting factors identified."),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 360, height: 640 });
+  const dialogBounds = await page.getByRole("dialog").boundingBox();
+  expect(dialogBounds).not.toBeNull();
+  expect(dialogBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBounds!.width).toBeLessThanOrEqual(360);
+  await expect(conflictingHeading).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
   await page.getByLabel("Decision reason").fill("Evidence review started.");
   await page.getByRole("button", { name: "Start review" }).click();

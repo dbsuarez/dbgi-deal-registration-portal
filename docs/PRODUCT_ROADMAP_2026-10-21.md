@@ -50,6 +50,7 @@ The application is a working internal beta with these foundations implemented:
 - Beginner-friendly, role-aware Help instructions that users can follow one step at a time, with options to open Help in the current page, a new tab, or a distraction-free side-by-side window.
 - Superuser-only Danger Zone for atomically deleting registrations and related transactional data while preserving users and governed master data.
 - Accessible hover and keyboard-focus explanations for registration, project, pricing, and review-required status badges on the registration page.
+- Responsive match-explanation dialogs with compact factor headings and explicit empty supporting-factor guidance.
 - New registrations prefill editable contact name, designation, email, and phone values from the signed-in user's managed profile, while edits preserve the registration's saved contact snapshot.
 - Managed competitor item/model suggestions linked to canonical brands, with starter Canon, Epson, HP, and Lexmark models plus user-driven catalog growth and administrator archive or restore controls.
 - Debug-only floating registration test-data panel with five one-click presets, including two differently titled submissions for the same Pasig competition.
