@@ -27,7 +27,7 @@ The application is a working internal beta with these foundations implemented:
 - Separate project, registration, and commercial-approval status axes.
 - Category commercial approvals, item-level approved prices, expiry, and 30-day renewal decisions.
 - Project-status management and activity history.
-- Table search, filters, pagination, status indicators, and permission-scoped ranking views.
+- Table search, quick and advanced filters, direct advanced-filter clearing, pagination, status indicators, and permission-scoped ranking views.
 - Structured frontend API errors that preserve backend codes and field details.
 - An application-level not-found page with a safe return action.
 - Shared Redis-backed throttling for login submissions and authenticated API mutations across Gunicorn workers.

@@ -490,13 +490,45 @@ test("quick status filters compose and clear", async ({ page }) => {
   await page.getByRole("option", { name: "Under review" }).click();
   await combinedRequest;
 
-  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByRole("button", { name: "Clear all filters" }).click();
   await expect(
     page.getByRole("combobox", { name: "Project status" }),
   ).toHaveText("All Project Statuses");
   await expect(
     page.getByRole("combobox", { name: "Registration status" }),
   ).toHaveText("All Registration Statuses");
+});
+
+test("advanced filters can be cleared from the grid toolbar", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/registrations?**", (route) =>
+    route.fulfill({
+      json: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 25,
+        grand_total: "0.00",
+      },
+    }),
+  );
+  await page.goto("/");
+
+  const clearAdvancedFilters = page.getByRole("button", {
+    name: "Clear filters",
+    exact: true,
+  });
+  await expect(clearAdvancedFilters).toBeDisabled();
+
+  await page.getByRole("button", { name: "Show filters" }).click();
+  await page.getByLabel("Value").fill("Municipal");
+  await expect(clearAdvancedFilters).toBeEnabled();
+
+  await clearAdvancedFilters.click();
+
+  await expect(clearAdvancedFilters).toBeDisabled();
+  await expect(page.getByLabel("Value")).toHaveCount(0);
 });
 
 test("company user can submit a complete registration", async ({ page }) => {

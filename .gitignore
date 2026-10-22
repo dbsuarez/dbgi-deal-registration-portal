@@ -23,3 +23,6 @@ entities.json
 
 # Claude Code per-user MCP server registration
 .mcp.json
+
+# Local development launcher
+start-backend.ps1

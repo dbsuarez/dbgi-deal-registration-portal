@@ -19,10 +19,18 @@ import {
 } from "@mui/material";
 import {
   DataGrid,
+  GridToolbarColumnsButton,
+  GridToolbarContainer,
+  GridToolbarDensitySelector,
+  GridToolbarExport,
+  GridToolbarFilterButton,
+  gridFilterActiveItemsSelector,
   type GridColDef,
   type GridColumnVisibilityModel,
   type GridFilterModel,
   type GridSortModel,
+  useGridApiContext,
+  useGridSelector,
 } from "@mui/x-data-grid";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -48,6 +56,31 @@ function formatDateTime(value: string) {
 
 function ExportUpIcon() {
   return <FileUploadOutlinedIcon fontSize="small" />;
+}
+
+function RegistrationGridToolbar() {
+  const apiRef = useGridApiContext();
+  const activeFilterItems = useGridSelector(
+    apiRef,
+    gridFilterActiveItemsSelector,
+  );
+
+  return (
+    <GridToolbarContainer>
+      <GridToolbarColumnsButton />
+      <GridToolbarFilterButton />
+      <Button
+        size="small"
+        variant="text"
+        disabled={activeFilterItems.length === 0}
+        onClick={() => apiRef.current.setFilterModel({ items: [] })}
+      >
+        Clear filters
+      </Button>
+      <GridToolbarDensitySelector />
+      <GridToolbarExport />
+    </GridToolbarContainer>
+  );
 }
 
 function loadGridPreference(key: string) {
@@ -493,7 +526,7 @@ export default function RegistrationListPage() {
             setPaginationModel((current) => ({ ...current, page: 0 }));
           }}
         >
-          Clear filters
+          Clear all filters
         </Button>
         <Button
           variant="outlined"
@@ -569,7 +602,7 @@ export default function RegistrationListPage() {
           disableRowSelectionOnClick
           onRowDoubleClick={({ row }) => navigate(`/registrations/${row.id}/`)}
           showToolbar
-          slots={{ exportIcon: ExportUpIcon }}
+          slots={{ toolbar: RegistrationGridToolbar, exportIcon: ExportUpIcon }}
           localeText={{
             paginationDisplayedRows: ({ from, to, count }) =>
               `${from}-${to} of ${count === -1 ? `more than ${to}` : count}`,
