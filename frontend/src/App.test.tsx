@@ -271,6 +271,15 @@ describe("App", () => {
       screen.getByText("Administrator daily checklist"),
     ).toBeInTheDocument();
     expect(
+      screen.getAllByText(/does not link or create an opportunity/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Link to an existing opportunity"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Create a new whole opportunity"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText("How to make a pricing decision"),
     ).toBeInTheDocument();
     expect(screen.getByText("Approve category pricing")).toBeInTheDocument();

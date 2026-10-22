@@ -42,8 +42,7 @@ class Command(BaseCommand):
 
         region_codes = {item["name"].strip(): item["code"] for item in regions}
         province_codes = {
-            (item["region"].strip(), item["name"].strip()): item["code"]
-            for item in provinces
+            (item["region"].strip(), item["name"].strip()): item["code"] for item in provinces
         }
         rows = []
         for item in regions:

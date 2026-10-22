@@ -689,8 +689,33 @@ def _serialize_registration(registration):
     }
 
 
+def _serialize_registration_event(event, *, include_internal_details):
+    if not include_internal_details and event.event_type == "Start review":
+        return None
+    details = event.details
+    if not include_internal_details and event.event_type in {
+        "Automatically matched",
+        "Confirm eligible match",
+    }:
+        details = "DBGI confirmed this registration's opportunity match."
+    return {
+        "id": event.pk,
+        "event_type": event.event_type,
+        "details": details,
+        "actor_name": (
+            (event.actor.get_full_name() or event.actor.username) if event.actor_id else "System"
+        ),
+        "created_at": event.created_at,
+        "changes": registration_change_details(event.snapshot, event.resulting_snapshot),
+    }
+
+
 def _serialize_registration_detail(registration, user):
     detail = _serialize_registration(registration)
+    serialized_events = [
+        _serialize_registration_event(event, include_internal_details=user.is_dbgi_admin)
+        for event in registration.events.select_related("actor").all()
+    ]
     detail.update(
         {
             "end_user_address": registration.end_user_address,
@@ -747,23 +772,7 @@ def _serialize_registration_detail(registration, user):
                 }
                 for attachment in registration.attachments.all()
             ],
-            "events": [
-                {
-                    "id": event.pk,
-                    "event_type": event.event_type,
-                    "details": event.details,
-                    "actor_name": (
-                        (event.actor.get_full_name() or event.actor.username)
-                        if event.actor_id
-                        else "System"
-                    ),
-                    "created_at": event.created_at,
-                    "changes": registration_change_details(
-                        event.snapshot, event.resulting_snapshot
-                    ),
-                }
-                for event in registration.events.select_related("actor").all()
-            ],
+            "events": [event for event in serialized_events if event is not None],
             "opportunity_scope_id": registration.opportunity_scope_id,
             "opportunity_scope_label": (
                 str(registration.opportunity_scope) if registration.opportunity_scope_id else None

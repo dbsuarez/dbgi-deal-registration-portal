@@ -433,12 +433,17 @@ export default function HelpPage() {
                 competitor information, and matching suggestion.
               </NumberedStep>
               <NumberedStep number={2} title="Start review">
-                Starting review records the reviewer action without making a
-                final decision.
+                Review the system recommendation, match score, supporting and
+                conflicting factors, and the registration evidence. Enter the
+                review reason and select Start review. This step records that
+                examination began but does not link or create an opportunity.
               </NumberedStep>
               <NumberedStep number={3} title="Decide the registration">
-                Confirm the match, request changes with a clear reason, or
-                reject it. Company users are notified automatically.
+                After the status becomes Under review, select exactly one final
+                decision: link an existing opportunity scope, create a new whole
+                opportunity, request changes with exact instructions, or reject
+                with a clear explanation. Company users are notified
+                automatically.
               </NumberedStep>
               <NumberedStep number={4} title="Decide pricing separately">
                 Review each product category, enter approved unit prices where
@@ -486,13 +491,19 @@ export default function HelpPage() {
               <ListItem disableGutters>
                 <ListItemText
                   primary="Start review"
-                  secondary="Use when examination has begun. This records the reviewer and moves the registration into review without approving it."
+                  secondary="Use when examination has begun. It moves the registration into review without linking or creating an opportunity."
                 />
               </ListItem>
               <ListItem disableGutters>
                 <ListItemText
-                  primary="Confirm match"
-                  secondary="Use only when the evidence supports the selected opportunity scope. Create a new opportunity only when no existing scope correctly represents it."
+                  primary="Link to an existing opportunity"
+                  secondary="Choose the correct Opportunity scope only when the evidence shows this registration belongs to an existing procurement opportunity."
+                />
+              </ListItem>
+              <ListItem disableGutters>
+                <ListItemText
+                  primary="Create a new whole opportunity"
+                  secondary="Use only when no existing Opportunity scope correctly represents the registration. The system creates and links a Whole scope."
                 />
               </ListItem>
               <ListItem disableGutters>

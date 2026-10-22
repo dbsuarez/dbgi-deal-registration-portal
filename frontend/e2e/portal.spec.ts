@@ -889,14 +889,29 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
     "**/api/v1/review/registrations/1/decision",
     async (route) => {
       const payload = route.request().postDataJSON();
-      expect(payload.decision).toBe("start_review");
-      expect(payload.rationale).toBe("Evidence review started.");
+      if (payload.decision === "start_review") {
+        expect(payload.rationale).toBe("Evidence review started.");
+        expect(payload.opportunity_scope_id).toBeNull();
+        expect(payload.create_new_opportunity).toBe(false);
+        await route.fulfill({
+          json: {
+            ...detail,
+            status: "under_review",
+            status_label: "Under review",
+            version: 2,
+          },
+        });
+        return;
+      }
+      expect(payload.decision).toBe("confirm_match");
+      expect(payload.rationale).toBe("This is a distinct opportunity.");
+      expect(payload.create_new_opportunity).toBe(true);
       await route.fulfill({
         json: {
           ...detail,
-          status: "under_review",
-          status_label: "Under review",
-          version: 2,
+          status: "eligible_matched",
+          status_label: "Registered",
+          version: 3,
         },
       });
     },
@@ -925,6 +940,13 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
       name: /A DBGI administrator must review this registration/,
     }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "How matching review works" }).click();
+  await expect(
+    page.getByText(
+      "Start review -> Decide opportunity match -> Continue to pricing review",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
   await page.getByLabel("Explain matching suggestion").click();
   await expect(
     page.getByRole("heading", { name: "Why this match was suggested" }),
@@ -950,7 +972,42 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
   expect(dialogBounds!.width).toBeLessThanOrEqual(360);
   await expect(conflictingHeading).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
-  await page.getByLabel("Decision reason").fill("Evidence review started.");
+  await expect(page.getByText("System recommendation")).toBeVisible();
+  await expect(page.getByText("Match score: 58%")).toBeVisible();
+  await expect(
+    page.getByText(/This step does not link or create an opportunity/),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Opportunity scope", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("radio", { name: /Create a new whole opportunity/ }),
+  ).toHaveCount(0);
+
+  await page.getByLabel("Review reason").fill("Evidence review started.");
   await page.getByRole("button", { name: "Start review" }).click();
   await expect(page.getByText("Under review", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: /Link to an existing opportunity/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: /Request changes/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: /Reject registration/ }),
+  ).toBeVisible();
+
+  await page
+    .getByRole("radio", { name: /Create a new whole opportunity/ })
+    .check();
+  await expect(
+    page.getByLabel("Opportunity scope", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("Decision reason")
+    .fill("This is a distinct opportunity.");
+  await page
+    .getByRole("button", { name: "Create and link new opportunity" })
+    .click();
+  await expect(page.getByText("Registered", { exact: true })).toBeVisible();
 });

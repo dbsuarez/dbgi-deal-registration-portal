@@ -1661,6 +1661,8 @@ class RegistrationApiTests(TestCase):
         )
         self.assertEqual(started.status_code, 200, started.content)
         self.assertEqual(started.json()["status"], Registration.Status.UNDER_REVIEW)
+        self.assertIsNone(started.json()["opportunity_scope_id"])
+        self.assertEqual(Opportunity.objects.count(), 0)
 
         confirmed = self.client.post(
             f"/api/v1/review/registrations/{self.registration_a.pk}/decision",
@@ -1690,6 +1692,47 @@ class RegistrationApiTests(TestCase):
             event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
         )
         self.assertEqual(notice.title, "Registration confirmed")
+
+    def test_company_detail_hides_internal_matching_review_information(self):
+        RegistrationEvent.objects.create(
+            registration=self.registration_a,
+            actor=self.admin,
+            event_type="Start review",
+            details="Internal intake assessment must remain private.",
+        )
+        RegistrationEvent.objects.create(
+            registration=self.registration_a,
+            actor=self.admin,
+            event_type="Confirm eligible match",
+            details="Internal override reasoning must remain private.",
+        )
+        RegistrationEvent.objects.create(
+            registration=self.registration_a,
+            actor=self.admin,
+            event_type="Request changes",
+            details="Upload the missing procurement notice.",
+        )
+        self.client.force_login(self.user_a)
+
+        response = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertIsNone(payload["matching_suggestion"])
+        self.assertNotIn("Start review", {event["event_type"] for event in payload["events"]})
+        self.assertNotContains(response, "Internal intake assessment")
+        self.assertNotContains(response, "Internal override reasoning")
+        confirmed = next(
+            event for event in payload["events"] if event["event_type"] == "Confirm eligible match"
+        )
+        self.assertEqual(
+            confirmed["details"],
+            "DBGI confirmed this registration's opportunity match.",
+        )
+        requested = next(
+            event for event in payload["events"] if event["event_type"] == "Request changes"
+        )
+        self.assertEqual(requested["details"], "Upload the missing procurement notice.")
 
     def test_admin_review_rejects_stale_version_and_invalid_transition(self):
         self.client.force_login(self.admin)

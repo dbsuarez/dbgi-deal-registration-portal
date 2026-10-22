@@ -14,7 +14,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   FormControlLabel,
+  FormLabel,
   Grid,
   IconButton,
   Link,
@@ -23,7 +25,8 @@ import {
   ListItemText,
   MenuItem,
   Paper,
-  Checkbox,
+  Radio,
+  RadioGroup,
   Snackbar,
   Stack,
   Table,
@@ -49,6 +52,7 @@ import {
 } from "../api";
 import { useSession } from "../session";
 import { getStatusColor, getStatusExplanation } from "../status";
+import { companyNextStep } from "./registrationReview";
 
 const moneyCell = {
   textAlign: "right" as const,
@@ -94,12 +98,15 @@ export default function RegistrationDetailPage() {
   const [copied, setCopied] = useState(false);
   const [scopes, setScopes] = useState<OpportunityScope[]>([]);
   const [scopeId, setScopeId] = useState("");
-  const [createNewOpportunity, setCreateNewOpportunity] = useState(false);
+  const [finalDecision, setFinalDecision] = useState<
+    "link_existing" | "create_new" | "request_changes" | "reject"
+  >("link_existing");
   const [rationale, setRationale] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [refreshingSuggestion, setRefreshingSuggestion] = useState(false);
   const [suggestionError, setSuggestionError] = useState("");
   const [explanationOpen, setExplanationOpen] = useState(false);
+  const [matchingGuideOpen, setMatchingGuideOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,13 +123,14 @@ export default function RegistrationDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!session.is_dbgi_admin) return;
+    if (!session.is_dbgi_admin || registration?.status !== "under_review")
+      return;
     const controller = new AbortController();
     getOpportunityScopes(controller.signal)
       .then(setScopes)
       .catch(() => undefined);
     return () => controller.abort();
-  }, [session.is_dbgi_admin]);
+  }, [registration?.status, session.is_dbgi_admin]);
 
   const submitReview = async (
     decision: "start_review" | "request_changes" | "confirm_match" | "reject",
@@ -141,7 +149,7 @@ export default function RegistrationDetailPage() {
           decision,
           rationale: rationale.trim(),
           opportunity_scope_id: scopeId ? Number(scopeId) : null,
-          create_new_opportunity: createNewOpportunity,
+          create_new_opportunity: finalDecision === "create_new",
         },
         session.csrf_token,
       );
@@ -162,12 +170,26 @@ export default function RegistrationDetailPage() {
         <Alert severity="error">{error}</Alert>
       </Container>
     );
+
   if (!registration)
     return (
       <Box sx={{ display: "grid", minHeight: 400, placeItems: "center" }}>
         <CircularProgress />
       </Box>
     );
+
+  const isPendingReview = [
+    "submitted",
+    "resubmitted",
+    "review_required",
+  ].includes(registration.status);
+  const isUnderReview = registration.status === "under_review";
+  const finalDecisionAction = {
+    link_existing: "Link existing opportunity",
+    create_new: "Create and link new opportunity",
+    request_changes: "Request changes",
+    reject: "Reject registration",
+  }[finalDecision];
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -265,6 +287,21 @@ export default function RegistrationDetailPage() {
         )}
       </Stack>
 
+      {!session.is_dbgi_admin && (
+        <Paper sx={{ mb: 3, p: 2 }}>
+          <Typography variant="h2" sx={{ mb: 0.5 }}>
+            What happens next?
+          </Typography>
+          <Typography>{companyNextStep(registration.status)}</Typography>
+          {registration.status === "eligible_matched" &&
+            registration.opportunity_scope_label && (
+              <Typography sx={{ mt: 1 }}>
+                Confirmed opportunity: {registration.opportunity_scope_label}
+              </Typography>
+            )}
+        </Paper>
+      )}
+
       {session.is_dbgi_admin && (
         <Paper sx={{ mb: 3, p: 3 }}>
           {registration.status === "eligible_matched" &&
@@ -291,15 +328,17 @@ export default function RegistrationDetailPage() {
                   <InfoOutlinedIcon />
                 </IconButton>
               </Stack>
+              <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                System recommendation
+              </Typography>
               {registration.matching_suggestion ? (
                 <>
                   <Typography>
-                    Suggested action:{" "}
                     {registration.matching_suggestion.outcome_label}
                   </Typography>
                   <Chip
                     size="small"
-                    label={`${registration.matching_suggestion.confidence_label} confidence | ${registration.matching_suggestion.score}%`}
+                    label={`Match score: ${registration.matching_suggestion.score}%`}
                     color={
                       registration.matching_suggestion.confidence === "high"
                         ? "success"
@@ -307,9 +346,14 @@ export default function RegistrationDetailPage() {
                     }
                     sx={{ mt: 1 }}
                   />
+                  {registration.matching_suggestion.score === 0 && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      No likely existing opportunity was found.
+                    </Typography>
+                  )}
                   {registration.matching_suggestion.candidate_scope_label && (
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      Candidate:{" "}
+                      Suggested opportunity scope:{" "}
                       {registration.matching_suggestion.candidate_scope_label}
                     </Typography>
                   )}
@@ -320,35 +364,43 @@ export default function RegistrationDetailPage() {
                 </Typography>
               )}
             </Box>
-            <Button
-              variant="outlined"
-              disabled={reviewing || refreshingSuggestion}
-              onClick={async () => {
-                if (!registration || refreshingSuggestion) return;
-                setRefreshingSuggestion(true);
-                setSuggestionError("");
-                try {
-                  const suggestion = await refreshMatchingSuggestion(
-                    registration.id,
-                    session.csrf_token,
-                  );
-                  const updated = await getRegistration(registration.id);
-                  setRegistration(updated);
-                  if (suggestion.candidate_scope_id)
-                    setScopeId(String(suggestion.candidate_scope_id));
-                } catch (reason) {
-                  setSuggestionError(
-                    reason instanceof Error
-                      ? reason.message
-                      : "The suggestion could not be refreshed.",
-                  );
-                } finally {
-                  setRefreshingSuggestion(false);
-                }
-              }}
-            >
-              {refreshingSuggestion ? "Refreshing..." : "Refresh suggestion"}
-            </Button>
+            <Stack spacing={1} alignItems={{ xs: "stretch", md: "flex-end" }}>
+              <Button
+                variant="outlined"
+                onClick={() => setMatchingGuideOpen(true)}
+              >
+                How matching review works
+              </Button>
+              <Button
+                variant="text"
+                disabled={reviewing || refreshingSuggestion}
+                onClick={async () => {
+                  if (!registration || refreshingSuggestion) return;
+                  setRefreshingSuggestion(true);
+                  setSuggestionError("");
+                  try {
+                    const suggestion = await refreshMatchingSuggestion(
+                      registration.id,
+                      session.csrf_token,
+                    );
+                    const updated = await getRegistration(registration.id);
+                    setRegistration(updated);
+                    if (suggestion.candidate_scope_id)
+                      setScopeId(String(suggestion.candidate_scope_id));
+                  } catch (reason) {
+                    setSuggestionError(
+                      reason instanceof Error
+                        ? reason.message
+                        : "The suggestion could not be refreshed.",
+                    );
+                  } finally {
+                    setRefreshingSuggestion(false);
+                  }
+                }}
+              >
+                {refreshingSuggestion ? "Refreshing..." : "Refresh suggestion"}
+              </Button>
+            </Stack>
           </Stack>
 
           {suggestionError && (
@@ -357,88 +409,157 @@ export default function RegistrationDetailPage() {
             </Alert>
           )}
 
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={{ xs: 12, md: 7 }}>
+          {isPendingReview && (
+            <Box sx={{ mt: 2 }}>
+              <Typography fontWeight={600}>What should I do?</Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                Review the system guidance and registration evidence, enter why
+                you are starting review, then select Start review. This step
+                does not link or create an opportunity.
+              </Typography>
               <TextField
                 fullWidth
                 multiline
                 required
                 minRows={2}
-                label="Decision reason"
+                label="Review reason"
                 value={rationale}
                 onChange={(event) => setRationale(event.target.value)}
                 helperText="Required for the audit history."
               />
-            </Grid>
-            <Grid size={{ xs: 12, md: 5 }}>
-              <TextField
-                select
-                fullWidth
-                label="Opportunity scope"
-                value={scopeId}
-                disabled={createNewOpportunity}
-                onChange={(event) => setScopeId(event.target.value)}
-              >
-                <MenuItem value="">Choose a scope</MenuItem>
-                {scopes.map((scope) => (
-                  <MenuItem key={scope.id} value={scope.id}>
-                    {scope.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={createNewOpportunity}
-                    onChange={(event) =>
-                      setCreateNewOpportunity(event.target.checked)
-                    }
-                  />
-                }
-                label="Create a new whole opportunity from this registration"
-              />
-            </Grid>
-          </Grid>
-          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2 }}>
-            {["submitted", "resubmitted", "review_required"].includes(
-              registration.status,
-            ) && (
               <Button
                 variant="contained"
                 disabled={reviewing}
+                sx={{ mt: 2 }}
                 onClick={() => submitReview("start_review")}
               >
                 Start review
               </Button>
-            )}
-            {registration.status === "under_review" && (
-              <>
-                <Button
-                  variant="contained"
-                  disabled={
-                    reviewing || (!createNewOpportunity && scopeId === "")
+            </Box>
+          )}
+
+          {isUnderReview && (
+            <Box sx={{ mt: 2 }}>
+              <Typography fontWeight={600}>What should I do?</Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                Make the final administrator decision. Select one option, then
+                complete only the information required for that outcome.
+              </Typography>
+              <FormControl fullWidth>
+                <FormLabel>Administrator decision</FormLabel>
+                <RadioGroup
+                  value={finalDecision}
+                  onChange={(event) =>
+                    setFinalDecision(event.target.value as typeof finalDecision)
                   }
-                  onClick={() => submitReview("confirm_match")}
+                  sx={{ display: "grid", gap: 1, mt: 1 }}
                 >
-                  Confirm eligible match
-                </Button>
-                <Button
-                  variant="outlined"
-                  disabled={reviewing}
-                  onClick={() => submitReview("request_changes")}
+                  {[
+                    [
+                      "link_existing",
+                      "Link to an existing opportunity",
+                      "Choose the existing opportunity scope that this registration belongs to.",
+                    ],
+                    [
+                      "create_new",
+                      "Create a new whole opportunity",
+                      "Create and link a new Whole opportunity scope from this registration.",
+                    ],
+                    [
+                      "request_changes",
+                      "Request changes",
+                      "Send exact correction instructions to the company.",
+                    ],
+                    [
+                      "reject",
+                      "Reject registration",
+                      "Reject this registration with a clear explanation.",
+                    ],
+                  ].map(([value, label, description]) => (
+                    <FormControlLabel
+                      key={value}
+                      value={value}
+                      control={<Radio />}
+                      label={
+                        <Box>
+                          <Typography fontWeight={600}>{label}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {description}
+                          </Typography>
+                        </Box>
+                      }
+                      sx={{
+                        alignItems: "flex-start",
+                        border: 1,
+                        borderColor:
+                          finalDecision === value ? "primary.main" : "divider",
+                        borderRadius: 1,
+                        m: 0,
+                        p: 1,
+                      }}
+                    />
+                  ))}
+                </RadioGroup>
+              </FormControl>
+
+              {finalDecision === "link_existing" && (
+                <TextField
+                  select
+                  required
+                  fullWidth
+                  label="Opportunity scope"
+                  value={scopeId}
+                  onChange={(event) => setScopeId(event.target.value)}
+                  sx={{ mt: 2 }}
                 >
-                  Request changes
-                </Button>
-                <Button
-                  color="error"
-                  disabled={reviewing}
-                  onClick={() => submitReview("reject")}
-                >
-                  Reject
-                </Button>
-              </>
-            )}
-          </Stack>
+                  <MenuItem value="">Choose a scope</MenuItem>
+                  {scopes.map((scope) => (
+                    <MenuItem key={scope.id} value={scope.id}>
+                      {scope.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+
+              <TextField
+                fullWidth
+                multiline
+                required
+                minRows={2}
+                label={
+                  finalDecision === "request_changes"
+                    ? "Instructions for company"
+                    : finalDecision === "reject"
+                      ? "Rejection explanation"
+                      : "Decision reason"
+                }
+                value={rationale}
+                onChange={(event) => setRationale(event.target.value)}
+                helperText="Required for the audit history."
+                sx={{ mt: 2 }}
+              />
+              <Button
+                variant="contained"
+                color={finalDecision === "reject" ? "error" : "primary"}
+                disabled={
+                  reviewing ||
+                  (finalDecision === "link_existing" && scopeId === "")
+                }
+                sx={{ mt: 2 }}
+                onClick={() =>
+                  submitReview(
+                    finalDecision === "request_changes"
+                      ? "request_changes"
+                      : finalDecision === "reject"
+                        ? "reject"
+                        : "confirm_match",
+                  )
+                }
+              >
+                {finalDecisionAction}
+              </Button>
+            </Box>
+          )}
         </Paper>
       )}
 
@@ -773,6 +894,38 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
+      <Dialog
+        open={matchingGuideOpen}
+        onClose={() => setMatchingGuideOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>How matching review works</DialogTitle>
+        <DialogContent>
+          <Typography fontWeight={600}>
+            Start review -&gt; Decide opportunity match -&gt; Continue to
+            pricing review
+          </Typography>
+          <List dense>
+            <ListItem>
+              Start review records that examination began. It does not link or
+              create an opportunity.
+            </ListItem>
+            <ListItem>
+              Decide opportunity match by linking an existing scope, creating a
+              new whole opportunity, requesting changes, or rejecting the
+              registration.
+            </ListItem>
+            <ListItem>
+              Pricing review remains separate and begins only after the
+              registration decision allows it.
+            </ListItem>
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMatchingGuideOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={explanationOpen}
         onClose={() => setExplanationOpen(false)}
