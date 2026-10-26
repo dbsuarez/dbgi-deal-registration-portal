@@ -923,6 +923,71 @@ test("ranking request failure is announced as an alert", async ({ page }) => {
   );
 });
 
+test("company user can read DBGI's change request instructions", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/registrations/7", (route) =>
+    route.fulfill({
+      json: {
+        id: 7,
+        reference: "DBGI-000007",
+        project_title: "School printer project",
+        company_name: "North Dealer",
+        end_user_name: "Sample school division",
+        end_user_address: "Test address",
+        bid_date: "2026-12-01",
+        delivery_date: "2027-01-15",
+        contact_person: "Test person",
+        contact_designation: "Account Manager",
+        contact_email: "test@example.invalid",
+        contact_number: "0000000000",
+        evidence_description: "Request for quotation",
+        evidence_url: "",
+        evidence_sharing_confirmed: true,
+        status: "changes_requested",
+        status_label: "Changes requested",
+        project_status: null,
+        project_status_label: "Not linked",
+        price_status: "pending",
+        price_status_label: "Pending",
+        needs_review: true,
+        created_at: "2026-10-26T07:52:00Z",
+        version: 3,
+        can_edit: true,
+        competitor_items: [],
+        items: [],
+        attachments: [],
+        events: [
+          {
+            id: 2,
+            event_type: "Request changes",
+            details: "Attach the request for quotation reference number.",
+            actor_name: "DBGI Admin",
+            created_at: "2026-10-26T07:54:00Z",
+            changes: [
+              {
+                label: "Registration status",
+                previous: "under review",
+                current: "changes requested",
+              },
+            ],
+          },
+        ],
+        opportunity_scope_id: null,
+        opportunity_scope_label: null,
+        category_approvals: [],
+      },
+    }),
+  );
+
+  await page.goto("/registrations/7/");
+
+  await expect(
+    page.getByText("Attach the request for quotation reference number."),
+  ).toBeVisible();
+  await expect(page.getByText("View 1 change")).toBeVisible();
+});
+
 test("DBGI administrator can inspect a suggestion and start review", async ({
   page,
 }) => {

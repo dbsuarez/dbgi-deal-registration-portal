@@ -43,7 +43,7 @@ The application is a working internal beta with these foundations implemented:
 - Shared MemPalace access for Claude Code through a git-ignored, project-scoped MCP registration, with per-agent diaries for Claude and Codex handoffs.
 - Durable, recipient-scoped portal and email notifications for submissions, registration decisions, and category price decisions, with read tracking, delivery tracking, administrator retries, per-event subject and body templates, rendered administrator previews, immutable delivery-content snapshots, and a dedicated post-submission Help page.
 - Environment-backed MXroute SMTP delivery using the DBGI support mailbox, with credentials excluded from tracked source.
-- Compact registration activity history with small action rows and collapsed-by-default structured field changes.
+- Compact registration activity history with small action rows, always-visible decision reasons and change-request instructions, and collapsed-by-default structured field changes.
 - Role-aware Help page with beginner company walkthroughs, administrator operating procedures, status explanations, direct task links, and troubleshooting guidance.
 - Role-specific end-to-end practice scenarios with prerequisites, exact actions, and expected outcomes for registration, correction, matching, pricing, notification recovery, and governed End-user workflows.
 - Django Admin operations dashboard with actionable review, pricing, End-user verification, failed-email, and expiring-approval queues, including pending-filter deep links.

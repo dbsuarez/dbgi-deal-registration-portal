@@ -810,7 +810,7 @@ export default function RegistrationDetailPage() {
                     {formatEventTimestamp(event.created_at)}
                   </Typography>
                 </Stack>
-                {!event.changes.length && (
+                {!!event.details && (
                   <Typography variant="body2" color="text.secondary">
                     {event.details}
                   </Typography>
