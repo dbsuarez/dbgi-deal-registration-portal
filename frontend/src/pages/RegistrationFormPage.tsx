@@ -37,6 +37,10 @@ import {
   Typography,
   type AutocompleteRenderInputParams,
 } from "@mui/material";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import dayjs from "dayjs";
 import {
   useEffect,
   useMemo,
@@ -823,25 +827,17 @@ export default function RegistrationFormPage() {
               />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
+              <IsoDateField
                 label="Bid date"
                 value={main.bid_date}
-                onChange={(e) => updateMain("bid_date", e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(value) => updateMain("bid_date", value)}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
+              <IsoDateField
                 label="Delivery date"
                 value={main.delivery_date}
-                onChange={(e) => updateMain("delivery_date", e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(value) => updateMain("delivery_date", value)}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -2068,6 +2064,35 @@ function EndUserDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+const ISO_DATE = "YYYY-MM-DD";
+
+// The browser date input follows the operating system locale, so use a picker
+// that always shows the portal's YYYY-MM-DD format.
+function IsoDateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <DatePicker
+        label={label}
+        format={ISO_DATE}
+        value={value ? dayjs(value) : null}
+        onChange={(date) =>
+          onChange(date?.isValid() ? date.format(ISO_DATE) : "")
+        }
+        enableAccessibleFieldDOMStructure={false}
+        slotProps={{ textField: { fullWidth: true, required: true } }}
+      />
+    </LocalizationProvider>
   );
 }
 

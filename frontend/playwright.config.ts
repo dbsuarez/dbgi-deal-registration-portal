@@ -6,6 +6,9 @@ export default defineConfig({
   // The Vite dev server compiles modules on demand, so the first page loads
   // under full parallel load can exceed the default 5 second expect timeout.
   expect: { timeout: 10_000 },
+  // Half the cores (8 on a 16-core machine) can exhaust the single Vite dev
+  // server's memory; CI runners default to fewer workers already.
+  workers: process.env.CI ? undefined : 4,
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:4173",

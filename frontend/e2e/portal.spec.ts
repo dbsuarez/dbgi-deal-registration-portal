@@ -167,6 +167,8 @@ async function fillCompleteRegistration(page: Page) {
     .fill("Municipal printer project");
   await page.getByLabel("Bid date").fill("2026-11-30");
   await page.getByLabel("Delivery date").fill("2027-01-30");
+  await expect(page.getByLabel("Bid date")).toHaveValue("2026-11-30");
+  await expect(page.getByLabel("Delivery date")).toHaveValue("2027-01-30");
   await page.getByLabel("Contact person").fill("Test person");
   await page.getByLabel("Designation").fill("Buyer");
   await page.getByLabel("Contact email").fill("test@example.invalid");
@@ -638,6 +640,8 @@ test("company user can submit a complete registration", async ({ page }) => {
     expect(payload.competitor_items).toHaveLength(1);
     expect(payload.items).toHaveLength(1);
     expect(payload.end_user_id).toBe(7);
+    expect(payload.bid_date).toBe("2026-11-30");
+    expect(payload.delivery_date).toBe("2027-01-30");
     await route.fulfill({
       status: 201,
       json: {

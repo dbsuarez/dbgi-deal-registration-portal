@@ -17,7 +17,7 @@ The application is a working internal beta with these foundations implemented:
 - Django, Django Ninja, React, TypeScript, MUI, Django Unfold, and Docker architecture.
 - Company and DBGI administrator roles with server-side company scoping.
 - Debug-only development accounts and scenario controls that fail closed outside debug mode.
-- Registration list, detail, create, and edit flows with optimistic concurrency.
+- Registration list, detail, create, and edit flows with optimistic concurrency and `YYYY-MM-DD` date pickers.
 - Governed End-user directory with company proposals and DBGI verification.
 - Repeatable competitor items and managed competitor-brand master data with aliases.
 - Canon, Epson, HP, and Lexmark seed brands, with Hewlett Packard resolving to HP.
