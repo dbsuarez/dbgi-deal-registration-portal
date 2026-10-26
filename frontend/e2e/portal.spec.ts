@@ -988,6 +988,86 @@ test("company user can read DBGI's change request instructions", async ({
   await expect(page.getByText("View 1 change")).toBeVisible();
 });
 
+test("automatic-match notice only follows a system match", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  const matchEvent = (id: number, eventType: string, actorName: string) => ({
+    id,
+    event_type: eventType,
+    details: `${eventType} details`,
+    actor_name: actorName,
+    created_at: "2026-10-26T07:59:00Z",
+    changes: [],
+  });
+  let events = [matchEvent(2, "Confirm eligible match", "DBGI Admin")];
+  await page.route("**/api/v1/registrations/8", (route) =>
+    route.fulfill({
+      json: {
+        id: 8,
+        reference: "DBGI-000008",
+        project_title: "Matched printer project",
+        company_name: "North Dealer",
+        end_user_name: "Sample municipality",
+        end_user_address: "Test address",
+        bid_date: "2026-12-01",
+        delivery_date: "2027-01-15",
+        contact_person: "Test person",
+        contact_designation: "Buyer",
+        contact_email: "test@example.invalid",
+        contact_number: "0000000000",
+        evidence_description: "Public procurement notice",
+        evidence_url: "",
+        evidence_sharing_confirmed: true,
+        status: "eligible_matched",
+        status_label: "Registered",
+        project_status: "upcoming",
+        project_status_label: "Upcoming",
+        price_status: "pending",
+        price_status_label: "Pending",
+        needs_review: false,
+        created_at: "2026-10-26T07:52:00Z",
+        version: 3,
+        can_edit: false,
+        competitor_items: [],
+        items: [],
+        attachments: [],
+        events,
+        opportunity_scope_id: 4,
+        opportunity_scope_label: "Matched printer project | Whole opportunity",
+        category_approvals: [],
+        matching_suggestion: {
+          id: 1,
+          outcome: "clarify",
+          outcome_label: "Request clarification",
+          confidence: "medium",
+          confidence_label: "Medium",
+          score: 53,
+          supporting_factors: [],
+          conflicting_factors: [],
+          rule_version: "matching-v2",
+          candidate_scope_id: null,
+          candidate_scope_label: null,
+          created_at: "2026-10-26T07:52:00Z",
+        },
+      },
+    }),
+  );
+
+  await page.goto("/registrations/8/");
+  await expect(page.getByText("Matched printer project").first()).toBeVisible();
+  await expect(page.getByText(/^Automatically matched\./)).toHaveCount(0);
+
+  events = [matchEvent(1, "Automatically matched", "System")];
+  await page.reload();
+  await expect(page.getByText(/^Automatically matched\./)).toBeVisible();
+});
+
 test("DBGI administrator can inspect a suggestion and start review", async ({
   page,
 }) => {

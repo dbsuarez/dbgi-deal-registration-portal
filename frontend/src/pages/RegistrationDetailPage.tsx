@@ -184,6 +184,15 @@ export default function RegistrationDetailPage() {
     "review_required",
   ].includes(registration.status);
   const isUnderReview = registration.status === "under_review";
+  // Events are newest first; the latest match decision says who matched it.
+  const latestMatchEvent = registration.events.find((event) =>
+    ["Automatically matched", "Confirm eligible match"].includes(
+      event.event_type,
+    ),
+  );
+  const isAutomaticallyMatched =
+    registration.status === "eligible_matched" &&
+    latestMatchEvent?.event_type === "Automatically matched";
   const finalDecisionAction = {
     link_existing: "Link existing opportunity",
     create_new: "Create and link new opportunity",
@@ -304,15 +313,13 @@ export default function RegistrationDetailPage() {
 
       {session.is_dbgi_admin && (
         <Paper sx={{ mb: 3, p: 3 }}>
-          {registration.status === "eligible_matched" &&
-            registration.matching_suggestion?.rule_version ===
-              "matching-v2" && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                Automatically matched. The system found one exact normalized
-                end-user and address match with complete product overlap and no
-                conflicts. No administrator action is required.
-              </Alert>
-            )}
+          {isAutomaticallyMatched && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Automatically matched. The system found one exact normalized
+              end-user and address match with complete product overlap and no
+              conflicts. No administrator action is required.
+            </Alert>
+          )}
           <Stack
             direction={{ xs: "column", md: "row" }}
             spacing={2}
