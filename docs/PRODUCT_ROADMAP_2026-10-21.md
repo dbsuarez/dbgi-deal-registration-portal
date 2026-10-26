@@ -25,7 +25,7 @@ The application is a working internal beta with these foundations implemented:
 - Private evidence attachments, content validation, staged upload finalization, locking, and audit events.
 - Deterministic matching suggestions, strict safe auto-match, administrator review decisions, opportunity scopes, and company-level rankings.
 - Separate project, registration, and commercial-approval status axes.
-- Category commercial approvals, item-level approved prices, expiry, and 30-day renewal decisions.
+- Category commercial approvals, item-level approved prices, expiry, and 30-day renewal decisions, with item choices limited to the approval's registration and the reviewer and review time recorded automatically.
 - Project-status management and activity history.
 - Table search, quick and advanced filters, direct advanced-filter clearing, pagination, status indicators, and permission-scoped ranking views.
 - Structured frontend API errors that preserve backend codes and field details.

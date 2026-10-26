@@ -1288,6 +1288,31 @@ class RegistrationApiTests(TestCase):
         model_changelist_url = reverse("admin:registrations_competitormodel_changelist")
         self.assertEqual(self.client.get(model_changelist_url).status_code, 200)
 
+    def test_category_approval_admin_offers_only_its_registration_items(self):
+        approval = RegistrationCategoryApproval.objects.create(
+            registration=self.registration_a,
+            category=self.product.category,
+        )
+        own_item = self.registration_a.items.get()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item_field = response.context["inline_admin_formsets"][0].formset.empty_form.fields[
+            "registration_item"
+        ]
+        self.assertEqual(list(item_field.queryset), [own_item])
+        self.assertEqual(
+            item_field.label_from_instance(own_item),
+            f"{self.registration_a.reference} - {own_item}",
+        )
+        form_fields = response.context["adminform"].form.fields
+        self.assertNotIn("reviewed_by", form_fields)
+        self.assertNotIn("reviewed_at", form_fields)
+
     def test_logout_ends_authenticated_session(self):
         self.client.force_login(self.user_a)
 

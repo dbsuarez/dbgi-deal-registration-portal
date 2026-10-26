@@ -754,6 +754,24 @@ class RegistrationItemApprovalInline(TabularInline):
     model = RegistrationItemApproval
     extra = 0
 
+    def get_formset(self, request, obj=None, **kwargs):
+        # formfield_for_foreignkey has no access to the parent approval, so pass it on the request.
+        request.category_approval_for_items = obj
+        return super().get_formset(request, obj, **kwargs)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name != "registration_item":
+            return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        items = RegistrationItem.objects.select_related("registration", "product")
+        approval = getattr(request, "category_approval_for_items", None)
+        if approval is not None:
+            items = items.filter(registration_id=approval.registration_id)
+        kwargs["queryset"] = items
+        field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        # Identical products on different registrations would otherwise share one label.
+        field.label_from_instance = lambda item: f"{item.registration.reference} - {item}"
+        return field
+
 
 @admin.register(RegistrationCategoryApproval)
 class RegistrationCategoryApprovalAdmin(ModelAdmin):
@@ -767,7 +785,8 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
     )
     list_filter = ("status", "category", "valid_until")
     search_fields = ("registration__project_title", "registration__company__name", "category")
-    readonly_fields = ("version", "created_at", "updated_at")
+    # save_model records the saving administrator and time, so these are not editable.
+    readonly_fields = ("reviewed_by", "reviewed_at", "version", "created_at", "updated_at")
     inlines = (RegistrationItemApprovalInline,)
 
     def save_model(self, request, obj, form, change):
