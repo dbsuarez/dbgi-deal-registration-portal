@@ -259,15 +259,20 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 
 ## 11. Recommended next delivery slice
 
-Start with **Internal Beta Stabilization and Workflow Closure**:
+Milestone 0 stabilization is complete: scope documentation is current, the audit items are closed, and PostgreSQL concurrency coverage is in CI.
 
-1. Update stale scope documentation.
-2. Close the remaining audit items and add PostgreSQL concurrency coverage.
-3. Confirm registration labels, editing rules, withdrawal policy, and merge or split policy.
-4. Implement withdrawal requests and DBGI confirmation.
-5. Add merge and split impact previews only after the policy is approved.
+Continue with **Workflow Closure**:
 
-This slice reduces technical risk before the portal accumulates price history and reorder records that are harder to correct later.
+1. Confirm registration labels, editing rules, withdrawal policy, and merge or split policy with the DBGI product owner (see the decision register).
+2. Implement withdrawal requests and DBGI confirmation.
+3. Add merge and split impact previews only after the policy is approved.
+
+While those decisions are pending, policy-independent work can proceed:
+
+- Saved DBGI review-queue filters for matching, edited records, withdrawals, and merge or split review (Milestone 1, item 5).
+- Role-specific dashboard counts and authorized exports (Milestone 4, items 5 to 7).
+
+This slice closes lifecycle gaps before the portal accumulates price history and reorder records that are harder to correct later.
 
 ## 12. Decision register for the next product meeting
 
