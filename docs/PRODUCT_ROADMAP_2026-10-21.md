@@ -301,3 +301,5 @@ This slice closes lifecycle gaps before the portal accumulates price history and
 ## 14. Roadmap maintenance
 
 Update this document after each milestone or product-policy decision. Move completed items into the current baseline, record the approving decision and date, and keep unresolved policy separate from engineering tasks. Do not mark a milestone complete based only on UI availability; its backend permissions, migrations, audit behavior, and verification gates must also be complete.
+
+A plain-language summary of what the portal can do today is kept in [CURRENT_CAPABILITIES_2026-10-26.md](CURRENT_CAPABILITIES_2026-10-26.md). Refresh it when the current baseline changes.
