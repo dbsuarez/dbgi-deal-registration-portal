@@ -1,0 +1,36 @@
+How to rebuild the guides
+=========================
+
+Everything here regenerates the files in the two guide folders (docs/guides). Run commands from
+this folder. Needs Python, DeckCraft (C:\Program Files\DeckCraft) and WordCraft (C:\Program Files\WordCraft).
+
+Git tracks only these sources. The finished .docx, .pptx and .deckcraft files, pylib\ and other
+build output are ignored (see .gitignore), so they exist only on the machine that built them.
+
+Folders
+  shots\    raw portal screenshots (1440 px wide), captured 2026-10-26
+  crops\    screenshots cropped for the portal guide (made by crop_shots.py)
+  slides\   slide images from the Deal Registration deck, used inside its Word guide
+  pylib\    Pillow image library used by the scripts (reinstall with:
+            python -m pip install --target pylib pillow)
+
+Deal Registration Guide (general explainer)
+  1. python build_deck.py   -> deal-registration.deckcraft and slides\*.png
+  2. python build_doc.py    -> Deal Registration Guide.docx (uses slides\*.png)
+
+Portal User Guide (portal walkthrough for colleagues)
+  1. python crop_shots.py          -> crops\*.png (only after changing shots\)
+  2. python build_portal_deck.py   -> portal-guide.deckcraft and portal-slides\*.png
+  3. python build_portal_doc.py    -> Portal User Guide.docx
+
+Then copy the new files into the guide folders, and make the PowerPoint copy with:
+  "C:\Program Files\DeckCraft\deckcraft-cli.exe" convert <file>.deckcraft <file>.pptx
+
+Updating a screenshot
+  Replace the file in shots\ with the same name, adjust its crop box in crop_shots.py
+  if the layout moved, then run steps 1 to 3 of the portal guide.
+
+Rules for the portal guide (it is shared with colleagues)
+  - Use only demo or test accounts in screenshots.
+  - Do not show other partner companies' names or data.
+  - Do not name the author.

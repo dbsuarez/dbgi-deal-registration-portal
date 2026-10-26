@@ -14,3 +14,5 @@ select = ["E", "F", "I", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 "registrations/forms.py" = ["RUF012"]
 "registrations/models.py" = ["RUF012"]
+# Guide build scripts hold slide and document prose that should not be wrapped.
+"docs/guides/**/*.py" = ["E501"]
