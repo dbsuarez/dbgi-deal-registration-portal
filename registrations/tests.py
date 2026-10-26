@@ -1005,7 +1005,7 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(self.user_a.show_end_user_field_help)
 
     @override_settings(DEBUG=True)
-    def test_user_can_manage_only_their_registration_test_presets(self):
+    def test_debug_users_share_registration_test_presets(self):
         self.client.force_login(self.user_a)
         create_response = self.client.post(
             "/api/v1/development/registration-test-presets",
@@ -1020,15 +1020,23 @@ class RegistrationApiTests(TestCase):
         )
 
         self.assertEqual(create_response.status_code, 201, create_response.content)
+        self.assertEqual(create_response.json()["created_by_name"], "dealer-a")
         preset_id = create_response.json()["id"]
-        RegistrationTestPreset.objects.create(
+        self.user_b.first_name = "Bianca"
+        self.user_b.last_name = "Reyes"
+        self.user_b.save(update_fields=["first_name", "last_name"])
+        other_preset = RegistrationTestPreset.objects.create(
             owner=self.user_b,
             name="Other user's test",
             payload=self.payload(),
         )
         list_response = self.client.get("/api/v1/development/registration-test-presets")
-        self.assertEqual([item["name"] for item in list_response.json()], ["My reusable test"])
+        self.assertEqual(
+            [(item["name"], item["created_by_name"]) for item in list_response.json()],
+            [("My reusable test", "dealer-a"), ("Other user's test", "Bianca Reyes")],
+        )
 
+        self.client.force_login(self.user_b)
         updated_payload = self.payload(project_title="Updated test project")
         update_response = self.client.put(
             f"/api/v1/development/registration-test-presets/{preset_id}",
@@ -1046,12 +1054,18 @@ class RegistrationApiTests(TestCase):
             update_response.json()["payload"]["project_title"],
             "Updated test project",
         )
+        self.assertEqual(update_response.json()["created_by_name"], "dealer-a")
 
         delete_response = self.client.delete(
             f"/api/v1/development/registration-test-presets/{preset_id}"
         )
         self.assertEqual(delete_response.status_code, 204)
         self.assertFalse(RegistrationTestPreset.objects.filter(pk=preset_id).exists())
+
+        delete_other_response = self.client.delete(
+            f"/api/v1/development/registration-test-presets/{other_preset.pk}"
+        )
+        self.assertEqual(delete_other_response.status_code, 204)
 
     @override_settings(DEBUG=False)
     def test_registration_test_presets_are_unavailable_outside_debug_mode(self):

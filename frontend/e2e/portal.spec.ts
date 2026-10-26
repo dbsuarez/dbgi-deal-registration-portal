@@ -58,6 +58,7 @@ test.beforeEach(async ({ page }) => {
         const created = {
           id: 91,
           ...body,
+          created_by_name: session.display_name,
           updated_at: "2026-10-22T06:00:00Z",
         };
         savedTestPresets = [...savedTestPresets, created];
@@ -65,9 +66,11 @@ test.beforeEach(async ({ page }) => {
       }
       if (method === "PUT") {
         const body = route.request().postDataJSON();
+        const existing = savedTestPresets.find((item) => item.id === id);
         const updated = {
           id,
           ...body,
+          created_by_name: existing?.created_by_name,
           updated_at: "2026-10-22T06:05:00Z",
         };
         savedTestPresets = savedTestPresets.map((item) =>
@@ -515,7 +518,7 @@ test("debug test-data tools can save an edited registration", async ({
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Test data", exact: true }).click();
-  await expect(page.getByText("My saved test data", { exact: true })).toHaveCSS(
+  await expect(page.getByText("Saved test data", { exact: true })).toHaveCSS(
     "font-size",
     "16px",
   );
@@ -537,6 +540,12 @@ test("debug test-data tools can save an edited registration", async ({
   );
   expect(payload.payload.competitor_items).toHaveLength(1);
   expect(payload.payload.items).toHaveLength(1);
+
+  await page.getByRole("button", { name: "Test data", exact: true }).click();
+  await expect(
+    page.getByText("Existing project template", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Created by Dealer A")).toBeVisible();
 });
 
 test("test-data panel is hidden outside debug mode", async ({ page }) => {

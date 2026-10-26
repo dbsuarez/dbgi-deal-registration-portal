@@ -107,7 +107,12 @@ class RegistrationTestPresetOutput(Schema):
     name: str
     description: str
     payload: dict
+    created_by_name: str
     updated_at: datetime
+
+    @staticmethod
+    def resolve_created_by_name(obj):
+        return obj.owner.get_full_name() or obj.owner.username
 
 
 class RegistrationUpdate(RegistrationInput):
@@ -509,7 +514,7 @@ def list_registration_test_presets(request):
     _require_debug_mode()
     from devtools.models import RegistrationTestPreset
 
-    return RegistrationTestPreset.objects.filter(owner=request.user)
+    return RegistrationTestPreset.objects.select_related("owner")
 
 
 @api.post(
@@ -548,7 +553,7 @@ def update_registration_test_preset(request, preset_id: int, payload: Registrati
     _require_debug_mode()
     from devtools.models import RegistrationTestPreset
 
-    preset = get_object_or_404(RegistrationTestPreset, pk=preset_id, owner=request.user)
+    preset = get_object_or_404(RegistrationTestPreset.objects.select_related("owner"), pk=preset_id)
     preset.name = " ".join(payload.name.split())
     preset.description = " ".join(payload.description.split())
     preset.payload = _test_preset_payload(payload.payload)
@@ -559,7 +564,7 @@ def update_registration_test_preset(request, preset_id: int, payload: Registrati
             409,
             {
                 "code": "duplicate_test_preset",
-                "message": "You already have test data with this name.",
+                "message": "The creator of this test data already has test data with this name.",
             },
         )
     return preset
@@ -574,7 +579,7 @@ def delete_registration_test_preset(request, preset_id: int):
     _require_debug_mode()
     from devtools.models import RegistrationTestPreset
 
-    preset = get_object_or_404(RegistrationTestPreset, pk=preset_id, owner=request.user)
+    preset = get_object_or_404(RegistrationTestPreset, pk=preset_id)
     preset.delete()
     return Status(204, None)
 

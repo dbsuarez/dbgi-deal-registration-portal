@@ -1248,7 +1248,7 @@ export default function RegistrationFormPage() {
               fontWeight={700}
               sx={{ mt: 3, mb: 1 }}
             >
-              My saved test data
+              Saved test data
             </Typography>
             {savedPresets.length === 0 ? (
               <Typography color="text.secondary" variant="body2">
@@ -1259,6 +1259,9 @@ export default function RegistrationFormPage() {
                 {savedPresets.map((preset) => (
                   <Paper key={preset.id} variant="outlined" sx={{ p: 2 }}>
                     <Typography fontWeight={700}>{preset.name}</Typography>
+                    <Typography color="text.secondary" variant="body2">
+                      Created by {preset.created_by_name}
+                    </Typography>
                     {preset.description && (
                       <Typography color="text.secondary" variant="body2">
                         {preset.description}
@@ -1326,8 +1329,8 @@ export default function RegistrationFormPage() {
         <DialogTitle>Delete saved test data?</DialogTitle>
         <DialogContent>
           <Typography>
-            {presetDeleteTarget?.name} will be permanently removed from your
-            development presets.
+            {presetDeleteTarget?.name} will be permanently removed from the
+            shared development presets.
           </Typography>
         </DialogContent>
         <DialogActions>

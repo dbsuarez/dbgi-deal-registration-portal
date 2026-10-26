@@ -55,7 +55,7 @@ The application is a working internal beta with these foundations implemented:
 - New registrations prefill editable contact name, designation, email, and phone values from the signed-in user's managed profile, while edits preserve the registration's saved contact snapshot.
 - Managed competitor item/model suggestions linked to canonical brands, with starter Canon, Epson, HP, and Lexmark models plus user-driven catalog growth and administrator archive or restore controls.
 - Debug-only floating registration test-data panel with five one-click presets, including two differently titled submissions for the same Pasig competition.
-- User-owned debug registration presets that can be created from new or existing registration forms, loaded and updated, or permanently deleted from the compact test-data panel.
+- Shared debug registration presets that any signed-in development user can create from new or existing registration forms, load, update, or permanently delete from the compact test-data panel, with each preset labeled by its creator.
 - Accessible example popovers for every Add missing End-user field, with a remembered per-user show or hide preference that remains subject to the Django superuser Portal setting.
 - Versioned local PSGC Region, Province, and City/Municipality reference data with an explicit import command and reusable cascading selectors in Add missing End-user.
 - Controlled End-user classification selectors with fixed government branches and administrator-reviewed Organization type and Sector catalogs.

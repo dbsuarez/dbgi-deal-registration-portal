@@ -281,6 +281,7 @@ export type RegistrationTestPreset = {
   name: string;
   description: string;
   payload: RegistrationPayload;
+  created_by_name: string;
   updated_at: string;
 };
 
