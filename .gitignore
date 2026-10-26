@@ -27,10 +27,11 @@ entities.json
 # Local development launcher
 start-backend.ps1
 
-# Learning guides: commit the build sources, keep generated files and the image library local
-docs/guides/**/*.docx
-docs/guides/**/*.pptx
-docs/guides/**/*.deckcraft
+# Learning guides: commit the sources and finished guides; keep the image library and
+# intermediate build output in _source local
 docs/guides/_source/pylib/
 docs/guides/_source/portal-slides/
 docs/guides/_source/*-script.json
+docs/guides/_source/*.docx
+docs/guides/_source/*.pptx
+docs/guides/_source/*.deckcraft

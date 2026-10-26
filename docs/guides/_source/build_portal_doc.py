@@ -446,17 +446,17 @@ bullets(
     [
         "Open **Administration**, then **Price approvals**, or select the registration in the dashboard's **Pricing queue**.",
         "Set **Status** to Approved, Partially approved, Rejected, or Changes requested.",
-        "Write the **Rationale**, select yourself in **Reviewed by**, and fill in **Reviewed at** and **Valid until**.",
+        "Write the **Rationale** and set **Valid until**.",
         "Under **Registration item approvals**, select **Add another Registration item approval**, choose the item, and enter the **Approved unit price**.",
-        "Select **Save**.",
+        "Select **Save**. **Reviewed by** and **Reviewed at** are filled in automatically with your name and the time you saved.",
     ],
     numbered=True,
 )
 picture("pricing-top", "The pricing decision form.")
 picture("pricing-items", "Entering the approved unit price for the item.")
-warn(
-    "The item list can show the same product several times, one for each registration that requested it. Make sure you "
-    "choose the item that belongs to this registration."
+callout(
+    "The item list offers only this registration's items, each labelled with its reference (for example "
+    "**DBGI-000012 - M1820W**), so another registration's item cannot be chosen by mistake."
 )
 h2("Expected result")
 good(
@@ -578,16 +578,6 @@ table(
     [180, 271],
 )
 
-# ---------- 13 ----------
-h1("13. Things to watch for in the current version")
-bullets(
-    [
-        "The date fields on the registration form display dates as month/day/year while you type. After saving, the portal shows them as year-month-day (for example 2026-12-01).",
-        "Pricing decisions are made in the Administration area, not on the registration page. **Reviewed by** must be selected by hand.",
-        "The item list in a pricing decision can repeat the same product from several registrations. Check that you picked the right one.",
-        "An administrator's registration page can show the green **Automatically matched** message even when an administrator confirmed the match by hand. Check Activity to see who decided.",
-    ]
-)
 start("Normal")
 c("format.set", {"props": {"size": 9, "color": MUTED}})
 c("text.insert", {"text": "Screens captured from the portal's test environment on 2026-10-26."})

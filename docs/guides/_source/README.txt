@@ -4,8 +4,8 @@ How to rebuild the guides
 Everything here regenerates the files in the two guide folders (docs/guides). Run commands from
 this folder. Needs Python, DeckCraft (C:\Program Files\DeckCraft) and WordCraft (C:\Program Files\WordCraft).
 
-Git tracks only these sources. The finished .docx, .pptx and .deckcraft files, pylib\ and other
-build output are ignored (see .gitignore), so they exist only on the machine that built them.
+Git tracks these sources and the finished guides in the two guide folders. pylib\ and the
+intermediate output written here (.docx, .deckcraft, portal-slides\) are ignored (see .gitignore).
 
 Folders
   shots\    raw portal screenshots (1440 px wide), captured 2026-10-26

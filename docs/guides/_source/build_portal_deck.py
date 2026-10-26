@@ -645,19 +645,17 @@ def s_pricing(s):
         [
             "Open the pending category for the registration.",
             "Set Status: Approved, Partially approved, Rejected, or Changes requested.",
-            "Write the rationale, choose yourself as Reviewed by, and set Valid until.",
+            "Write the rationale and set Valid until.",
             "Under Registration item approvals, add the item and its approved unit price.",
-            "Select Save.",
+            "Select Save. Reviewed by and Reviewed at are filled in with your name and the time.",
         ],
         size=13,
     )
     tip(
         s,
         [500, 410, 410, 92],
-        "Check the item carefully: the same product can appear several times, from different registrations.",
-        icon="triangle-alert",
-        fill=WARN_FILL,
-        color=WARN_INK,
+        "Only this registration's items are offered, each labelled with its reference, such as DBGI-000012.",
+        icon="info",
     )
 
 
