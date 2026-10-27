@@ -7,6 +7,8 @@ this folder. Needs Python, DeckCraft (C:\Program Files\DeckCraft) and WordCraft 
 Git tracks these sources and the finished guides in the two guide folders. pylib\ and the
 intermediate output written here (.docx, .deckcraft, portal-slides\) are ignored (see .gitignore).
 
+CLI_NOTES.md lists the DeckCraft and WordCraft commands and gotchas used by these scripts.
+
 Folders
   shots\    raw portal screenshots (1440 px wide), captured 2026-10-26
   crops\    screenshots cropped for the portal guide (made by crop_shots.py)
