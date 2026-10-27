@@ -9,7 +9,7 @@ Read `TECH_STACK.md` first, then the relevant standards for the task:
 - Database changes: `DATABASE_STANDARDS.md`
 - Authentication, authorization, and data protection: `SECURITY_STANDARDS.md`
 - Verification: `TESTING_STANDARDS.md`
-- Word or slide learning guides (DeckCraft and WordCraft CLIs): `docs/guides/_source/CLI_NOTES.md`; shared notes and helpers for all ArtCraft tools: https://github.com/dbsuarez/artcraft-usage (local clone `D:Developmentrtcraft-usage`)
+- Word or slide learning guides (DeckCraft and WordCraft CLIs): `docs/guides/_source/CLI_NOTES.md`; shared notes and helpers for all ArtCraft tools: https://github.com/dbsuarez/artcraft-usage (local clone `D:\Developmentrtcraft-usage`)
 
 If rules conflict, identify the conflict and request clarification rather than silently choosing. Project-specific requirements may add constraints, but do not silently weaken security or data-integrity standards.
 
