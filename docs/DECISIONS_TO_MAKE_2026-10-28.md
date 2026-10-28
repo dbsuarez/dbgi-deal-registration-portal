@@ -2,7 +2,7 @@
 
 **As of:** 2026-10-28  
 **Purpose:** a plain-language question list for the people at DBGI who run deal registration, pricing, and IT.
-Their answers decide what gets built next, so the portal follows how DBGI actually works instead of guesses.
+Their answers decide what gets built next, so the portal follows the process DBGI wants instead of guesses. DBGI has no deal registration system yet; the portal will be the first.
 
 ## How to use this
 
@@ -31,20 +31,20 @@ Each question has the same parts:
 
 These check the foundation. A wrong answer here matters more than any detail below.
 
-### A1. Does the basic flow match how DBGI works?
+### A1. Is this the process DBGI wants?
 
-- **Means:** a partner registers a deal, DBGI checks it, decides who was first, then approves a special price. Is that really the process?
+- **Means:** DBGI has no deal registration system yet; the portal will be the first. It follows this process: a partner registers a deal, DBGI checks it, decides who was first, then approves a special price. Is that the process DBGI wants partners to follow?
 - **Today:** the portal does exactly that loop, end to end, with notifications.
-- **Ask:** What happens today when a partner tells DBGI about a government deal? Where does the portal differ from that?
+- **Ask:** Is anything in this process wrong or missing for DBGI? What would you change?
 - **Unblocks:** confidence that the remaining work is on the right path.
 - **Answer:**
 
-### A2. How is this done today, without the portal?
+### A2. What about deals partners already told DBGI about?
 
-- **Means:** spreadsheets, email, Viber, phone? Knowing this tells us what the portal must replace and what people will compare it to.
-- **Today:** not recorded anywhere in the project.
-- **Ask:** What do you use today (spreadsheet, email, chat)? If you can, attach an example from a recent deal, with partner names removed.
-- **Unblocks:** importing existing deals, matching familiar terms and columns.
+- **Means:** before the portal goes live, partners may already have told DBGI about deals by email, phone, or chat, or been promised a special price. When the portal starts, do those deals keep their place in line?
+- **Today:** the portal only knows deals entered into it, and ranks them by the time they were submitted in the portal. An older deal entered after launch counts from its entry time; nobody can enter an earlier date.
+- **Choices:** (a) start fresh: only deals submitted in the portal count, and partners are told the launch date in advance; (b) DBGI enters known deals at launch, with proof of the earlier date, and ranks them first; (c) partners get a short window (for example two weeks) to register existing deals, which DBGI reviews case by case.
+- **Unblocks:** the launch plan, and whether the portal needs a way to enter older deals with their original date.
 - **Answer:**
 
 ### A3. Who will actually use it first?
@@ -67,7 +67,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 
 - **Means:** labels like "Registered", "Changes requested", "Review required after edit", "Opportunity scope", "Lot".
 - **Today:** registration statuses are Submitted, Under review, Changes requested, Resubmitted, Registered, Review required after edit, Approved, and Rejected.
-- **Ask:** Would a partner understand these labels? What words do you use for them today?
+- **Ask:** Would a partner understand these labels? Which words would partners and DBGI staff expect instead?
 - **Unblocks:** final screen labels and help text.
 - **Answer:**
 
@@ -183,7 +183,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 
 - **Means:** after approval, a partner places more orders for the same customer. What proof is needed, and how does DBGI spot duplicates?
 - **Today:** not built yet. It depends on Part C.
-- **Ask:** What does DBGI check today before honouring a repeat order at the special price?
+- **Ask:** What should DBGI check before honouring a repeat order at the special price (for example a purchase order, the same end-user, the same product)?
 - **Answer:**
 
 ### D2. Who gets which emails?

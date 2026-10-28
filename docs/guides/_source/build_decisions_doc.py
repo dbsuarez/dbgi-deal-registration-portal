@@ -159,8 +159,8 @@ def build():
         "Portal Decisions", "Questions for DBGI sales, pricing, and IT. Printable answer sheet."
     )
     doc.para(
-        "These answers decide what is built next in the DBGI Project Registration Portal, so it follows how "
-        "DBGI actually works. Each question explains what it means and what the portal does today."
+        "These answers decide what is built next in the DBGI Project Registration Portal, so it follows the "
+        "process DBGI wants. Each question explains what it means and what the portal does today."
     )
     doc.bullets(
         [
