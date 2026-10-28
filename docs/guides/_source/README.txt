@@ -25,6 +25,11 @@ Portal User Guide (portal walkthrough for colleagues)
   2. python build_portal_deck.py   -> portal-guide.deckcraft and portal-slides\*.png
   3. python build_portal_doc.py    -> Portal User Guide.docx
 
+Portal Decisions (printable question sheet for DBGI)
+  python build_decisions_doc.py   -> Decision Questions\DBGI Portal Decisions.docx and .pdf
+  It reads docs\DECISIONS_TO_MAKE_2026-10-28.md, so edit the questions there and rebuild.
+  Page previews go to decision-pages\ (ignored).
+
 Then copy the new files into the guide folders, and make the PowerPoint copy with:
   "C:\Program Files\DeckCraft\deckcraft-cli.exe" convert <file>.deckcraft <file>.pptx
 
