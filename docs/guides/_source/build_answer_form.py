@@ -50,7 +50,7 @@ def part_table(doc, part):
         doc.c("text.insert", {"text": q["title"]})
         doc.c("text.lineBreak")
         doc.c("format.set", {"props": {"bold": False, "size": 8, "color": MUTED}})
-        doc.c("text.insert", {"text": f"Slide {slide_number(qid)}"})
+        doc.c("text.insert", {"text": f"Explained on slide {slide_number(qid)}"})
         doc.c("format.resetChar")
         doc.c("text.tab")
         options = choices(q.get("choices", ""))
@@ -78,14 +78,18 @@ def part_table(doc, part):
 def build():
     parts = parse(SOURCE)
     doc = Doc()
-    doc.title("Portal Decisions: Answer Form", "Fill in on screen, save, and send back")
+    doc.title("DBGI Portal Answer Form", 'Companion to the "Using the DBGI Portal" slides')
+    doc.para(
+        "The slides explain each question: what it means, what the portal does today, and the choices. "
+        "This form only records your answers, one row per question slide."
+    )
     doc.bullets(
         [
-            "Open this file in **Microsoft Word** (desktop or online). Go through it with the "
-            "**Using the DBGI Portal** slides open: each question shows the slide that explains it.",
-            "Click **Pick an option** to choose an answer, and **Type here** to add notes or your own rule.",
+            "Open this form in **Microsoft Word** (desktop or online) and the slides beside it. "
+            "Each row shows the slide that explains it.",
+            "Click **Pick an option** to choose, and **Type here** to add notes or your own rule.",
             "The first choice on each slide is only a suggestion. Skip anything outside your area.",
-            "Save the file and send it back to the person who sent you the slides.",
+            "Save the form and send it back to the person who sent you the slides.",
         ]
     )
     field(doc, "Name", "developer.plainText", {"title": "Name", "tag": "name"})
@@ -102,8 +106,15 @@ def build():
         {"title": "Date", "tag": "date", "format": "yyyy-MM-dd"},
     )
     for i, part in enumerate(parts):
-        # Part B would leave its header row alone at the foot of page 1
-        doc.h1(part["title"], page_break=i == 1)
+        if i:
+            # Start each later part on a new page from its heading; a separate page-break
+            # paragraph spills onto a blank page when the table above fills its page exactly
+            doc.start("Heading1")
+            doc.c("para.pageBreakBefore", {"value": True})
+            doc.c("text.insert", {"text": part["title"]})
+            doc.c("text.newParagraph")
+        else:
+            doc.h1(part["title"])
         part_table(doc, part)
     doc.start("Normal")
     doc.c("format.set", {"props": {"bold": True, "color": NAVY}})

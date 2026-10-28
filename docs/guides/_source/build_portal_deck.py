@@ -823,10 +823,10 @@ def s_questions_intro(s):
         color="#B9D4E0",
     )
     steps = [
-        'Read what the portal does today, then pick a choice, or say "keep today", or write your own rule.',
-        "The first choice is only a suggestion to react to, not a decision.",
-        "Skip anything outside your area. Part A matters most.",
-        "Answer in the Word answer form sent with this deck, or by email, one line per question: B2: a",
+        'Open the Word "DBGI Portal Answer Form" beside these slides. Each row matches one slide, A1 to D4.',
+        "On each slide, read what the portal does today, then pick a choice in the form, keep today, or write your own.",
+        "The first choice is only a suggestion. Skip anything outside your area; Part A matters most.",
+        "Save the form and send it back to the person who sent you this deck.",
     ]
     for i, t in enumerate(steps):
         y = 285 + i * 52
@@ -843,6 +843,48 @@ def sentence(text):
 def lines(text, per_line):
     """Rough wrapped line count for a text box, to size boxes to their text."""
     return max(1, -(-len(text) // per_line))
+
+
+# The walkthrough slide that shows the screen or rule each question is about
+SCREENS = {
+    "A1": "s_journey",
+    "A3": "s_users",
+    "A5": "s_badges",
+    "B1": "s_resubmit",
+    "B2": "s_decide",
+    "B3": "s_confirm",
+    "B4": "s_badges",
+    "B5": "s_rankings",
+    "B6": "s_create_evidence",
+    "B7": "s_badges",
+    "C1": "s_result",
+    "C2": "s_create_items",
+    "C3": "s_create_items",
+    "C4": "s_create_items",
+    "C5": "s_result",
+    "D2": "s_notifications",
+}
+SCREEN_TITLES = {
+    "s_journey": "The journey we will follow",
+    "s_users": "Two kinds of users",
+    "s_badges": "Read the three status badges",
+    "s_resubmit": "Fix only what was asked",
+    "s_decide": "Choose exactly one decision",
+    "s_confirm": "Check the changes, then confirm",
+    "s_rankings": "Check your ranking",
+    "s_create_evidence": "Describe your evidence",
+    "s_result": "See the approved price",
+    "s_create_items": "Add the products you need",
+    "s_notifications": "Notifications",
+}
+
+
+def screen_reference(question_id):
+    name = SCREENS.get(question_id)
+    if not name:
+        return None
+    number = [fn.__name__ for fn in slides].index(name) + 1
+    return f"See it in the walkthrough: slide {number}, {SCREEN_TITLES[name]}"
 
 
 def question_slide(number, part, q):
@@ -904,14 +946,21 @@ def question_slide(number, part, q):
                 icon="message-circle",
             )
             y += 120
-        # Bottom: how to reply
-        example = f"{qid(q)}: a" if options else f"{qid(q)}: your answer in a sentence or two"
+        reference = screen_reference(qid(q))
+        if reference:
+            s.icon("image", [512, y + 4, 18, 18], TEAL)
+            s.text([536, y, 374, 40], reference, size=12, color=TEAL)
+        # Bottom: where to answer, in the companion Word form
+        how = (
+            "pick a choice, keep today, or write your own"
+            if options
+            else "write your answer in Notes"
+        )
         s.box([60, 470, 850, 40], fill=SAND, preset="roundRect")
-        s.icon("mail", [76, 479, 22, 22], NAVY)
+        s.icon("file-text", [76, 479, 22, 22], NAVY)
         s.text(
             [108, 472, 790, 36],
-            f"Reply with   {example}"
-            + ("   or   " + qid(q) + ": keep today   or your own rule" if options else ""),
+            f"Answer form, row {qid(q)}:  {how}",
             size=14,
             bold=True,
             color=NAVY,
