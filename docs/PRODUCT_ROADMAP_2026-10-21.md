@@ -263,7 +263,7 @@ Milestone 0 stabilization is complete: scope documentation is current, the audit
 
 Continue with **Workflow Closure**:
 
-1. Confirm registration labels, editing rules, withdrawal policy, and merge or split policy with the DBGI product owner (see the decision register).
+1. Run the plain-language question list in [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md) with DBGI sales, pricing, and IT, starting with Part A (does the portal match how DBGI works) and Part B (registration labels, editing rules, withdrawal, merge or split).
 2. Implement withdrawal requests and DBGI confirmation.
 3. Add merge and split impact previews only after the policy is approved.
 
@@ -276,19 +276,25 @@ This slice closes lifecycle gaps before the portal accumulates price history and
 
 ## 12. Decision register for the next product meeting
 
-| Decision                                                 | Needed by   | Owner                         |
-| -------------------------------------------------------- | ----------- | ----------------------------- |
-| Final registration labels and transitions                | Milestone 1 | DBGI product owner            |
-| Submitted-record editing rule                            | Milestone 1 | DBGI product owner            |
-| Withdrawal and restoration policy                        | Milestone 1 | DBGI product owner            |
-| Opportunity merge and split effects                      | Milestone 1 | DBGI product owner            |
-| Initial commercial validity                              | Milestone 2 | DBGI commercial owner         |
-| VAT and rounding policy                                  | Milestone 2 | DBGI finance or pricing owner |
-| Non-catalog approval rule                                | Milestone 2 | DBGI commercial owner         |
-| Reorder evidence and duplicate-review policy             | Milestone 3 | DBGI operations owner         |
-| Postponed, failed, cancelled, and reposted notice policy | Milestone 1 | DBGI product owner            |
-| Notification recipients and email provider               | Milestone 4 | DBGI operations and IT        |
-| Retention, backup targets, and restore objectives        | Milestone 5 | DBGI IT and management        |
+The questions, what the portal does today, and suggested choices are in [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md).
+Record each answer here with its date and who decided, then turn it into a build task. "Keep today" needs no change.
+
+| Question | Decision                                                              | Needed by          | Owner                         | Answer |
+| -------- | --------------------------------------------------------------------- | ------------------ | ----------------------------- | ------ |
+| A1-A5    | Portal matches DBGI's real process, pilot users, launch scope, labels | Before Milestone 1 | DBGI sales and management     | Open   |
+| A5, B1   | Final registration labels and submitted-record editing rule           | Milestone 1        | DBGI product owner            | Open   |
+| B2       | Withdrawal and restoration policy                                     | Milestone 1        | DBGI product owner            | Open   |
+| B3       | Opportunity merge and split effects                                   | Milestone 1        | DBGI product owner            | Open   |
+| B4, B5   | Project outcome authority and tie rule                                | Milestone 1        | DBGI product owner            | Open   |
+| B6       | Advance-registration validity and reminders                           | Milestone 1        | DBGI product owner            | Open   |
+| B7       | Postponed, failed, cancelled, and reposted notice policy              | Milestone 1        | DBGI product owner            | Open   |
+| C1       | Initial commercial validity and reminder lead time                    | Milestone 2        | DBGI commercial owner         | Open   |
+| C2, C3   | VAT and rounding policy                                               | Milestone 2        | DBGI finance or pricing owner | Open   |
+| C4       | Non-catalog approval rule                                             | Milestone 2        | DBGI commercial owner         | Open   |
+| C5       | Company price visibility                                              | Milestone 2        | DBGI commercial owner         | Open   |
+| D1       | Reorder evidence and duplicate-review policy                          | Milestone 3        | DBGI operations owner         | Open   |
+| D2       | Notification recipients                                               | Milestone 4        | DBGI operations and IT        | Open   |
+| D3, D4   | Retention, backup and restore targets, working days                   | Milestone 5        | DBGI IT and management        | Open   |
 
 ## 13. Deferred work
 
