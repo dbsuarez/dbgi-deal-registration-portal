@@ -848,8 +848,8 @@ def lines(text, per_line):
 # The walkthrough slide that shows the screen or rule each question is about
 SCREENS = {
     "A1": "s_journey",
-    "A3": "s_users",
-    "A5": "s_badges",
+    "A2": "s_users",
+    "A4": "s_badges",
     "B1": "s_resubmit",
     "B2": "s_decide",
     "B3": "s_confirm",

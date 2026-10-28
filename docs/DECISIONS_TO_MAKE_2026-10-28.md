@@ -31,6 +31,9 @@ Each question has the same parts:
 
 These check the foundation. A wrong answer here matters more than any detail below.
 
+Already known: the deal registration program and the product are both new. There are no existing deals,
+partner claims, or promised prices to bring in, so everything starts in the portal.
+
 ### A1. Is this the process DBGI wants?
 
 - **Means:** DBGI has no deal registration system yet; the portal will be the first. It follows this process: a partner registers a deal, DBGI checks it, decides who was first, then approves a special price. Is that the process DBGI wants partners to follow?
@@ -39,15 +42,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 - **Unblocks:** confidence that the remaining work is on the right path.
 - **Answer:**
 
-### A2. What about deals partners already told DBGI about?
-
-- **Means:** before the portal goes live, partners may already have told DBGI about deals by email, phone, or chat, or been promised a special price. When the portal starts, do those deals keep their place in line?
-- **Today:** the portal only knows deals entered into it, and ranks them by the time they were submitted in the portal. An older deal entered after launch counts from its entry time; nobody can enter an earlier date.
-- **Choices:** (a) start fresh: only deals submitted in the portal count, and partners are told the launch date in advance; (b) DBGI enters known deals at launch, with proof of the earlier date, and ranks them first; (c) partners get a short window (for example two weeks) to register existing deals, which DBGI reviews case by case.
-- **Unblocks:** the launch plan, and whether the portal needs a way to enter older deals with their original date.
-- **Answer:**
-
-### A3. Who will actually use it first?
+### A2. Who will actually use it first?
 
 - **Means:** which DBGI staff review registrations, and which partner companies should try it first.
 - **Today:** two roles exist: company user (partner staff) and DBGI administrator. All DBGI admins can do everything.
@@ -55,7 +50,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 - **Unblocks:** user accounts, training, and whether DBGI needs separate reviewer and pricing roles.
 - **Answer:**
 
-### A4. What must work on day one, and what can wait?
+### A3. What must work on day one, and what can wait?
 
 - **Means:** the smallest version DBGI would actually use.
 - **Today:** registration, review, ranking, and price approval work. Withdrawal, merging deals, price history, and reorders do not exist yet.
@@ -63,7 +58,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 - **Unblocks:** the launch date and what is in scope for it.
 - **Answer:**
 
-### A5. Do the words make sense to partners?
+### A4. Do the words make sense to partners?
 
 - **Means:** labels like "Registered", "Changes requested", "Review required after edit", "Opportunity scope", "Lot".
 - **Today:** registration statuses are Submitted, Under review, Changes requested, Resubmitted, Registered, Review required after edit, Approved, and Rejected.
