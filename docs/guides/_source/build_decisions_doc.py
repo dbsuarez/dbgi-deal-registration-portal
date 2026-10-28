@@ -167,7 +167,10 @@ def build():
             "Tick one choice, tick **Keep what the portal does today**, or write your own rule under **Other**.",
             "The first choice is only a suggested starting point, not a decision.",
             "Write who answered and the date (YYYY-MM-DD) under each question.",
-            "Start with **Part A**. If an answer there is a surprise, discuss it before continuing.",
+            "Start with **Part A**. If an answer there is a surprise, say so before continuing.",
+            "The same questions, with the same ids, are at the end of the **Using the DBGI Portal** slides. "
+            "Its walkthrough slides show the screens they refer to.",
+            "Skip anything outside your area, and return the sheet to the person who sent it.",
         ]
     )
     write_line(doc, "Meeting date (YYYY-MM-DD): ", keep_next=False)

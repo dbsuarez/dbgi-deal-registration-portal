@@ -24,6 +24,8 @@ Portal User Guide (portal walkthrough for colleagues)
   1. python crop_shots.py          -> crops\*.png (only after changing shots\)
   2. python build_portal_deck.py   -> portal-guide.deckcraft and portal-slides\*.png
   3. python build_portal_doc.py    -> Portal User Guide.docx
+  The deck ends with one slide per question from docs\DECISIONS_TO_MAKE_2026-10-28.md (read through
+  build_decisions_doc.py), so after editing the questions rebuild both the deck and the printable sheet.
 
 Portal Decisions (printable question sheet for DBGI)
   python build_decisions_doc.py   -> Decision Questions\DBGI Portal Decisions.docx and .pdf

@@ -263,7 +263,7 @@ Milestone 0 stabilization is complete: scope documentation is current, the audit
 
 Continue with **Workflow Closure**:
 
-1. Run the plain-language question list in [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md) with DBGI sales, pricing, and IT, starting with Part A (does the portal match how DBGI works) and Part B (registration labels, editing rules, withdrawal, merge or split).
+1. Send the **Using the DBGI Portal** deck (docs/guides/Portal User Guide) to DBGI sales, pricing, and IT. It ends with one slide per question from [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md); replies come back as one line per question (for example `B2: a`). Part A (does the portal match how DBGI works) and Part B (labels, editing, withdrawal, merge or split) come first.
 2. Implement withdrawal requests and DBGI confirmation.
 3. Add merge and split impact previews only after the policy is approved.
 

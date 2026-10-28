@@ -6,22 +6,23 @@ Their answers decide what gets built next, so the portal follows how DBGI actual
 
 ## How to use this
 
-1. Bring it to a short meeting with whoever handles partner deals (sales or channel), pricing (finance), and IT.
-2. Go through **Part A first**. If an answer there surprises you, stop and update the plan before the rest.
-3. For each question, write the answer on the **Answer** line: a choice letter, "keep today", or their own rule in a sentence.
-   Add who answered and the date, for example `B2: (a), Sales manager, 2026-11-03`.
-4. Afterwards, each answer is applied to the portal: it goes into the roadmap's decision register and becomes a build task.
-   An answer of "keep today" means no change is needed.
+These questions are sent at the end of the **Using the DBGI Portal** slide deck, one slide per question,
+to the people who handle partner deals (sales or channel), pricing (finance), and IT.
+The deck's walkthrough slides show the screens each question refers to.
+
+1. Answer **Part A first**. If an answer there is a surprise, it changes the plan before anything else.
+2. Answer each question with a choice letter, "keep today", or your own rule in a sentence.
+   Reply to the person who sent the deck, one line per question, for example `B2: a`. Skip anything outside your area.
+3. Prefer paper? The printable sheet **DBGI Portal Decisions** has the same questions and ids, with tick boxes.
+4. Each answer is then applied to the portal: it is recorded in the roadmap's decision register with the date and
+   who answered, and becomes a build task. "Keep today" means no change is needed.
 
 Each question has the same parts:
 
 - **Means:** the question in plain words.
-- **Today:** what the portal does now. If DBGI is happy with that, the answer can simply be "keep it".
+- **Today:** what the portal does now. If that already works for DBGI, the answer is simply "keep today".
 - **Choices:** realistic options. The first one is the suggested starting point, not a decision.
 - **Unblocks:** what can be built once it is answered.
-
-You do not need to know deal registration to run this meeting. Read the question, show the "Today" behaviour
-in the portal if useful (the Portal User Guide has screenshots), and record what they say.
 
 ---
 
@@ -33,7 +34,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 
 - **Means:** a partner registers a deal, DBGI checks it, decides who was first, then approves a special price. Is that really the process?
 - **Today:** the portal does exactly that loop, end to end, with notifications.
-- **Ask:** "Walk me through what happens today when a partner tells you about a government deal. Where does the portal differ?"
+- **Ask:** What happens today when a partner tells DBGI about a government deal? Where does the portal differ from that?
 - **Unblocks:** confidence that the remaining work is on the right path.
 - **Answer:**
 
@@ -41,7 +42,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 
 - **Means:** spreadsheets, email, Viber, phone? Knowing this tells us what the portal must replace and what people will compare it to.
 - **Today:** not recorded anywhere in the project.
-- **Ask:** "Can I see the current spreadsheet or emails for a recent deal?" (Without partner names, if sensitive.)
+- **Ask:** What do you use today (spreadsheet, email, chat)? If you can, attach an example from a recent deal, with partner names removed.
 - **Unblocks:** importing existing deals, matching familiar terms and columns.
 - **Answer:**
 
@@ -65,7 +66,7 @@ These check the foundation. A wrong answer here matters more than any detail bel
 
 - **Means:** labels like "Registered", "Changes requested", "Review required after edit", "Opportunity scope", "Lot".
 - **Today:** registration statuses are Submitted, Under review, Changes requested, Resubmitted, Registered, Review required after edit, Approved, and Rejected.
-- **Ask:** "Would a partner understand these? What do you call them today?"
+- **Ask:** Would a partner understand these labels? What words do you use for them today?
 - **Unblocks:** final screen labels and help text.
 - **Answer:**
 
@@ -181,30 +182,33 @@ These check the foundation. A wrong answer here matters more than any detail bel
 
 - **Means:** after approval, a partner places more orders for the same customer. What proof is needed, and how does DBGI spot duplicates?
 - **Today:** not built yet. It depends on Part C.
-- **Ask:** "What does DBGI check today before honouring a repeat order at the special price?"
+- **Ask:** What does DBGI check today before honouring a repeat order at the special price?
 - **Answer:**
 
 ### D2. Who gets which emails?
 
-- **Means:** today every active user at the partner company receives the notifications. DBGI staff get none and work from the dashboard.
-- **Choices:** (a) keep it; (b) email only the person who submitted; (c) also email DBGI reviewers when something needs action.
+- **Means:** which people receive the portal's email notifications, on the partner side and at DBGI.
+- **Today:** every active user at the partner company receives each notification. DBGI staff get no emails and work from the dashboard queues.
+- **Choices:** (a) keep today's rule; (b) email only the person who submitted; (c) also email DBGI reviewers when something needs action.
 - **Answer:**
 
 ### D3. Records, backups, and recovery
 
 - **Means:** how long to keep old deals and files, and how quickly the portal must be back after a failure.
+- **Today:** the portal is not in production yet. Nothing is deleted automatically, and no backup schedule exists.
 - **Choices:** (a) keep everything for 5 years, daily backups, back within one working day; (b) IT sets the targets.
 - **Answer:**
 
 ### D4. Business hours and holidays
 
-- **Means:** deadlines like "one working day" need a definition. The portal uses Philippine time.
+- **Means:** deadlines like "one working day" need a definition.
+- **Today:** the portal uses Philippine time and counts calendar days (for example, a renewal adds 30 calendar days). There are no working-day or holiday rules.
 - **Choices:** (a) Monday to Friday, Philippine public holidays excluded, 5:00 PM cutoff; (b) calendar days only.
 - **Answer:**
 
 ---
 
-## After the meeting
+## After the answers come in
 
 Record each answer in the roadmap's decision register ([PRODUCT_ROADMAP_2026-10-21.md](PRODUCT_ROADMAP_2026-10-21.md), section 12)
 with the date and who decided. Unanswered questions stay open. Work that does not depend on them continues meanwhile.

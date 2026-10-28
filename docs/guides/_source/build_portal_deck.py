@@ -19,6 +19,9 @@ from deck_lib import (
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "pylib"))
+from build_decisions_doc import SOURCE as DECISIONS  # noqa: E402
+from build_decisions_doc import choices as decision_choices  # noqa: E402
+from build_decisions_doc import parse as parse_decisions  # noqa: E402
 from PIL import Image  # noqa: E402
 
 OUT = os.path.join(HERE, "portal-guide.deckcraft")
@@ -111,7 +114,7 @@ def s_title(s):
     )
     s.text(
         [58, 440, 840, 30],
-        "Walkthrough for company users and DBGI administrators  |  2026-10-26",
+        "Walkthrough for company users and DBGI administrators, then questions for DBGI  |  2026-10-28",
         size=14,
         color="#8FB3C4",
     )
@@ -789,6 +792,166 @@ def s_reference(s):
     s.add("table.cellAlign", {"anchor": "middle"})
     s.add("table.columnWidth", {"col": 0, "width": 330})
     s.add("table.columnWidth", {"col": 1, "width": 520})
+
+
+# 23+ ------------------------------------------------------------- questions for DBGI
+# Generated from docs/DECISIONS_TO_MAKE_*.md (same source and ids as the printable sheet).
+PARTS = parse_decisions(DECISIONS)
+QUESTIONS = [(part, q) for part in PARTS for q in part["questions"]]
+
+
+def qid(q):
+    return q["title"].split(".", 1)[0]
+
+
+@slide
+def s_questions_intro(s):
+    s.add("design.background", {"color": NAVY})
+    s.box([60, 110, 70, 8], fill=SAND, preset="rect")
+    s.text(
+        [56, 130, 860, 60],
+        "Your answers decide what we build next",
+        size=34,
+        bold=True,
+        color=WHITE,
+    )
+    s.text(
+        [58, 192, 840, 60],
+        f"The next {len(QUESTIONS)} slides each ask one question about how DBGI handles deals. "
+        "There are no wrong answers: you know the process, the portal should follow it.",
+        size=17,
+        color="#B9D4E0",
+    )
+    steps = [
+        'Read what the portal does today, then pick a choice, or say "keep today", or write your own rule.',
+        "The first choice is only a suggestion to react to, not a decision.",
+        "Skip anything outside your area. Part A matters most.",
+        "Reply to the person who sent you this deck, one line per question: B2: a",
+    ]
+    for i, t in enumerate(steps):
+        y = 285 + i * 52
+        s.box(
+            [60, y, 36, 36], str(i + 1), fill=SAND, preset="ellipse", size=16, bold=True, color=NAVY
+        )
+        s.text([110, y + 2, 800, 40], t, size=16, color=WHITE, anchor="middle")
+
+
+def sentence(text):
+    return text[:1].upper() + text[1:]
+
+
+def lines(text, per_line):
+    """Rough wrapped line count for a text box, to size boxes to their text."""
+    return max(1, -(-len(text) // per_line))
+
+
+def question_slide(number, part, q):
+    def fill(s):
+        title = q["title"]
+        s.box([60, 30, 56, 6], fill=TEAL, preset="rect")
+        s.text([56, 40, 650, 64], title, size=22, bold=True, color=NAVY)
+        label = f"{part['title'].split('.')[0]}  |  {number} of {len(QUESTIONS)}"
+        s.box([730, 40, 180, 28], label, fill=NAVY, size=12, color=WHITE, bold=True)
+        # Left: what it means and what the portal does today, each sized to its text
+        means, today = sentence(q.get("means", "")), sentence(q.get("today", ""))
+        means_h = 20 * lines(means, 52) + 8
+        s.text([60, 112, 420, 22], "WHAT IT MEANS", size=11, bold=True, color=TEAL)
+        s.text([60, 134, 420, means_h], means, size=14, color=INK)
+        y = 134 + means_h + 14
+        today_h = 18 * lines(today, 55) + 44
+        s.box([60, y, 420, today_h], fill=LIGHT, preset="roundRect")
+        s.text([76, y + 10, 390, 22], "THE PORTAL TODAY", size=11, bold=True, color=TEAL)
+        s.text([76, y + 32, 392, today_h - 36], today, size=13, color=NAVY)
+        if q.get("unblocks"):
+            s.text(
+                [60, y + today_h + 10, 420, 46],
+                f"Why it matters: {q['unblocks']}",
+                size=12,
+                color=MUTED,
+            )
+        # Right: the choices, or the open question to answer in words
+        options = decision_choices(q.get("choices", ""))
+        s.text(
+            [510, 112, 400, 22],
+            "CHOOSE ONE" if options else "TELL US",
+            size=11,
+            bold=True,
+            color=TEAL,
+        )
+        y = 138
+        if options:
+            for option in options:
+                letter, text = option[1], sentence(option[4:])
+                h = 24 + 18 * lines(text, 44)
+                s.box([510, y, 400, h], fill=WHITE, line=BORDER, preset="roundRect", line_width=1)
+                s.box(
+                    [522, y + h / 2 - 15, 30, 30],
+                    letter,
+                    fill=TEAL,
+                    preset="ellipse",
+                    size=14,
+                    bold=True,
+                    color=WHITE,
+                )
+                s.text([562, y + 4, 340, h - 8], text, size=13, color=INK, anchor="middle")
+                y += h + 10
+        else:
+            s.note(
+                [510, y, 400, 110],
+                sentence(q.get("ask", "")),
+                fill=LIGHT,
+                size=14,
+                icon="message-circle",
+            )
+            y += 120
+        # Bottom: how to reply
+        example = f"{qid(q)}: a" if options else f"{qid(q)}: your answer in a sentence or two"
+        s.box([60, 470, 850, 40], fill=SAND, preset="roundRect")
+        s.icon("mail", [76, 479, 22, 22], NAVY)
+        s.text(
+            [108, 472, 790, 36],
+            f"Reply with   {example}"
+            + ("   or   " + qid(q) + ": keep today   or your own rule" if options else ""),
+            size=14,
+            bold=True,
+            color=NAVY,
+            anchor="middle",
+        )
+
+    fill.__name__ = f"s_question_{qid(q)}"
+    return fill
+
+
+for _n, (_part, _q) in enumerate(QUESTIONS, start=1):
+    slide(question_slide(_n, _part, _q))
+
+
+@slide
+def s_reply(s):
+    head(s, "Your reply", "Copy these lines into your reply email and fill in what you can")
+    ids = [qid(q) for _, q in QUESTIONS]
+    per_col = (len(ids) + 2) // 3
+    for column in range(3):
+        col = ids[column * per_col : (column + 1) * per_col]
+        s.box(
+            [60 + column * 290, 130, 270, 210],
+            "\n".join(f"{i}:" for i in col),
+            fill=LIGHT,
+            preset="roundRect",
+            size=16,
+            color=NAVY,
+            bold=True,
+            align="left",
+            anchor="top",
+        )
+        s.add("format.margins", {"left": 20, "top": 14})
+        s.add("format.paragraph", {"spaceAfter": 4})
+    tip(
+        s,
+        [60, 370, 850, 50],
+        'Prefer paper? The printable sheet "DBGI Portal Decisions" has the same questions with tick boxes.',
+        icon="file-text",
+    )
 
 
 def build():
