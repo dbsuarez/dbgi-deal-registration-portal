@@ -11,8 +11,9 @@ to the people who handle partner deals (sales or channel), pricing (finance), an
 The deck's walkthrough slides show the screens each question refers to.
 
 1. Answer **Part A first**. If an answer there is a surprise, it changes the plan before anything else.
-2. Answer each question with a choice letter, "keep today", or your own rule in a sentence.
-   Reply to the person who sent the deck, one line per question, for example `B2: a`. Skip anything outside your area.
+2. Answer each question with a choice letter, "keep today", or your own rule in a sentence. Skip anything outside your area.
+   The easiest way is the Word **DBGI Portal Answer Form**, sent with the deck: it has a drop-down and a notes box per question.
+   You can also reply by email, one line per question, for example `B2: a`.
 3. Prefer paper? The printable sheet **DBGI Portal Decisions** has the same questions and ids, with tick boxes.
 4. Each answer is then applied to the portal: it is recorded in the roadmap's decision register with the date and
    who answered, and becomes a build task. "Keep today" means no change is needed.

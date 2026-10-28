@@ -826,7 +826,7 @@ def s_questions_intro(s):
         'Read what the portal does today, then pick a choice, or say "keep today", or write your own rule.',
         "The first choice is only a suggestion to react to, not a decision.",
         "Skip anything outside your area. Part A matters most.",
-        "Reply to the person who sent you this deck, one line per question: B2: a",
+        "Answer in the Word answer form sent with this deck, or by email, one line per question: B2: a",
     ]
     for i, t in enumerate(steps):
         y = 285 + i * 52
@@ -928,7 +928,9 @@ for _n, (_part, _q) in enumerate(QUESTIONS, start=1):
 
 @slide
 def s_reply(s):
-    head(s, "Your reply", "Copy these lines into your reply email and fill in what you can")
+    head(
+        s, "Your reply", "Easiest: fill in the Word answer form. Or copy these lines into an email."
+    )
     ids = [qid(q) for _, q in QUESTIONS]
     per_col = (len(ids) + 2) // 3
     for column in range(3):
@@ -949,7 +951,7 @@ def s_reply(s):
     tip(
         s,
         [60, 370, 850, 50],
-        'Prefer paper? The printable sheet "DBGI Portal Decisions" has the same questions with tick boxes.',
+        '"DBGI Portal Answer Form" (Word) has a drop-down for each question. Save it and send it back.',
         icon="file-text",
     )
 
