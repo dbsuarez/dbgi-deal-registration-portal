@@ -92,12 +92,16 @@ class DBGIAdminSite(UnfoldAdminSite):
         ).select_related("company")
         if not request.user.has_perm("registrations.view_registration"):
             review_queue = review_queue.none()
-        pricing_queue = RegistrationCategoryApproval.objects.filter(
-            status__in=(
-                RegistrationCategoryApproval.Status.PENDING,
-                RegistrationCategoryApproval.Status.CHANGES_REQUESTED,
+        pricing_queue = (
+            RegistrationCategoryApproval.objects.filter(
+                status__in=(
+                    RegistrationCategoryApproval.Status.PENDING,
+                    RegistrationCategoryApproval.Status.CHANGES_REQUESTED,
+                )
             )
-        ).select_related("registration", "registration__company")
+            .exclude(registration__status=Registration.Status.WITHDRAWN)
+            .select_related("registration", "registration__company")
+        )
         if not request.user.has_perm("registrations.view_registrationcategoryapproval"):
             pricing_queue = pricing_queue.none()
         pending_end_users = EndUser.objects.filter(status=EndUser.Status.PENDING)

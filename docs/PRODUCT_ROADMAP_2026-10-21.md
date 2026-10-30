@@ -43,6 +43,7 @@ The application is a working internal beta with these foundations implemented:
 - Shared MemPalace access for Claude Code through a git-ignored, project-scoped MCP registration, with per-agent diaries for Claude and Codex handoffs.
 - Durable, recipient-scoped portal and email notifications for submissions, registration decisions, and category price decisions, with read tracking, delivery tracking, administrator retries, per-event subject and body templates, rendered administrator previews, immutable delivery-content snapshots, and a dedicated post-submission Help page.
 - Environment-backed MXroute SMTP delivery using the DBGI support mailbox, with credentials excluded from tracked source.
+- Instant partner withdrawal with a required reason: final, removes the registration from rankings, blocks further edits and price decisions, and notifies DBGI administrators in the portal.
 - Compact registration activity history with small action rows, always-visible decision reasons and change-request instructions, and collapsed-by-default structured field changes.
 - Role-aware Help page with beginner company walkthroughs, administrator operating procedures, status explanations, direct task links, and troubleshooting guidance.
 - Role-specific end-to-end practice scenarios with prerequisites, exact actions, and expected outcomes for registration, correction, matching, pricing, notification recovery, and governed End-user workflows.
@@ -61,7 +62,7 @@ The application is a working internal beta with these foundations implemented:
 - Controlled End-user classification selectors with fixed government branches and administrator-reviewed Organization type and Sector catalogs.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
-The application is not yet production-ready. Withdrawal, opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
+The application is not yet production-ready. Opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
 
 ## 3. Delivery principles
 
@@ -125,7 +126,7 @@ The application is not yet production-ready. Withdrawal, opportunity merge and s
 
 ### Engineering scope
 
-1. Add company withdrawal requests with reason and DBGI confirmation.
+1. [x] Add company withdrawal with a required reason (decided 2026-10-30: instant and final, no DBGI confirmation or restore; DBGI administrators get an in-portal notice).
 2. Add administrator merge and split workflows with impact previews and mandatory rationale.
 3. Recalculate or preserve affected ranks according to the approved policy.
 4. [x] Add field-level change summaries for material edits and administrator decisions.
@@ -264,8 +265,9 @@ Milestone 0 stabilization is complete: scope documentation is current, the audit
 Continue with **Workflow Closure**:
 
 1. Send the **Using the DBGI Portal** deck (docs/guides/Portal User Guide) to DBGI sales, pricing, and IT. It ends with one slide per question from [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md); replies come back as one line per question (for example `B2: a`). Part A (is this the process DBGI wants) and Part B (labels, editing, withdrawal, merge or split) come first.
-2. Implement withdrawal requests and DBGI confirmation.
-3. Add merge and split impact previews only after the policy is approved.
+2. [x] Implement instant withdrawal with a DBGI notice (2026-10-30).
+3. Next: partner-reported project outcomes confirmed by DBGI (B4), then 60-day expiry with a 7-day reminder for early registrations and reposted tenders (B6, B7).
+4. Add case-by-case merge and split tools with a written DBGI reason (B3).
 
 While those decisions are pending, policy-independent work can proceed:
 

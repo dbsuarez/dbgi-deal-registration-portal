@@ -235,6 +235,7 @@ export type RegistrationDetail = RegistrationListItem & {
   evidence_url: string;
   evidence_sharing_confirmed: boolean;
   can_edit: boolean;
+  can_withdraw: boolean;
   competitor_items: CompetitorItem[];
   items: RequestedItem[];
   attachments: Attachment[];
@@ -657,6 +658,20 @@ export function reviewRegistration(
 ) {
   return mutation<RegistrationDetail>(
     `/api/v1/review/registrations/${registrationId}/decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function withdrawRegistration(
+  registrationId: number,
+  payload: { version: number; reason: string },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/registrations/${registrationId}/withdraw`,
     "POST",
     csrfToken,
     JSON.stringify(payload),

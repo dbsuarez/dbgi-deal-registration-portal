@@ -381,6 +381,7 @@ class Registration(models.Model):
         REVIEW_REQUIRED = "review_required", "Review required after edit"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+        WITHDRAWN = "withdrawn", "Withdrawn"
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="registrations")
     submitted_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="registrations")
@@ -409,6 +410,7 @@ class Registration(models.Model):
         related_name="registrations",
     )
     original_submitted_at = models.DateTimeField(default=timezone.now, editable=False)
+    withdrawn_at = models.DateTimeField(null=True, blank=True, editable=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -425,7 +427,11 @@ class Registration(models.Model):
 
     # Evidence is frozen once a reviewer has it or a decision exists, so an
     # upload or delete can never change what a decision was based on.
-    EVIDENCE_LOCKED_STATUSES = frozenset({Status.UNDER_REVIEW, Status.APPROVED, Status.REJECTED})
+    EVIDENCE_LOCKED_STATUSES = frozenset(
+        {Status.UNDER_REVIEW, Status.APPROVED, Status.REJECTED, Status.WITHDRAWN}
+    )
+    # A partner can withdraw at any point before a final outcome; withdrawal is final.
+    WITHDRAWABLE_STATUSES = frozenset(set(Status) - {Status.REJECTED, Status.WITHDRAWN})
 
     @property
     def reference(self):
@@ -844,6 +850,7 @@ class RegistrationNotification(models.Model):
         SUBMISSION_CONFIRMED = "submission_confirmed", "Submission confirmed"
         REGISTRATION_DECISION = "registration_decision", "Registration decision"
         PRICE_DECISION = "price_decision", "Price decision"
+        REGISTRATION_WITHDRAWN = "registration_withdrawn", "Registration withdrawn"
 
     class EmailStatus(models.TextChoices):
         NOT_REQUESTED = "not_requested", "Not requested"

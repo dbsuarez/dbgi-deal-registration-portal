@@ -3,6 +3,7 @@ import logging
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import NotificationEventSetting, RegistrationNotification, User
@@ -112,6 +113,30 @@ def notify_company_users(
             transaction.on_commit(
                 lambda notification_id=notification.pk: deliver_notification_email(notification_id)
             )
+
+
+def notify_dbgi_withdrawal(registration, reason):
+    """Tell every active DBGI administrator in the portal; no email (only submitters get email)."""
+    # Same rule as User.is_dbgi_admin
+    administrators = User.objects.filter(
+        Q(is_superuser=True) | Q(is_staff=True, role=User.Role.DBGI_ADMIN), is_active=True
+    ).only("id")
+    message = (
+        f"{registration.company.name} withdrew {registration.reference} "
+        f"({registration.project_title}). Reason: {reason}"
+    )
+    for administrator in administrators:
+        RegistrationNotification.objects.get_or_create(
+            recipient=administrator,
+            event_key=f"registration:{registration.pk}:withdrawn",
+            defaults={
+                "registration": registration,
+                "event_type": RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
+                "title": "Registration withdrawn",
+                "message": message,
+                "email_status": RegistrationNotification.EmailStatus.NOT_REQUESTED,
+            },
+        )
 
 
 def notify_submission(registration):

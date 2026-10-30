@@ -2014,3 +2014,102 @@ class RegistrationApiTests(TestCase):
         )
         self.assertEqual(stale.status_code, 409, stale.content)
         self.assertEqual(stale.json()["code"], "edit_conflict")
+
+    def withdraw(self, registration, reason="The end-user cancelled this purchase.", version=None):
+        return self.client.post(
+            f"/api/v1/registrations/{registration.pk}/withdraw",
+            data=json.dumps(
+                {"version": registration.version if version is None else version, "reason": reason}
+            ),
+            content_type="application/json",
+        )
+
+    def test_company_withdraws_own_registration_and_dbgi_is_notified(self):
+        self.client.force_login(self.user_a)
+        response = self.withdraw(self.registration_a)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertEqual(body["status"], Registration.Status.WITHDRAWN)
+        self.assertFalse(body["can_edit"])
+        self.assertFalse(body["can_withdraw"])
+        self.registration_a.refresh_from_db()
+        self.assertIsNotNone(self.registration_a.withdrawn_at)
+        event = self.registration_a.events.get(event_type="Withdrawn")
+        self.assertEqual(event.actor, self.user_a)
+        self.assertEqual(event.details, "The end-user cancelled this purchase.")
+        notification = RegistrationNotification.objects.get(
+            event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN
+        )
+        self.assertEqual(notification.recipient, self.admin)
+        self.assertIn("The end-user cancelled this purchase.", notification.message)
+        self.assertEqual(
+            notification.email_status, RegistrationNotification.EmailStatus.NOT_REQUESTED
+        )
+        self.assertEqual(mail.outbox, [])
+
+    def test_only_the_owning_company_can_withdraw(self):
+        self.client.force_login(self.user_b)
+        self.assertEqual(self.withdraw(self.registration_a).status_code, 404)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.withdraw(self.registration_a).status_code, 403)
+        self.registration_a.refresh_from_db()
+        self.assertNotEqual(self.registration_a.status, Registration.Status.WITHDRAWN)
+
+    def test_withdrawal_needs_a_reason_and_the_current_version(self):
+        self.client.force_login(self.user_a)
+        short = self.withdraw(self.registration_a, reason="   no ")
+        self.assertEqual(short.status_code, 400, short.content)
+        stale = self.withdraw(self.registration_a, version=self.registration_a.version - 1)
+        self.assertEqual(stale.status_code, 409, stale.content)
+        self.assertEqual(stale.json()["code"], "edit_conflict")
+
+    def test_rejected_registration_cannot_be_withdrawn(self):
+        Registration.objects.filter(pk=self.registration_a.pk).update(
+            status=Registration.Status.REJECTED
+        )
+        self.registration_a.refresh_from_db()
+        self.client.force_login(self.user_a)
+        response = self.withdraw(self.registration_a)
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.json()["code"], "invalid_transition")
+
+    def test_withdrawn_registration_is_final_and_leaves_the_ranking(self):
+        opportunity = Opportunity.objects.create(
+            title="Shared opportunity",
+            end_user=self.end_user,
+            end_user_name=self.end_user.official_name,
+            end_user_address="Test address",
+            created_by=self.admin,
+        )
+        scope = OpportunityScope.objects.create(
+            opportunity=opportunity,
+            name="Whole opportunity",
+            scope_type=OpportunityScope.ScopeType.WHOLE,
+        )
+        Registration.objects.filter(pk__in=[self.registration_a.pk, self.registration_b.pk]).update(
+            status=Registration.Status.ELIGIBLE_MATCHED, opportunity_scope=scope
+        )
+        self.registration_a.refresh_from_db()
+
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.withdraw(self.registration_a).status_code, 200)
+        self.registration_a.refresh_from_db()
+
+        edit = self.client.put(
+            f"/api/v1/registrations/{self.registration_a.pk}",
+            data=json.dumps({**self.payload(), "version": self.registration_a.version}),
+            content_type="application/json",
+        )
+        self.assertEqual(edit.status_code, 409, edit.content)
+        self.assertEqual(edit.json()["code"], "registration_withdrawn")
+        again = self.withdraw(self.registration_a)
+        self.assertEqual(again.json()["code"], "invalid_transition")
+
+        self.client.force_login(self.admin)
+        rankings = self.client.get("/api/v1/rankings").json()
+        ranked = [
+            entry["registration_id"] for item in rankings["items"] for entry in item["entries"]
+        ]
+        self.assertNotIn(self.registration_a.pk, ranked)
+        self.assertIn(self.registration_b.pk, ranked)

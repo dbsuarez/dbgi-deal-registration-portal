@@ -43,7 +43,12 @@ from .models import (
     RegistrationReviewDecision,
     normalize_end_user_value,
 )
-from .notifications import notify_price_decision, notify_registration_decision, notify_submission
+from .notifications import (
+    notify_dbgi_withdrawal,
+    notify_price_decision,
+    notify_registration_decision,
+    notify_submission,
+)
 
 api = NinjaAPI(
     title="DBGI Project Registration API",
@@ -122,6 +127,11 @@ class RegistrationUpdate(RegistrationInput):
 class RegistrationFinalize(Schema):
     version: int
     evidence_changed: bool = False
+
+
+class RegistrationWithdrawInput(Schema):
+    version: int
+    reason: str = Field(min_length=5, max_length=1000)
 
 
 class RegistrationListItem(Schema):
@@ -255,6 +265,7 @@ class RegistrationDetail(RegistrationListItem):
     evidence_url: str
     evidence_sharing_confirmed: bool
     can_edit: bool
+    can_withdraw: bool
     competitor_items: list[CompetitorOutput]
     items: list[RegistrationItemOutput]
     attachments: list[AttachmentOutput]
@@ -733,7 +744,10 @@ def _serialize_registration_detail(registration, user):
             "evidence_description": registration.evidence_description,
             "evidence_url": registration.evidence_url,
             "evidence_sharing_confirmed": registration.evidence_sharing_confirmed,
-            "can_edit": not user.is_dbgi_admin,
+            "can_edit": not user.is_dbgi_admin
+            and registration.status != Registration.Status.WITHDRAWN,
+            "can_withdraw": not user.is_dbgi_admin
+            and registration.status in Registration.WITHDRAWABLE_STATUSES,
             "competitor_items": [
                 {
                     "id": item.pk,
@@ -1069,6 +1083,7 @@ def list_registrations(
         "review_required",
         "approved",
         "rejected",
+        "withdrawn",
     ] = "",
     sort: Literal[
         "created_at",
@@ -1392,6 +1407,8 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
                     ),
                 },
             )
+        if registration.status == Registration.Status.WITHDRAWN:
+            return Status(409, WITHDRAWN_ERROR)
         if registration.category_approvals.exclude(
             status=RegistrationCategoryApproval.Status.PENDING
         ).exists():
@@ -1590,6 +1607,92 @@ def refresh_matching_suggestion(request, registration_id: int):
     return _serialize_matching_suggestion(suggestion)
 
 
+WITHDRAWN_ERROR = {
+    "code": "registration_withdrawn",
+    "message": "This registration was withdrawn and can no longer change.",
+}
+
+
+@api.post(
+    "/registrations/{registration_id}/withdraw",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def withdraw_registration(request, registration_id: int, payload: RegistrationWithdrawInput):
+    """A partner withdraws its own registration: final, leaves the ranking, and DBGI is notified."""
+    company_id = _company_id(request.user)
+    if company_id in (None, False):
+        return Status(
+            403,
+            {"code": "company_access_required", "message": "A valid company account is required."},
+        )
+    reason = payload.reason.strip()
+    if len(reason) < 5:
+        return Status(
+            400,
+            {
+                "code": "validation_error",
+                "message": "Correct the highlighted fields.",
+                "details": [
+                    {
+                        "field": "reason",
+                        "message": "Explain why you are withdrawing (at least 5 characters).",
+                    }
+                ],
+            },
+        )
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update(of=("self",)).select_related("company"),
+            pk=registration_id,
+            company_id=company_id,
+        )
+        if registration.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This registration changed. Refresh before withdrawing.",
+                },
+            )
+        if registration.status not in Registration.WITHDRAWABLE_STATUSES:
+            return Status(
+                400,
+                {
+                    "code": "invalid_transition",
+                    "message": "This registration can no longer be withdrawn.",
+                },
+            )
+        prior_snapshot = registration_snapshot(registration)
+        registration.status = Registration.Status.WITHDRAWN
+        registration.needs_review = False
+        registration.withdrawn_at = timezone.now()
+        registration.version += 1
+        registration.save()
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Withdrawn",
+            details=reason,
+            snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
+        )
+        notify_dbgi_withdrawal(registration, reason)
+    registration = (
+        _registration_queryset(request.user)
+        .prefetch_related("competitor_items", "items__product", "attachments", "events__actor")
+        .select_related("opportunity_scope__opportunity")
+        .get(pk=registration_id)
+    )
+    return _serialize_registration_detail(registration, request.user)
+
+
 @api.post(
     "/review/registrations/{registration_id}/decision",
     auth=django_auth,
@@ -1746,6 +1849,8 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
                     "message": "This commercial approval changed. Refresh before deciding.",
                 },
             )
+        if approval.registration.status == Registration.Status.WITHDRAWN:
+            return Status(409, WITHDRAWN_ERROR)
         items = list(
             approval.registration.items.select_related("product").filter(
                 product__category=approval.category

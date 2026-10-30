@@ -12,6 +12,7 @@ const STATUS_COLORS: Record<StatusKind, Record<string, ChipProps["color"]>> = {
     review_required: "warning",
     approved: "success",
     rejected: "error",
+    withdrawn: "default",
   },
   project: {
     upcoming: "info",
@@ -52,6 +53,8 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
     approved: "DBGI approved this registration.",
     rejected:
       "DBGI rejected this registration. Open the decision to read the reason.",
+    withdrawn:
+      "The company withdrew this registration. It left the ranking and cannot change or be restored.",
   },
   project: {
     unlinked:

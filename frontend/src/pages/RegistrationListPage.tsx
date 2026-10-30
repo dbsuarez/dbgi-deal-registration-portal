@@ -508,6 +508,7 @@ export default function RegistrationListPage() {
           </MenuItem>
           <MenuItem value="approved">Approved</MenuItem>
           <MenuItem value="rejected">Rejected</MenuItem>
+          <MenuItem value="withdrawn">Withdrawn</MenuItem>
         </TextField>
         <Button
           variant="text"

@@ -1,6 +1,6 @@
 # DBGI Project Registration Portal: Current Capabilities
 
-**As of:** 2026-10-26  
+**As of:** 2026-10-30  
 **Status:** Working internal beta, not yet production-ready  
 **Source:** Current baseline in [PRODUCT_ROADMAP_2026-10-21.md](PRODUCT_ROADMAP_2026-10-21.md)
 
@@ -14,6 +14,7 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 - **Products and pricing:** request catalog or non-catalog products with quantity and requested price. The list price is captured at request time, and the discount and totals are calculated.
 - **Evidence:** upload private evidence files, which are validated, finalized, locked, and audited.
 - **Tracking:** a registration list with search, quick and advanced filters, and pagination. Status badges explain themselves on hover or keyboard focus, and ranking views show only what the company is allowed to see.
+- **Withdraw:** withdraw a registration with a short reason. Withdrawal is final: the registration leaves the ranking and can no longer change, and DBGI is notified.
 - **Notifications and help:** in-portal notifications plus email, and a Help page with step-by-step beginner walkthroughs.
 
 ## DBGI administrators
@@ -38,7 +39,6 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 
 | Capability                                          | Roadmap milestone | Waiting on                         |
 | --------------------------------------------------- | ----------------- | ---------------------------------- |
-| Withdrawal requests and DBGI confirmation           | 1                 | Product-owner withdrawal policy    |
 | Opportunity merge and split                         | 1                 | Product-owner merge and split rule |
 | Versioned price history and full renewal processing | 2                 | Finance and pricing decisions      |
 | Reorder verification                                | 3                 | Milestone 2                        |

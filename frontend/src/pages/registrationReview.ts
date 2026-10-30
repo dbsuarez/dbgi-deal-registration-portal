@@ -13,6 +13,8 @@ export function companyNextStep(status: string) {
       "DBGI must review the updated registration before the confirmed outcome continues.",
     rejected:
       "Review DBGI's explanation below. This registration will not proceed.",
+    withdrawn:
+      "You withdrew this registration. No further action is possible; register a new deal if the opportunity returns.",
   };
   return (
     messages[status] ??

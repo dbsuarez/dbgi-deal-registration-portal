@@ -47,6 +47,7 @@ import {
   getRegistration,
   refreshMatchingSuggestion,
   reviewRegistration,
+  withdrawRegistration,
   type OpportunityScope,
   type RegistrationDetail,
 } from "../api";
@@ -107,6 +108,10 @@ export default function RegistrationDetailPage() {
   const [suggestionError, setSuggestionError] = useState("");
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [matchingGuideOpen, setMatchingGuideOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -161,6 +166,27 @@ export default function RegistrationDetailPage() {
       );
     } finally {
       setReviewing(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!registration) return;
+    setWithdrawing(true);
+    setWithdrawError("");
+    try {
+      const updated = await withdrawRegistration(
+        registration.id,
+        { version: registration.version, reason: withdrawReason.trim() },
+        session.csrf_token,
+      );
+      setRegistration(updated);
+      setWithdrawOpen(false);
+    } catch (reason) {
+      setWithdrawError(
+        reason instanceof Error ? reason.message : "The withdrawal failed.",
+      );
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -285,15 +311,30 @@ export default function RegistrationDetailPage() {
           </Stack>
           <Typography variant="h1">{registration.project_title}</Typography>
         </Box>
-        {registration.can_edit && (
-          <Button
-            variant="contained"
-            startIcon={<EditIcon />}
-            onClick={() => navigate("edit/")}
-          >
-            Edit registration
-          </Button>
-        )}
+        <Stack direction="row" spacing={1}>
+          {registration.can_withdraw && (
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => {
+                setWithdrawReason("");
+                setWithdrawError("");
+                setWithdrawOpen(true);
+              }}
+            >
+              Withdraw registration
+            </Button>
+          )}
+          {registration.can_edit && (
+            <Button
+              variant="contained"
+              startIcon={<EditIcon />}
+              onClick={() => navigate("edit/")}
+            >
+              Edit registration
+            </Button>
+          )}
+        </Stack>
       </Stack>
 
       {!session.is_dbgi_admin && (
@@ -901,6 +942,49 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
+      <Dialog
+        open={withdrawOpen}
+        onClose={() => !withdrawing && setWithdrawOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Withdraw this registration?</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Withdrawal is final. The registration leaves the ranking, can no
+            longer be edited, and cannot be restored. DBGI is notified.
+          </Alert>
+          {withdrawError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {withdrawError}
+            </Alert>
+          )}
+          <TextField
+            label="Reason for withdrawing"
+            value={withdrawReason}
+            onChange={(event) => setWithdrawReason(event.target.value)}
+            helperText="DBGI sees this reason. At least 5 characters."
+            multiline
+            minRows={3}
+            fullWidth
+            required
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWithdrawOpen(false)} disabled={withdrawing}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={withdrawing || withdrawReason.trim().length < 5}
+            onClick={handleWithdraw}
+          >
+            Withdraw registration
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={matchingGuideOpen}
         onClose={() => setMatchingGuideOpen(false)}

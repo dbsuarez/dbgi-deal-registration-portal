@@ -1260,3 +1260,89 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
     .click();
   await expect(page.getByText("Registered", { exact: true })).toBeVisible();
 });
+
+test("company user can withdraw a registration with a reason", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: session }),
+  );
+  const detail = (overrides: Record<string, unknown>) => ({
+    id: 9,
+    reference: "DBGI-000009",
+    project_title: "Withdrawn printer project",
+    company_name: "North Dealer",
+    end_user_name: "Sample municipality",
+    end_user_address: "Test address",
+    bid_date: "2026-12-01",
+    delivery_date: "2027-01-15",
+    contact_person: "Test person",
+    contact_designation: "Buyer",
+    contact_email: "test@example.invalid",
+    contact_number: "0000000000",
+    evidence_description: "Public procurement notice",
+    evidence_url: "",
+    evidence_sharing_confirmed: true,
+    status: "submitted",
+    status_label: "Submitted",
+    project_status: null,
+    project_status_label: "Not linked",
+    price_status: "pending",
+    price_status_label: "Pending",
+    needs_review: false,
+    created_at: "2026-10-30T01:00:00Z",
+    version: 2,
+    can_edit: true,
+    can_withdraw: true,
+    competitor_items: [],
+    items: [],
+    attachments: [],
+    events: [],
+    opportunity_scope_id: null,
+    opportunity_scope_label: null,
+    category_approvals: [],
+    matching_suggestion: null,
+    ...overrides,
+  });
+  await page.route("**/api/v1/registrations/9", (route) =>
+    route.fulfill({ json: detail({}) }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/registrations/9/withdraw", (route) => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({
+      json: detail({
+        status: "withdrawn",
+        status_label: "Withdrawn",
+        version: 3,
+        can_edit: false,
+        can_withdraw: false,
+      }),
+    });
+  });
+
+  await page.goto("/registrations/9/");
+  await page.getByRole("button", { name: "Withdraw registration" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Withdraw this registration?",
+  });
+  const confirm = dialog.getByRole("button", { name: "Withdraw registration" });
+  await expect(confirm).toBeDisabled();
+  await dialog
+    .getByLabel(/Reason for withdrawing/)
+    .fill("The end-user cancelled the purchase.");
+  await confirm.click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toEqual({
+    version: 2,
+    reason: "The end-user cancelled the purchase.",
+  });
+  await expect(page.getByText("Withdrawn").first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Withdraw registration" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Edit registration" }),
+  ).toHaveCount(0);
+});
