@@ -809,8 +809,23 @@ def _serialize_outcome_report(report):
 def _set_project_status(opportunity, status, actor, reason):
     """Change a project's status and record it on every registration linked to the project."""
     old_label = opportunity.get_project_status_display()
+    was_on_hold = opportunity.project_status == Opportunity.ProjectStatus.ON_HOLD
     opportunity.project_status = status
-    opportunity.save(update_fields=["project_status"])
+    if status == Opportunity.ProjectStatus.ON_HOLD and not was_on_hold:
+        # Decision B7: a new hold starts a new 60-day period
+        opportunity.on_hold_since = timezone.now()
+        opportunity.hold_reminder_sent_at = None
+        opportunity.hold_limit_reached_at = None
+    elif status != Opportunity.ProjectStatus.ON_HOLD:
+        opportunity.on_hold_since = None
+    opportunity.save(
+        update_fields=[
+            "project_status",
+            "on_hold_since",
+            "hold_reminder_sent_at",
+            "hold_limit_reached_at",
+        ]
+    )
     for registration in Registration.objects.filter(opportunity_scope__opportunity=opportunity):
         RegistrationEvent.objects.create(
             registration=registration,

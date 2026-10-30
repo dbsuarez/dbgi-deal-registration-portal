@@ -335,6 +335,10 @@ class Opportunity(models.Model):
         max_length=20, choices=ProjectStatus.choices, default=ProjectStatus.UPCOMING
     )
     is_active = models.BooleanField(default=True)
+    # Decision B7: linked registrations keep their place for 60 days while the project is on hold.
+    on_hold_since = models.DateTimeField(null=True, blank=True, editable=False)
+    hold_reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
+    hold_limit_reached_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="opportunities")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -411,6 +415,9 @@ class Registration(models.Model):
     )
     original_submitted_at = models.DateTimeField(default=timezone.now, editable=False)
     withdrawn_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Decision B6: an unconfirmed registration gets a reminder on day 53 and DBGI review on day 60.
+    limit_reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
+    limit_reached_at = models.DateTimeField(null=True, blank=True, editable=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -901,6 +908,8 @@ class RegistrationNotification(models.Model):
         PRICE_DECISION = "price_decision", "Price decision"
         REGISTRATION_WITHDRAWN = "registration_withdrawn", "Registration withdrawn"
         OUTCOME_REPORTED = "outcome_reported", "Project outcome reported"
+        DEADLINE_REMINDER = "deadline_reminder", "60-day deadline reminder"
+        DEADLINE_REACHED = "deadline_reached", "60-day deadline reached"
 
     class EmailStatus(models.TextChoices):
         NOT_REQUESTED = "not_requested", "Not requested"

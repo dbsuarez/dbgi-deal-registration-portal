@@ -44,12 +44,12 @@ The v9 specification initially preferred Django templates with progressive enhan
 
 Maintain separate local, test, staging, and production configurations.
 
-| Environment | Data | Purpose | Required controls |
-| --- | --- | --- | --- |
-| Local | Generated development data only | Developer work | `DEBUG=True`, local-only accounts |
-| CI | Disposable SQLite and PostgreSQL databases | Automated verification | No production secrets or data |
-| Staging | Sanitized or synthetic data | Migration, integration, and acceptance testing | Production-like security settings |
-| Production | Approved business data | Live service | `DEBUG=False`, reviewed secrets, monitoring, backups |
+| Environment | Data                                       | Purpose                                        | Required controls                                    |
+| ----------- | ------------------------------------------ | ---------------------------------------------- | ---------------------------------------------------- |
+| Local       | Generated development data only            | Developer work                                 | `DEBUG=True`, local-only accounts                    |
+| CI          | Disposable SQLite and PostgreSQL databases | Automated verification                         | No production secrets or data                        |
+| Staging     | Sanitized or synthetic data                | Migration, integration, and acceptance testing | Production-like security settings                    |
+| Production  | Approved business data                     | Live service                                   | `DEBUG=False`, reviewed secrets, monitoring, backups |
 
 Release from a reviewed Git commit. CI must pass backend tests on SQLite and PostgreSQL, Ruff, migration drift, frontend formatting, lint, component tests, build, and Playwright workflows. Apply migrations as an explicit release step before switching traffic. Define rollback criteria for application images and a forward-fix or restore plan for each schema migration.
 
@@ -122,6 +122,26 @@ Use durable in-portal notifications as the authoritative channel. Email is optio
 
 Before implementation, approve event types, recipients, sender domain, provider, retry policy, escalation owner, and retention. When asynchronous delivery is introduced, use a transactional outbox or equivalent database-backed handoff so a committed business event cannot be lost between Django and the worker.
 
+### Daily deadline job (required)
+
+`python manage.py process_deadlines` applies the 60-day rules (decisions B6 and B7, 2026-10-30): a 7-day reminder to the company, then a return to DBGI review, for registrations DBGI has not confirmed and for projects on hold. It records each step, so running it twice in a day changes nothing, and a missed day is caught up on the next run. It needs no extra service: schedule it once a day with the server's own scheduler, at a quiet hour such as 06:00 Asia/Manila.
+
+Production (Linux VPS with Docker Compose), as a cron entry for the deployment user:
+
+```
+0 6 * * * cd /srv/registration-portal && docker compose exec -T web python manage.py process_deadlines >> /var/log/registration-portal/deadlines.log 2>&1
+```
+
+Set the server time zone to Asia/Manila, or shift the hour to match. Adjust the folder to the real deployment path.
+
+Windows (development or a Windows host), with Task Scheduler:
+
+```
+schtasks /Create /SC DAILY /ST 06:00 /TN "DBGI Portal deadlines" /TR "\"D:\Development\project-registration-portal\.venv\Scripts\python.exe\" D:\Development\project-registration-portal\manage.py process_deadlines"
+```
+
+The task must run with the same environment variables as the portal (database and secrets), for example through a small batch file that sets them before calling `manage.py`. Watch the job: if the log shows errors or the summary line is missing for a day, deadlines are not being processed.
+
 ## 9. Backup, recovery, and retention
 
 DBGI IT and management must approve recovery point and recovery time objectives. Until approved, do not promise a recovery window.
@@ -174,15 +194,15 @@ Production launch requires documented evidence for all of the following:
 
 ## 13. Decisions and ownership required
 
-| Decision | Proposed owner |
-| --- | --- |
-| React frontend divergence approval | DBGI product and technical owners |
-| Lifecycle, matching, ranking, and tie policy | DBGI product owner |
-| Pricing, VAT, rounding, and visibility | DBGI finance and pricing owner |
+| Decision                                              | Proposed owner                       |
+| ----------------------------------------------------- | ------------------------------------ |
+| React frontend divergence approval                    | DBGI product and technical owners    |
+| Lifecycle, matching, ranking, and tie policy          | DBGI product owner                   |
+| Pricing, VAT, rounding, and visibility                | DBGI finance and pricing owner       |
 | Attachment formats, scanning, retention, and deletion | DBGI security, legal, and operations |
-| Notification events, recipients, and provider | DBGI product and IT |
-| Recovery objectives and backup retention | DBGI IT and management |
-| VPS sizing, monitoring, and incident ownership | DBGI IT |
-| Production permission matrix and access review | DBGI security and management |
+| Notification events, recipients, and provider         | DBGI product and IT                  |
+| Recovery objectives and backup retention              | DBGI IT and management               |
+| VPS sizing, monitoring, and incident ownership        | DBGI IT                              |
+| Production permission matrix and access review        | DBGI security and management         |
 
 Record each approval in a dated decision log. Unresolved decisions remain launch blockers and must not be silently inferred by engineering.

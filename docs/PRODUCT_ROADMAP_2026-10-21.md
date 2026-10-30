@@ -43,6 +43,7 @@ The application is a working internal beta with these foundations implemented:
 - Shared MemPalace access for Claude Code through a git-ignored, project-scoped MCP registration, with per-agent diaries for Claude and Codex handoffs.
 - Durable, recipient-scoped portal and email notifications for submissions, registration decisions, and category price decisions, with read tracking, delivery tracking, administrator retries, per-event subject and body templates, rendered administrator previews, immutable delivery-content snapshots, and a dedicated post-submission Help page.
 - Environment-backed MXroute SMTP delivery using the DBGI support mailbox, with credentials excluded from tracked source.
+- 60-day deadlines: registrations DBGI has not confirmed, and registrations on projects put on hold, get a reminder 7 days before 60 days and then return to DBGI review (never rejected automatically), through the daily `process_deadlines` job.
 - Partner-reported project outcomes: a company reports Won, Lost, or Cancelled on a linked registration; DBGI confirms (setting the project status for every linked registration) or declines with a note, and both sides are notified.
 - Instant partner withdrawal with a required reason: final, removes the registration from rankings, blocks further edits and price decisions, and notifies DBGI administrators in the portal.
 - Compact registration activity history with small action rows, always-visible decision reasons and change-request instructions, and collapsed-by-default structured field changes.
@@ -268,7 +269,7 @@ Continue with **Workflow Closure**:
 1. Send the **Using the DBGI Portal** deck (docs/guides/Portal User Guide) to DBGI sales, pricing, and IT. It ends with one slide per question from [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md); replies come back as one line per question (for example `B2: a`). Part A (is this the process DBGI wants) and Part B (labels, editing, withdrawal, merge or split) come first.
 2. [x] Implement instant withdrawal with a DBGI notice (2026-10-30).
 3. [x] Partner-reported project outcomes (Won, Lost, Cancelled) that DBGI confirms or declines with a note (B4, 2026-10-30).
-4. Next: 60-day expiry with a 7-day reminder for early registrations and reposted tenders (B6, B7).
+4. [x] 60-day limits with a 7-day reminder for unconfirmed registrations and projects on hold, processed by the daily `process_deadlines` job (B6, B7, 2026-10-30). The job must be scheduled on the server (see the infrastructure proposal, section 8).
 5. Add case-by-case merge and split tools with a written DBGI reason (B3).
 
 While those decisions are pending, policy-independent work can proceed:

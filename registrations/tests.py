@@ -23,6 +23,7 @@ from devtools.models import RegistrationTestPreset
 
 from .admin import RegistrationAdmin
 from .audit import registration_change_summary
+from .deadlines import process_deadlines
 from .matching import generate_matching_suggestion
 from .models import (
     Company,
@@ -2231,3 +2232,81 @@ class RegistrationApiTests(TestCase):
         self.client.force_login(self.user_a)
         detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
         self.assertTrue(detail["can_report_outcome"])
+
+    def test_unconfirmed_registration_gets_reminder_then_dbgi_review(self):
+        # Both test registrations are unconfirmed; count from the later submission
+        submitted = max(
+            self.registration_a.original_submitted_at, self.registration_b.original_submitted_at
+        )
+
+        early = process_deadlines(now=submitted + timedelta(days=52))
+        self.assertEqual(early.reminders, 0)
+        reminder = process_deadlines(now=submitted + timedelta(days=53))
+        self.assertEqual(reminder.reminders, 2)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a,
+                event_type=RegistrationNotification.EventType.DEADLINE_REMINDER,
+            ).exists()
+        )
+        self.assertEqual(process_deadlines(now=submitted + timedelta(days=54)).reminders, 0)
+
+        limit = process_deadlines(now=submitted + timedelta(days=60))
+        self.assertEqual(limit.limits_reached, 2)
+        self.registration_a.refresh_from_db()
+        self.assertTrue(self.registration_a.needs_review)
+        self.assertEqual(self.registration_a.status, Registration.Status.SUBMITTED)
+        self.assertTrue(
+            self.registration_a.events.filter(event_type="60-day limit reached").exists()
+        )
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.admin,
+                event_type=RegistrationNotification.EventType.DEADLINE_REACHED,
+            ).exists()
+        )
+        again = process_deadlines(now=submitted + timedelta(days=61))
+        self.assertEqual((again.reminders, again.limits_reached), (0, 0))
+
+    def test_confirmed_registration_has_no_confirmation_deadline(self):
+        self.link_to_project(self.registration_a, self.registration_b)
+        summary = process_deadlines(
+            now=self.registration_a.original_submitted_at + timedelta(days=90)
+        )
+        self.assertEqual((summary.reminders, summary.limits_reached), (0, 0))
+
+    def test_project_on_hold_keeps_places_for_sixty_days(self):
+        opportunity = self.link_to_project(self.registration_a)
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            f"/api/v1/review/opportunities/{opportunity.pk}/project-status",
+            data=json.dumps({"status": "on_hold", "reason": "The agency postponed the bid."}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        opportunity.refresh_from_db()
+        self.assertIsNotNone(opportunity.on_hold_since)
+        since = opportunity.on_hold_since
+
+        self.assertEqual(process_deadlines(now=since + timedelta(days=53)).hold_reminders, 1)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a,
+                event_type=RegistrationNotification.EventType.DEADLINE_REMINDER,
+            ).exists()
+        )
+        self.assertEqual(process_deadlines(now=since + timedelta(days=60)).hold_limits_reached, 1)
+        self.registration_a.refresh_from_db()
+        self.assertTrue(self.registration_a.needs_review)
+        self.assertTrue(
+            self.registration_a.events.filter(event_type="60-day hold limit reached").exists()
+        )
+        self.assertEqual(process_deadlines(now=since + timedelta(days=61)).hold_limits_reached, 0)
+
+        self.client.post(
+            f"/api/v1/review/opportunities/{opportunity.pk}/project-status",
+            data=json.dumps({"status": "active", "reason": "The bid was reposted."}),
+            content_type="application/json",
+        )
+        opportunity.refresh_from_db()
+        self.assertIsNone(opportunity.on_hold_since)

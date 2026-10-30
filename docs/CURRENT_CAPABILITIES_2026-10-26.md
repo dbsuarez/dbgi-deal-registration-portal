@@ -21,6 +21,7 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 ## DBGI administrators
 
 - **Matching:** the system suggests matches and auto-matches only when it is safe to. Administrators review step by step and can open a dialog explaining each match. Matched registrations are grouped into opportunity scopes, and companies are ranked within each.
+- **60-day limits:** registrations not confirmed within 60 days, and registrations on projects on hold for 60 days, come back to the review queue; companies get a reminder 7 days before. This runs through a daily job that must be scheduled on the server.
 - **Outcome reports:** confirm or decline a company's Won, Lost, or Cancelled report from the registration page; confirming sets the project status for every linked registration.
 - **Commercial approvals:** approve pricing by product category with item-level approved prices, an expiry date, and 30-day renewals. Project status, registration status, and pricing approval are tracked separately.
 - **End-user verification:** review company-proposed End-users and maintain the Organization type and Sector lists.
