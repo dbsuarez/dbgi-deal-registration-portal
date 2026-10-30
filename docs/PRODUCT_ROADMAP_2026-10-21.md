@@ -317,4 +317,6 @@ Update this document after each milestone or product-policy decision. Move compl
 
 A plain-language summary of what the portal can do today is kept in [CURRENT_CAPABILITIES_2026-10-26.md](CURRENT_CAPABILITIES_2026-10-26.md). Refresh it when the current baseline changes.
 
+All business rules and how each feature works, marked Live, Decided, or Open, are consolidated in [PORTAL_RULES.md](PORTAL_RULES.md). Update it with every shipped feature or decision; help pages, guides, and tutorials are written from it.
+
 Learning guides (a general deal-registration explainer and an end-to-end portal walkthrough with screenshots) are built from the sources in [guides/\_source](guides/_source/README.txt). The finished Word and slide files are committed beside the sources; rebuild them and retake affected screenshots when a covered screen changes. [CLI_NOTES.md](guides/_source/CLI_NOTES.md) records the verified DeckCraft and WordCraft commands so agents do not need to rediscover them.

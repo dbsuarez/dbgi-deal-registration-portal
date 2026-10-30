@@ -41,6 +41,10 @@ Updating a screenshot
   Replace the file in shots\ with the same name, adjust its crop box in crop_shots.py
   if the layout moved, then run steps 1 to 3 of the portal guide.
 
+Content source
+  Take every rule and workflow from docs\PORTAL_RULES.md. Describe only rules marked Live as
+  available; never present a Decided rule as working.
+
 Rules for the portal guide (it is shared with colleagues)
   - Use only demo or test accounts in screenshots.
   - Do not show other partner companies' names or data.
