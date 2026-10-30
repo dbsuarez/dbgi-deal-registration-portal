@@ -46,9 +46,12 @@ import {
   getOpportunityScopes,
   getRegistration,
   refreshMatchingSuggestion,
+  decideOutcomeReport,
+  reportProjectOutcome,
   reviewRegistration,
   withdrawRegistration,
   type OpportunityScope,
+  type OutcomeReport,
   type RegistrationDetail,
 } from "../api";
 import { useSession } from "../session";
@@ -112,6 +115,19 @@ export default function RegistrationDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
+  const [outcomeOpen, setOutcomeOpen] = useState(false);
+  const [outcomeChoice, setOutcomeChoice] =
+    useState<OutcomeReport["outcome"]>("won");
+  const [outcomeNote, setOutcomeNote] = useState("");
+  const [outcomeSaving, setOutcomeSaving] = useState(false);
+  const [outcomeError, setOutcomeError] = useState("");
+  const [decision, setDecision] = useState<{
+    report: OutcomeReport;
+    confirm: boolean;
+  } | null>(null);
+  const [decisionNote, setDecisionNote] = useState("");
+  const [deciding, setDeciding] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -166,6 +182,54 @@ export default function RegistrationDetailPage() {
       );
     } finally {
       setReviewing(false);
+    }
+  };
+
+  const openDecision = (report: OutcomeReport, confirm: boolean) => {
+    setDecision({ report, confirm });
+    setDecisionNote("");
+    setDecisionError("");
+  };
+
+  const handleReportOutcome = async () => {
+    if (!registration) return;
+    setOutcomeSaving(true);
+    setOutcomeError("");
+    try {
+      const updated = await reportProjectOutcome(
+        registration.id,
+        { outcome: outcomeChoice, note: outcomeNote.trim() },
+        session.csrf_token,
+      );
+      setRegistration(updated);
+      setOutcomeOpen(false);
+    } catch (reason) {
+      setOutcomeError(
+        reason instanceof Error ? reason.message : "The report failed.",
+      );
+    } finally {
+      setOutcomeSaving(false);
+    }
+  };
+
+  const handleDecideOutcome = async () => {
+    if (!decision) return;
+    setDeciding(true);
+    setDecisionError("");
+    try {
+      const updated = await decideOutcomeReport(
+        decision.report.id,
+        { confirm: decision.confirm, note: decisionNote.trim() },
+        session.csrf_token,
+      );
+      setRegistration(updated);
+      setDecision(null);
+    } catch (reason) {
+      setDecisionError(
+        reason instanceof Error ? reason.message : "The decision failed.",
+      );
+    } finally {
+      setDeciding(false);
     }
   };
 
@@ -312,6 +376,19 @@ export default function RegistrationDetailPage() {
           <Typography variant="h1">{registration.project_title}</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
+          {registration.can_report_outcome && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setOutcomeChoice("won");
+                setOutcomeNote("");
+                setOutcomeError("");
+                setOutcomeOpen(true);
+              }}
+            >
+              Report project outcome
+            </Button>
+          )}
           {registration.can_withdraw && (
             <Button
               variant="outlined"
@@ -837,6 +914,85 @@ export default function RegistrationDetailPage() {
         </Typography>
       </Paper>
 
+      {(registration.outcome_reports ?? []).length > 0 && (
+        <Paper sx={{ mt: 3, p: 2 }}>
+          <Typography variant="h2" gutterBottom>
+            Project outcome reports
+          </Typography>
+          <List disablePadding>
+            {(registration.outcome_reports ?? []).map((report) => (
+              <ListItem
+                key={report.id}
+                divider
+                sx={{ px: 0, py: 1, display: "block" }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  flexWrap="wrap"
+                  useFlexGap
+                  sx={{ mb: 0.5 }}
+                >
+                  <Chip
+                    size="small"
+                    label={`Reported ${report.outcome_label}`}
+                  />
+                  <Chip
+                    size="small"
+                    color={
+                      report.status === "confirmed"
+                        ? "success"
+                        : report.status === "rejected"
+                          ? "error"
+                          : "warning"
+                    }
+                    label={report.status_label}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    {report.reported_by_name},{" "}
+                    {formatEventTimestamp(report.created_at)}
+                  </Typography>
+                </Stack>
+                <Typography variant="body2">{report.note}</Typography>
+                {report.decision_note && (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 0.5 }}
+                  >
+                    DBGI ({report.decided_by_name}
+                    {report.decided_at
+                      ? `, ${formatEventTimestamp(report.decided_at)}`
+                      : ""}
+                    ): {report.decision_note}
+                  </Typography>
+                )}
+                {session.is_dbgi_admin && report.status === "pending" && (
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => openDecision(report, true)}
+                    >
+                      Confirm {report.outcome_label}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => openDecision(report, false)}
+                    >
+                      Do not accept
+                    </Button>
+                  </Stack>
+                )}
+              </ListItem>
+            ))}
+          </List>
+        </Paper>
+      )}
+
       <Paper sx={{ mt: 3, p: 2 }}>
         <Typography variant="h2" gutterBottom>
           Activity
@@ -942,6 +1098,117 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
+      <Dialog
+        open={outcomeOpen}
+        onClose={() => !outcomeSaving && setOutcomeOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Report the project outcome</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            DBGI checks your report before the project status changes.
+          </Typography>
+          {outcomeError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {outcomeError}
+            </Alert>
+          )}
+          <FormControl sx={{ mb: 2 }}>
+            <FormLabel id="outcome-choice-label">Outcome</FormLabel>
+            <RadioGroup
+              row
+              aria-labelledby="outcome-choice-label"
+              value={outcomeChoice}
+              onChange={(event) =>
+                setOutcomeChoice(event.target.value as OutcomeReport["outcome"])
+              }
+            >
+              <FormControlLabel value="won" control={<Radio />} label="Won" />
+              <FormControlLabel value="lost" control={<Radio />} label="Lost" />
+              <FormControlLabel
+                value="cancelled"
+                control={<Radio />}
+                label="Cancelled"
+              />
+            </RadioGroup>
+          </FormControl>
+          <TextField
+            label="What happened"
+            value={outcomeNote}
+            onChange={(event) => setOutcomeNote(event.target.value)}
+            helperText="For example, the notice of award you received. At least 5 characters."
+            multiline
+            minRows={3}
+            fullWidth
+            required
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setOutcomeOpen(false)}
+            disabled={outcomeSaving}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={outcomeSaving || outcomeNote.trim().length < 5}
+            onClick={handleReportOutcome}
+          >
+            Send report
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={decision !== null}
+        onClose={() => !deciding && setDecision(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {decision?.confirm
+            ? `Confirm the project as ${decision.report.outcome_label}?`
+            : "Do not accept this outcome report?"}
+        </DialogTitle>
+        <DialogContent>
+          {decision?.confirm && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              The project status changes for every registration linked to this
+              project.
+            </Alert>
+          )}
+          {decisionError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {decisionError}
+            </Alert>
+          )}
+          <TextField
+            label="Note for the company"
+            value={decisionNote}
+            onChange={(event) => setDecisionNote(event.target.value)}
+            helperText="At least 5 characters."
+            multiline
+            minRows={3}
+            fullWidth
+            required
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDecision(null)} disabled={deciding}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={decision?.confirm ? "primary" : "error"}
+            disabled={deciding || decisionNote.trim().length < 5}
+            onClick={handleDecideOutcome}
+          >
+            {decision?.confirm ? "Confirm outcome" : "Do not accept"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={withdrawOpen}
         onClose={() => !withdrawing && setWithdrawOpen(false)}

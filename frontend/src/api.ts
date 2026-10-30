@@ -223,6 +223,20 @@ export type OpportunityRankingPage = {
   page_size: number;
 };
 
+export type OutcomeReport = {
+  id: number;
+  outcome: "won" | "lost" | "cancelled";
+  outcome_label: string;
+  note: string;
+  status: "pending" | "confirmed" | "rejected";
+  status_label: string;
+  reported_by_name: string;
+  created_at: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string;
+};
+
 export type RegistrationDetail = RegistrationListItem & {
   end_user_address: string;
   bid_date: string;
@@ -236,6 +250,8 @@ export type RegistrationDetail = RegistrationListItem & {
   evidence_sharing_confirmed: boolean;
   can_edit: boolean;
   can_withdraw: boolean;
+  can_report_outcome: boolean;
+  outcome_reports: OutcomeReport[];
   competitor_items: CompetitorItem[];
   items: RequestedItem[];
   attachments: Attachment[];
@@ -672,6 +688,34 @@ export function withdrawRegistration(
 ) {
   return mutation<RegistrationDetail>(
     `/api/v1/registrations/${registrationId}/withdraw`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function reportProjectOutcome(
+  registrationId: number,
+  payload: { outcome: OutcomeReport["outcome"]; note: string },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/registrations/${registrationId}/outcome-reports`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function decideOutcomeReport(
+  reportId: number,
+  payload: { confirm: boolean; note: string },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/review/outcome-reports/${reportId}/decision`,
     "POST",
     csrfToken,
     JSON.stringify(payload),

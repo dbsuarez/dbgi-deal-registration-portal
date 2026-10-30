@@ -115,28 +115,68 @@ def notify_company_users(
             )
 
 
-def notify_dbgi_withdrawal(registration, reason):
-    """Tell every active DBGI administrator in the portal; no email (only submitters get email)."""
+def notify_dbgi_admins(*, registration, event_type, event_key, title, message):
+    """Notify every active DBGI administrator in the portal; no email (only submitters)."""
     # Same rule as User.is_dbgi_admin
     administrators = User.objects.filter(
         Q(is_superuser=True) | Q(is_staff=True, role=User.Role.DBGI_ADMIN), is_active=True
     ).only("id")
-    message = (
-        f"{registration.company.name} withdrew {registration.reference} "
-        f"({registration.project_title}). Reason: {reason}"
-    )
     for administrator in administrators:
         RegistrationNotification.objects.get_or_create(
             recipient=administrator,
-            event_key=f"registration:{registration.pk}:withdrawn",
+            event_key=event_key,
             defaults={
                 "registration": registration,
-                "event_type": RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
-                "title": "Registration withdrawn",
+                "event_type": event_type,
+                "title": title,
                 "message": message,
                 "email_status": RegistrationNotification.EmailStatus.NOT_REQUESTED,
             },
         )
+
+
+def notify_dbgi_withdrawal(registration, reason):
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
+        event_key=f"registration:{registration.pk}:withdrawn",
+        title="Registration withdrawn",
+        message=(
+            f"{registration.company.name} withdrew {registration.reference} "
+            f"({registration.project_title}). Reason: {reason}"
+        ),
+    )
+
+
+def notify_outcome_reported(report):
+    registration = report.registration
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.OUTCOME_REPORTED,
+        event_key=f"outcome-report:{report.pk}:reported",
+        title=f"Project reported {report.get_outcome_display().lower()}",
+        message=(
+            f"{registration.company.name} reported {registration.reference} "
+            f"({registration.project_title}) as {report.get_outcome_display()}. "
+            f"Note: {report.note} Open the registration to confirm or decline."
+        ),
+    )
+
+
+def notify_outcome_decision(report):
+    registration = report.registration
+    accepted = report.status == report.Status.CONFIRMED
+    notify_company_users(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+        event_key=f"outcome-report:{report.pk}:{report.status}",
+        title="Project outcome confirmed" if accepted else "Project outcome not accepted",
+        message=(
+            f"DBGI {'confirmed' if accepted else 'did not accept'} your "
+            f"{report.get_outcome_display()} report for {registration.reference}. "
+            "Open the registration to read DBGI's note."
+        ),
+    )
 
 
 def notify_submission(registration):

@@ -40,6 +40,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProjectOutcomeReport,
     Registration,
     RegistrationAttachment,
     RegistrationCategoryApproval,
@@ -2113,3 +2114,120 @@ class RegistrationApiTests(TestCase):
         ]
         self.assertNotIn(self.registration_a.pk, ranked)
         self.assertIn(self.registration_b.pk, ranked)
+
+    def link_to_project(self, *registrations):
+        opportunity = Opportunity.objects.create(
+            title="Outcome opportunity",
+            end_user=self.end_user,
+            end_user_name=self.end_user.official_name,
+            end_user_address="Test address",
+            created_by=self.admin,
+        )
+        scope = OpportunityScope.objects.create(
+            opportunity=opportunity,
+            name="Whole opportunity",
+            scope_type=OpportunityScope.ScopeType.WHOLE,
+        )
+        Registration.objects.filter(pk__in=[r.pk for r in registrations]).update(
+            status=Registration.Status.ELIGIBLE_MATCHED, opportunity_scope=scope
+        )
+        for registration in registrations:
+            registration.refresh_from_db()
+        return opportunity
+
+    def report_outcome(self, registration, outcome="won", note="We received the notice of award."):
+        return self.client.post(
+            f"/api/v1/registrations/{registration.pk}/outcome-reports",
+            data=json.dumps({"outcome": outcome, "note": note}),
+            content_type="application/json",
+        )
+
+    def decide_outcome(self, report, confirm=True, note="Checked the notice of award."):
+        return self.client.post(
+            f"/api/v1/review/outcome-reports/{report.pk}/decision",
+            data=json.dumps({"confirm": confirm, "note": note}),
+            content_type="application/json",
+        )
+
+    def test_partner_reports_outcome_and_dbgi_is_notified(self):
+        self.link_to_project(self.registration_a)
+        self.client.force_login(self.user_a)
+
+        response = self.report_outcome(self.registration_a)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertFalse(body["can_report_outcome"])
+        self.assertEqual(body["outcome_reports"][0]["outcome"], "won")
+        self.assertEqual(body["outcome_reports"][0]["status"], "pending")
+        notice = RegistrationNotification.objects.get(
+            event_type=RegistrationNotification.EventType.OUTCOME_REPORTED
+        )
+        self.assertEqual(notice.recipient, self.admin)
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.NOT_REQUESTED)
+        second = self.report_outcome(self.registration_a, outcome="lost")
+        self.assertEqual(second.status_code, 409, second.content)
+        self.assertEqual(second.json()["code"], "outcome_report_pending")
+
+    def test_only_a_linked_registration_can_report_an_outcome(self):
+        self.client.force_login(self.user_a)
+        unlinked = self.report_outcome(self.registration_a)
+        self.assertEqual(unlinked.status_code, 400, unlinked.content)
+        detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertFalse(detail["can_report_outcome"])
+        self.link_to_project(self.registration_a)
+        self.client.force_login(self.user_b)
+        self.assertEqual(self.report_outcome(self.registration_a).status_code, 404)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.report_outcome(self.registration_a).status_code, 403)
+
+    def test_dbgi_confirms_outcome_for_every_linked_registration(self):
+        opportunity = self.link_to_project(self.registration_a, self.registration_b)
+        self.client.force_login(self.user_a)
+        self.report_outcome(self.registration_a)
+        report = ProjectOutcomeReport.objects.get()
+
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.decide_outcome(report).status_code, 403)
+        self.client.force_login(self.admin)
+        response = self.decide_outcome(report)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        opportunity.refresh_from_db()
+        self.assertEqual(opportunity.project_status, Opportunity.ProjectStatus.WON)
+        report.refresh_from_db()
+        self.assertEqual(report.status, ProjectOutcomeReport.Status.CONFIRMED)
+        self.assertEqual(report.decided_by, self.admin)
+        for registration in (self.registration_a, self.registration_b):
+            self.assertTrue(
+                registration.events.filter(event_type="Project status changed").exists()
+            )
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, event_key=f"outcome-report:{report.pk}:confirmed"
+            ).exists()
+        )
+        again = self.decide_outcome(report)
+        self.assertEqual(again.json()["code"], "invalid_transition")
+        self.client.force_login(self.user_a)
+        closed = self.report_outcome(self.registration_a, outcome="lost")
+        self.assertEqual(closed.status_code, 400, closed.content)
+
+    def test_declined_outcome_keeps_the_project_status(self):
+        opportunity = self.link_to_project(self.registration_a)
+        self.client.force_login(self.user_a)
+        self.report_outcome(self.registration_a, outcome="cancelled")
+        report = ProjectOutcomeReport.objects.get()
+
+        self.client.force_login(self.admin)
+        response = self.decide_outcome(report, confirm=False, note="The agency has not cancelled.")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        opportunity.refresh_from_db()
+        self.assertEqual(opportunity.project_status, Opportunity.ProjectStatus.UPCOMING)
+        report.refresh_from_db()
+        self.assertEqual(report.status, ProjectOutcomeReport.Status.REJECTED)
+        self.assertEqual(report.decision_note, "The agency has not cancelled.")
+        self.client.force_login(self.user_a)
+        detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertTrue(detail["can_report_outcome"])

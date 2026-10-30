@@ -33,6 +33,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProjectOutcomeReport,
     Registration,
     RegistrationAttachment,
     RegistrationCategoryApproval,
@@ -45,6 +46,8 @@ from .models import (
 )
 from .notifications import (
     notify_dbgi_withdrawal,
+    notify_outcome_decision,
+    notify_outcome_reported,
     notify_price_decision,
     notify_registration_decision,
     notify_submission,
@@ -132,6 +135,30 @@ class RegistrationFinalize(Schema):
 class RegistrationWithdrawInput(Schema):
     version: int
     reason: str = Field(min_length=5, max_length=1000)
+
+
+class OutcomeReportInput(Schema):
+    outcome: Literal["won", "lost", "cancelled"]
+    note: str = Field(min_length=5, max_length=2000)
+
+
+class OutcomeDecisionInput(Schema):
+    confirm: bool
+    note: str = Field(min_length=5, max_length=2000)
+
+
+class OutcomeReportOutput(Schema):
+    id: int
+    outcome: str
+    outcome_label: str
+    note: str
+    status: str
+    status_label: str
+    reported_by_name: str
+    created_at: datetime
+    decided_by_name: str | None
+    decided_at: datetime | None
+    decision_note: str
 
 
 class RegistrationListItem(Schema):
@@ -266,6 +293,8 @@ class RegistrationDetail(RegistrationListItem):
     evidence_sharing_confirmed: bool
     can_edit: bool
     can_withdraw: bool
+    can_report_outcome: bool
+    outcome_reports: list[OutcomeReportOutput]
     competitor_items: list[CompetitorOutput]
     items: list[RegistrationItemOutput]
     attachments: list[AttachmentOutput]
@@ -726,6 +755,75 @@ def _serialize_registration_event(event, *, include_internal_details):
     }
 
 
+# A partner may report an outcome only while the linked project is still open.
+OPEN_PROJECT_STATUSES = {
+    Opportunity.ProjectStatus.UPCOMING,
+    Opportunity.ProjectStatus.ACTIVE,
+    Opportunity.ProjectStatus.ON_HOLD,
+}
+OUTCOME_REPORTABLE_STATUSES = {Registration.Status.ELIGIBLE_MATCHED, Registration.Status.APPROVED}
+
+
+def _outcome_report_blocker(registration):
+    """Why this registration cannot get an outcome report now (an error dict), or None."""
+    if (
+        registration.status not in OUTCOME_REPORTABLE_STATUSES
+        or not registration.opportunity_scope_id
+    ):
+        return {
+            "code": "invalid_transition",
+            "message": "Only a registration DBGI linked to a project can report its outcome.",
+        }
+    if registration.opportunity_scope.opportunity.project_status not in OPEN_PROJECT_STATUSES:
+        return {
+            "code": "invalid_transition",
+            "message": "This project already has a final outcome.",
+        }
+    if registration.outcome_reports.filter(status=ProjectOutcomeReport.Status.PENDING).exists():
+        return {
+            "code": "outcome_report_pending",
+            "message": "An outcome report for this registration is already waiting for DBGI.",
+        }
+    return None
+
+
+def _serialize_outcome_report(report):
+    def name(user):
+        return (user.get_full_name() or user.username) if user else None
+
+    return {
+        "id": report.pk,
+        "outcome": report.outcome,
+        "outcome_label": report.get_outcome_display(),
+        "note": report.note,
+        "status": report.status,
+        "status_label": report.get_status_display(),
+        "reported_by_name": name(report.reported_by),
+        "created_at": report.created_at,
+        "decided_by_name": name(report.decided_by),
+        "decided_at": report.decided_at,
+        "decision_note": report.decision_note,
+    }
+
+
+def _set_project_status(opportunity, status, actor, reason):
+    """Change a project's status and record it on every registration linked to the project."""
+    old_label = opportunity.get_project_status_display()
+    opportunity.project_status = status
+    opportunity.save(update_fields=["project_status"])
+    for registration in Registration.objects.filter(opportunity_scope__opportunity=opportunity):
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=actor,
+            event_type="Project status changed",
+            details=(
+                f"Project status changed from {old_label} to "
+                f"{opportunity.get_project_status_display()}: {reason}"
+            ),
+            snapshot=registration_snapshot(registration),
+        )
+
+
 def _serialize_registration_detail(registration, user):
     detail = _serialize_registration(registration)
     serialized_events = [
@@ -748,6 +846,14 @@ def _serialize_registration_detail(registration, user):
             and registration.status != Registration.Status.WITHDRAWN,
             "can_withdraw": not user.is_dbgi_admin
             and registration.status in Registration.WITHDRAWABLE_STATUSES,
+            "can_report_outcome": not user.is_dbgi_admin
+            and _outcome_report_blocker(registration) is None,
+            "outcome_reports": [
+                _serialize_outcome_report(report)
+                for report in registration.outcome_reports.select_related(
+                    "reported_by", "decided_by"
+                )
+            ],
             "competitor_items": [
                 {
                     "id": item.pk,
@@ -1693,6 +1799,119 @@ def withdraw_registration(request, registration_id: int, payload: RegistrationWi
     return _serialize_registration_detail(registration, request.user)
 
 
+def _detail_response(request, registration_id):
+    registration = (
+        _registration_queryset(request.user)
+        .prefetch_related("competitor_items", "items__product", "attachments", "events__actor")
+        .select_related("opportunity_scope__opportunity")
+        .get(pk=registration_id)
+    )
+    return _serialize_registration_detail(registration, request.user)
+
+
+@api.post(
+    "/registrations/{registration_id}/outcome-reports",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def report_project_outcome(request, registration_id: int, payload: OutcomeReportInput):
+    """A partner reports its linked project as won, lost, or cancelled; DBGI confirms later."""
+    company_id = _company_id(request.user)
+    if company_id in (None, False):
+        return Status(
+            403,
+            {"code": "company_access_required", "message": "A valid company account is required."},
+        )
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update(of=("self",)).select_related(
+                "company", "opportunity_scope__opportunity"
+            ),
+            pk=registration_id,
+            company_id=company_id,
+        )
+        blocker = _outcome_report_blocker(registration)
+        if blocker:
+            return Status(409 if blocker["code"] == "outcome_report_pending" else 400, blocker)
+        report = ProjectOutcomeReport.objects.create(
+            registration=registration,
+            opportunity=registration.opportunity_scope.opportunity,
+            outcome=payload.outcome,
+            note=payload.note.strip(),
+            reported_by=request.user,
+        )
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Outcome reported",
+            details=f"Reported the project as {report.get_outcome_display()}: {report.note}",
+            snapshot=registration_snapshot(registration),
+        )
+        notify_outcome_reported(report)
+    return _detail_response(request, registration_id)
+
+
+@api.post(
+    "/review/outcome-reports/{report_id}/decision",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+    },
+)
+def decide_outcome_report(request, report_id: int, payload: OutcomeDecisionInput):
+    """DBGI confirms a reported outcome (setting the project status) or declines it."""
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    note = payload.note.strip()
+    with transaction.atomic():
+        report = get_object_or_404(
+            ProjectOutcomeReport.objects.select_for_update(of=("self",)).select_related(
+                "registration__company", "opportunity"
+            ),
+            pk=report_id,
+        )
+        if report.status != ProjectOutcomeReport.Status.PENDING:
+            return Status(
+                400,
+                {"code": "invalid_transition", "message": "This report was already decided."},
+            )
+        report.status = (
+            ProjectOutcomeReport.Status.CONFIRMED
+            if payload.confirm
+            else ProjectOutcomeReport.Status.REJECTED
+        )
+        report.decided_by = request.user
+        report.decided_at = timezone.now()
+        report.decision_note = note
+        report.save()
+        if payload.confirm:
+            opportunity = Opportunity.objects.select_for_update().get(pk=report.opportunity_id)
+            _set_project_status(
+                opportunity, report.outcome, request.user, f"Confirmed the reported outcome. {note}"
+            )
+        else:
+            RegistrationEvent.objects.create(
+                registration=report.registration,
+                actor=request.user,
+                event_type="Outcome report not accepted",
+                details=note,
+                snapshot=registration_snapshot(report.registration),
+            )
+        notify_outcome_decision(report)
+    return _detail_response(request, report.registration_id)
+
+
 @api.post(
     "/review/registrations/{registration_id}/decision",
     auth=django_auth,
@@ -1943,21 +2162,7 @@ def update_project_status(request, opportunity_id: int, payload: ProjectStatusIn
         opportunity = get_object_or_404(
             Opportunity.objects.select_for_update(), pk=opportunity_id, is_active=True
         )
-        old_label = opportunity.get_project_status_display()
-        opportunity.project_status = payload.status
-        opportunity.save(update_fields=["project_status"])
-        registrations = Registration.objects.filter(opportunity_scope__opportunity=opportunity)
-        for registration in registrations:
-            RegistrationEvent.objects.create(
-                registration=registration,
-                actor=request.user,
-                event_type="Project status changed",
-                details=(
-                    f"Project status changed from {old_label} to "
-                    f"{opportunity.get_project_status_display()}: {payload.reason.strip()}"
-                ),
-                snapshot=registration_snapshot(registration),
-            )
+        _set_project_status(opportunity, payload.status, request.user, payload.reason.strip())
     scope = opportunity.scopes.filter(is_active=True).first()
     if not scope:
         return Status(

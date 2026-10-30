@@ -827,6 +827,55 @@ class PriceApprovalRenewal(models.Model):
         ordering = ["-requested_at", "-id"]
 
 
+class ProjectOutcomeReport(models.Model):
+    """A partner's report that a linked project was won, lost, or cancelled, for DBGI to confirm."""
+
+    class Outcome(models.TextChoices):
+        WON = "won", "Won"
+        LOST = "lost", "Lost"
+        CANCELLED = "cancelled", "Cancelled"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Waiting for DBGI"
+        CONFIRMED = "confirmed", "Confirmed"
+        REJECTED = "rejected", "Not accepted"
+
+    registration = models.ForeignKey(
+        Registration, on_delete=models.PROTECT, related_name="outcome_reports"
+    )
+    opportunity = models.ForeignKey(
+        Opportunity, on_delete=models.PROTECT, related_name="outcome_reports"
+    )
+    outcome = models.CharField(max_length=20, choices=Outcome.choices)
+    note = models.TextField()
+    reported_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="outcome_reports")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="decided_outcome_reports",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["registration"],
+                condition=models.Q(status="pending"),
+                name="one_pending_outcome_report_per_registration",
+            )
+        ]
+
+    def __str__(self):
+        outcome, status = self.get_outcome_display(), self.get_status_display()
+        return f"{self.registration.reference}: {outcome} ({status})"
+
+
 class RegistrationEvent(models.Model):
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name="events")
     actor = models.ForeignKey(
@@ -851,6 +900,7 @@ class RegistrationNotification(models.Model):
         REGISTRATION_DECISION = "registration_decision", "Registration decision"
         PRICE_DECISION = "price_decision", "Price decision"
         REGISTRATION_WITHDRAWN = "registration_withdrawn", "Registration withdrawn"
+        OUTCOME_REPORTED = "outcome_reported", "Project outcome reported"
 
     class EmailStatus(models.TextChoices):
         NOT_REQUESTED = "not_requested", "Not requested"

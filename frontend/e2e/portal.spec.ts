@@ -1346,3 +1346,143 @@ test("company user can withdraw a registration with a reason", async ({
     page.getByRole("button", { name: "Edit registration" }),
   ).toHaveCount(0);
 });
+
+test("partner reports a project outcome and DBGI confirms it", async ({
+  page,
+}) => {
+  let asAdmin = false;
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: asAdmin
+        ? { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" }
+        : session,
+    }),
+  );
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  const report = (overrides: Record<string, unknown>) => ({
+    id: 5,
+    outcome: "won",
+    outcome_label: "Won",
+    note: "We received the notice of award.",
+    status: "pending",
+    status_label: "Waiting for DBGI",
+    reported_by_name: "Dealer User",
+    created_at: "2026-10-30T02:00:00Z",
+    decided_by_name: null,
+    decided_at: null,
+    decision_note: "",
+    ...overrides,
+  });
+  const detail = (overrides: Record<string, unknown>) => ({
+    id: 11,
+    reference: "DBGI-000011",
+    project_title: "Outcome printer project",
+    company_name: "North Dealer",
+    end_user_name: "Sample municipality",
+    end_user_address: "Test address",
+    bid_date: "2026-12-01",
+    delivery_date: "2027-01-15",
+    contact_person: "Test person",
+    contact_designation: "Buyer",
+    contact_email: "test@example.invalid",
+    contact_number: "0000000000",
+    evidence_description: "Public procurement notice",
+    evidence_url: "",
+    evidence_sharing_confirmed: true,
+    status: "eligible_matched",
+    status_label: "Registered",
+    project_status: "active",
+    project_status_label: "Active",
+    price_status: "pending",
+    price_status_label: "Pending",
+    needs_review: false,
+    created_at: "2026-10-30T01:00:00Z",
+    version: 4,
+    can_edit: true,
+    can_withdraw: true,
+    can_report_outcome: true,
+    outcome_reports: [],
+    competitor_items: [],
+    items: [],
+    attachments: [],
+    events: [],
+    opportunity_scope_id: 3,
+    opportunity_scope_label: "Outcome printer project | Whole opportunity",
+    category_approvals: [],
+    matching_suggestion: null,
+    ...overrides,
+  });
+  let current = detail({});
+  await page.route("**/api/v1/registrations/11", (route) =>
+    route.fulfill({ json: current }),
+  );
+  let reported: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/registrations/11/outcome-reports", (route) => {
+    reported = route.request().postDataJSON();
+    current = detail({
+      can_report_outcome: false,
+      outcome_reports: [report({})],
+    });
+    return route.fulfill({ json: current });
+  });
+  let decided: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/review/outcome-reports/5/decision", (route) => {
+    decided = route.request().postDataJSON();
+    current = detail({
+      can_edit: false,
+      can_withdraw: false,
+      can_report_outcome: false,
+      project_status: "won",
+      project_status_label: "Won",
+      outcome_reports: [
+        report({
+          status: "confirmed",
+          status_label: "Confirmed",
+          decided_by_name: "DBGI Admin",
+          decided_at: "2026-10-30T03:00:00Z",
+          decision_note: "Checked the notice of award.",
+        }),
+      ],
+    });
+    return route.fulfill({ json: current });
+  });
+
+  await page.goto("/registrations/11/");
+  await page.getByRole("button", { name: "Report project outcome" }).click();
+  const reportDialog = page.getByRole("dialog", {
+    name: "Report the project outcome",
+  });
+  await reportDialog.getByLabel("Won").check();
+  await reportDialog
+    .getByLabel(/What happened/)
+    .fill("We received the notice of award.");
+  await reportDialog.getByRole("button", { name: "Send report" }).click();
+  await expect(reportDialog).toBeHidden();
+  expect(reported).toEqual({
+    outcome: "won",
+    note: "We received the notice of award.",
+  });
+  await expect(page.getByText("Waiting for DBGI")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Report project outcome" }),
+  ).toHaveCount(0);
+
+  asAdmin = true;
+  await page.reload();
+  await page.getByRole("button", { name: "Confirm Won" }).click();
+  const decisionDialog = page.getByRole("dialog", {
+    name: "Confirm the project as Won?",
+  });
+  await decisionDialog
+    .getByLabel(/Note for the company/)
+    .fill("Checked the notice of award.");
+  await decisionDialog.getByRole("button", { name: "Confirm outcome" }).click();
+  await expect(decisionDialog).toBeHidden();
+  expect(decided).toEqual({
+    confirm: true,
+    note: "Checked the notice of award.",
+  });
+  await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
+});

@@ -14,12 +14,14 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 - **Products and pricing:** request catalog or non-catalog products with quantity and requested price. The list price is captured at request time, and the discount and totals are calculated.
 - **Evidence:** upload private evidence files, which are validated, finalized, locked, and audited.
 - **Tracking:** a registration list with search, quick and advanced filters, and pagination. Status badges explain themselves on hover or keyboard focus, and ranking views show only what the company is allowed to see.
+- **Report the project outcome:** once DBGI links a registration to a project, report it as Won, Lost, or Cancelled with a short note. DBGI confirms or declines it.
 - **Withdraw:** withdraw a registration with a short reason. Withdrawal is final: the registration leaves the ranking and can no longer change, and DBGI is notified.
 - **Notifications and help:** in-portal notifications plus email, and a Help page with step-by-step beginner walkthroughs.
 
 ## DBGI administrators
 
 - **Matching:** the system suggests matches and auto-matches only when it is safe to. Administrators review step by step and can open a dialog explaining each match. Matched registrations are grouped into opportunity scopes, and companies are ranked within each.
+- **Outcome reports:** confirm or decline a company's Won, Lost, or Cancelled report from the registration page; confirming sets the project status for every linked registration.
 - **Commercial approvals:** approve pricing by product category with item-level approved prices, an expiry date, and 30-day renewals. Project status, registration status, and pricing approval are tracked separately.
 - **End-user verification:** review company-proposed End-users and maintain the Organization type and Sector lists.
 - **Operations dashboard (Django Admin):** work queues for pending review, pricing, End-user verification, failed emails, and approvals nearing expiry.
