@@ -49,22 +49,30 @@ No change: B1, C3, D2 (keep today).
 
 ## Response 2: Pricing and Business Development (head), 2026-10-29
 
-Parts C and D were left blank.
+Parts C and D were left blank on the first form and answered on an updated form received 2026-10-30.
 
-| #     | Question                           | Answer                                                                                      |
-| ----- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| A1    | Is this the process DBGI wants?    | Blank                                                                                       |
-| A2    | Who uses it first                  | (a) Small pilot: 2 to 3 trusted partners and one DBGI reviewer                              |
-| A3    | Day-one scope                      | (b) Wait for pricing history too                                                            |
-| A4    | Do the labels make sense           | Blank                                                                                       |
-| B1    | Editing after submit               | (c) Allow small fixes freely, re-review for big ones                                        |
-| B2    | Withdrawal and restore             | (b) Partner withdraws instantly, DBGI is notified                                           |
-| B3    | Merge or split                     | (b) DBGI decides case by case with a written reason                                         |
-| B4    | Who decides Won, Lost, Cancelled   | (b) Partners report, DBGI confirms                                                          |
-| B5    | Exact tie                          | (a) Keep a shared rank, DBGI decides                                                        |
-| B6    | Early registration validity        | (a) 60 days, reminder 7 days before, then DBGI reviews                                      |
-| B7    | Reposted tender                    | Same as B6: valid 60 days, reminder 7 days before, then DBGI reviews (clarified 2026-10-30) |
-| C1-D4 | Pricing, repeat orders, operations | Blank                                                                                       |
+| #   | Question                         | Answer                                                                                                                         |
+| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | Is this the process DBGI wants?  | Blank                                                                                                                          |
+| A2  | Who uses it first                | (a) Small pilot: 2 to 3 trusted partners and one DBGI reviewer                                                                 |
+| A3  | Day-one scope                    | (b) Wait for pricing history too                                                                                               |
+| A4  | Do the labels make sense         | Blank                                                                                                                          |
+| B1  | Editing after submit             | (c) Allow small fixes freely, re-review for big ones                                                                           |
+| B2  | Withdrawal and restore           | (b) Partner withdraws instantly, DBGI is notified                                                                              |
+| B3  | Merge or split                   | (b) DBGI decides case by case with a written reason                                                                            |
+| B4  | Who decides Won, Lost, Cancelled | (b) Partners report, DBGI confirms                                                                                             |
+| B5  | Exact tie                        | (a) Keep a shared rank, DBGI decides                                                                                           |
+| B6  | Early registration validity      | (a) 60 days, reminder 7 days before, then DBGI reviews                                                                         |
+| B7  | Reposted tender                  | Same as B6: valid 60 days, reminder 7 days before, then DBGI reviews (clarified 2026-10-30)                                    |
+| C1  | Approved price validity          | (a) 90 days, reminder 14 days before                                                                                           |
+| C2  | VAT                              | (a) All prices VAT-inclusive                                                                                                   |
+| C3  | Rounding                         | (a) Round each line to 2 decimals, add the lines                                                                               |
+| C4  | Non-catalog products             | (a) DBGI adds the product to the catalog first, then reviews                                                                   |
+| C5  | Price visibility                 | (a) Keep today's rule                                                                                                          |
+| D1  | Repeat orders                    | Allowed for the same end-user; proof is the NOA and NTP stating it is a repeat order; requests that do not comply are declined |
+| D2  | Who gets emails                  | (b) Email only the person who submitted                                                                                        |
+| D3  | Records and backups              | (a) Keep everything for 5 years, daily backups, back within one working day                                                    |
+| D4  | Working days                     | (a) Monday to Friday, Philippine public holidays excluded, 5:00 PM cutoff                                                      |
 
 ## Decisions (2026-10-30)
 
@@ -84,5 +92,7 @@ Where the two responses differ, response 2 (the head of pricing and business dev
 
 **Still open:**
 
-- **A1, A4, C1-C5, D1-D4:** only response 1 answered; waiting for the third form or the head's confirmation (Part C is the head's own area).
-- **B1:** what counts as a "small fix" versus a "big change" still needs a definition before it can be built.
+- **A4:** response 1 found the label "Changes requested" unclear; a clearer wording needs choosing.
+- **B1:** what counts as a "small fix" versus a "big change" needs a definition before it can be built.
+- **Day counts:** assumed that validity periods (60 and 90 days) and renewals (30 days) are calendar days, and that working days (D4) apply only to deadlines stated in working days. To be confirmed.
+- The third form has not come back; the head's answers already settle every question except A4 and B1.
