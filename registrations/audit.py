@@ -54,9 +54,9 @@ CHANGE_LABELS = {
     "contact_designation": "Contact designation",
     "contact_email": "Contact email",
     "contact_number": "Contact number",
-    "evidence_description": "Evidence description",
-    "evidence_url": "Evidence URL",
-    "evidence_sharing_confirmed": "Evidence sharing confirmation",
+    "evidence_description": "Attachment description",
+    "evidence_url": "Attachment link",
+    "evidence_sharing_confirmed": "Attachment sharing confirmation",
     "status": "Registration status",
     "project_status": "Project status",
     "price_status": "Commercial status",
@@ -84,8 +84,8 @@ def registration_change_details(before, after):
             changes.append(
                 {
                     "label": label,
-                    "previous": _display_value(old_value),
-                    "current": _display_value(new_value),
+                    "previous": _display_value(old_value, field),
+                    "current": _display_value(new_value, field),
                 }
             )
     for field, label in (
@@ -98,7 +98,13 @@ def registration_change_details(before, after):
     return changes
 
 
-def _display_value(value):
+def _display_value(value, field=None):
+    if field == "status" and value:
+        # Show the registration status by its current screen name
+        from .models import Registration
+
+        if value in Registration.Status.values:
+            return Registration.Status(value).label.lower()
     if value in (None, ""):
         return "Not set"
     if isinstance(value, bool):

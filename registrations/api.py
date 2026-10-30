@@ -1353,7 +1353,7 @@ def _validate_input(payload):
         details.append(
             {
                 "field": "evidence_sharing_confirmed",
-                "message": "Confirm authorization to share the evidence.",
+                "message": "Confirm authorization to share the attachment.",
             }
         )
     for index, item in enumerate(payload.items):
@@ -2310,7 +2310,9 @@ def _attachment_edit_guard(registration, version):
             409,
             {
                 "code": "evidence_locked",
-                "message": ("Evidence cannot change once review has started or a decision exists."),
+                "message": (
+                    "Attachments cannot change once review has started or a decision exists."
+                ),
             },
         )
     if registration.version != version:
@@ -2320,7 +2322,7 @@ def _attachment_edit_guard(registration, version):
                 "code": "edit_conflict",
                 "message": (
                     "This registration changed after you opened it. Refresh before changing "
-                    "the evidence."
+                    "the attachments."
                 ),
             },
         )
@@ -2367,9 +2369,9 @@ def finalize_registration(request, registration_id: int, payload: RegistrationFi
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
-            event_type="Evidence submitted",
+            event_type="Attachments submitted",
             details=(
-                "Company finished submitting the registration and its evidence set. "
+                "Company finished submitting the registration and its attachments. "
                 f"Version is now {registration.version}."
             ),
             snapshot=prior_snapshot,
@@ -2438,7 +2440,7 @@ def upload_attachment(
             registration=registration,
             actor=request.user,
             event_type="Attachment added",
-            details=f"{attachment.original_name} was added to the evidence set."
+            details=f"{attachment.original_name} was added to the attachments."
             + (f" Description: {description}" if description else ""),
             snapshot=prior_snapshot,
         )
@@ -2489,7 +2491,7 @@ def delete_attachment(request, attachment_id: int, version: int):
             registration=registration,
             actor=request.user,
             event_type="Attachment removed",
-            details=f"{original_name} was removed from the evidence set.",
+            details=f"{original_name} was removed from the attachments.",
             snapshot=prior_snapshot,
         )
     return Status(204, None)

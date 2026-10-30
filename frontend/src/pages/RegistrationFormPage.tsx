@@ -1011,7 +1011,7 @@ export default function RegistrationFormPage() {
 
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h2" gutterBottom>
-            Evidence
+            Attachment
           </Typography>
           <Alert severity="info" sx={{ mb: 2 }}>
             Do not upload confidential third-party bids, unnecessary personal
@@ -1024,7 +1024,7 @@ export default function RegistrationFormPage() {
                 required
                 multiline
                 rows={4}
-                label="Evidence description"
+                label="Attachment description"
                 value={main.evidence_description}
                 onChange={(e) =>
                   updateMain("evidence_description", e.target.value)
@@ -1035,7 +1035,7 @@ export default function RegistrationFormPage() {
               <TextField
                 fullWidth
                 type="url"
-                label="Public evidence link (optional)"
+                label="Public attachment link (optional)"
                 value={main.evidence_url}
                 onChange={(e) => updateMain("evidence_url", e.target.value)}
               />
@@ -1051,7 +1051,7 @@ export default function RegistrationFormPage() {
                     }
                   />
                 }
-                label="I confirm that I am authorized to share this evidence with DBGI for review."
+                label="I confirm that I am authorized to share this attachment with DBGI for review."
               />
             </Grid>
             <Grid size={12}>

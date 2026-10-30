@@ -538,8 +538,8 @@ export default function RegistrationDetailPage() {
             <Box sx={{ mt: 2 }}>
               <Typography fontWeight={600}>What should I do?</Typography>
               <Typography color="text.secondary" sx={{ mb: 2 }}>
-                Review the system guidance and registration evidence, enter why
-                you are starting review, then select Start review. This step
+                Review the system guidance and registration attachments, enter
+                why you are starting review, then select Start review. This step
                 does not link or create an opportunity.
               </Typography>
               <TextField
@@ -732,7 +732,7 @@ export default function RegistrationDetailPage() {
         <Grid size={{ xs: 12, md: 5 }}>
           <Paper sx={{ p: 3, height: "100%" }}>
             <Typography variant="h2" gutterBottom>
-              Evidence
+              Attachment
             </Typography>
             <Typography sx={{ whiteSpace: "pre-wrap" }}>
               {registration.evidence_description}
@@ -743,7 +743,7 @@ export default function RegistrationDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open evidence link
+                Open attachment link
               </Link>
             )}
             <Divider sx={{ my: 2 }} />

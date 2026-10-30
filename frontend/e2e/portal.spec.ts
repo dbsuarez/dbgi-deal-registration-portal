@@ -189,7 +189,7 @@ async function fillCompleteRegistration(page: Page) {
   await page.getByRole("button", { name: "Save item" }).click();
 
   await page
-    .getByLabel("Evidence description")
+    .getByLabel("Attachment description")
     .fill("Public procurement notice");
   await page.getByRole("checkbox").check();
 }
@@ -418,7 +418,7 @@ test("debug test-data panel fills five registration scenarios", async ({
   await expect(page.getByText(/P1820W/)).toBeVisible();
   await expect(
     page.getByLabel(
-      "I confirm that I am authorized to share this evidence with DBGI for review.",
+      "I confirm that I am authorized to share this attachment with DBGI for review.",
     ),
   ).toBeChecked();
   await expect(
@@ -949,7 +949,7 @@ test("company user can read DBGI's change request instructions", async ({
         evidence_url: "",
         evidence_sharing_confirmed: true,
         status: "changes_requested",
-        status_label: "Changes requested",
+        status_label: "Returned for changes",
         project_status: null,
         project_status_label: "Not linked",
         price_status: "pending",
@@ -972,7 +972,7 @@ test("company user can read DBGI's change request instructions", async ({
               {
                 label: "Registration status",
                 previous: "under review",
-                current: "changes requested",
+                current: "returned for changes",
               },
             ],
           },

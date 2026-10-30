@@ -50,7 +50,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   requested unit price. The catalog list price is captured when the deal is submitted, and the discount and line
   total are calculated.
 - **Live:** each line total is rounded to 2 decimals (C3 keeps this).
-- **Decided:** call this section "Attachment" instead of "Evidence" on screens. Not built yet.
+- **Live:** screens call this section "Attachment" (it was "Evidence" until 2026-10-30).
 - **Live:** evidence needs a description and a confirmation that the partner may share it; files are private and
   checked on upload.
 - **Live:** the portal records the **submission time on the server**. That time decides the ranking and cannot be
@@ -64,7 +64,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 | -------------------------- | ------------------------------------------------------------ | -------------------------------------- |
 | Submitted                  | DBGI received it                                             | DBGI starts the review                 |
 | Under review               | A DBGI administrator is reviewing it                         | Confirm, request changes, or reject    |
-| Changes requested          | DBGI needs corrections; the instructions are in the Activity | The partner edits and saves            |
+| Returned for changes       | DBGI needs corrections; the instructions are in the Activity | The partner edits and saves            |
 | Resubmitted                | The partner saved the corrections                            | DBGI reviews again                     |
 | Registered                 | DBGI confirmed it belongs to a project; it is ranked         | Pricing, outcome report, or withdrawal |
 | Review required after edit | The partner edited a Registered deal                         | DBGI reviews again; the rank is kept   |
@@ -73,13 +73,13 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 | Withdrawn                  | The partner withdrew it                                      | Final                                  |
 
 - **Live:** a registration shows three separate badges: registration status, project status, and pricing status.
-- **Decided (A4):** rename "Changes requested" to "Returned for changes". Not built yet; screens still say
-  "Changes requested".
+- **Live (A4):** the status DBGI uses to send a registration back is called "Returned for changes" (it was
+  "Changes requested"). The pricing status "Changes requested" keeps its name.
 
 ## 5. Editing a registration
 
 - **Live:** partners can edit their registration at any time until it is withdrawn.
-- **Live:** editing a "Changes requested" registration makes it "Resubmitted".
+- **Live:** editing a "Returned for changes" registration makes it "Resubmitted".
 - **Live:** editing a Registered registration makes it "Review required after edit". It keeps its original
   submission time and rank.
 - **Live:** products and requested prices lock once DBGI starts the pricing review; DBGI must request changes first.
@@ -137,7 +137,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 
 All counts are calendar days, starting from the server's recorded time.
 
-- **Live (B6):** a registration DBGI has not confirmed (still Submitted, Under review, Changes requested, or
+- **Live (B6):** a registration DBGI has not confirmed (still Submitted, Under review, Returned for changes, or
   Resubmitted):
   - Day 53: the partner gets a reminder that 7 days are left.
   - Day 60: it goes back to DBGI's review queue with an Activity entry, and DBGI administrators get a notice.

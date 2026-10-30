@@ -40,7 +40,7 @@ const registrationStatuses = [
   ["Submitted", "DBGI has received the registration."],
   ["Under review", "A DBGI administrator is reviewing it."],
   [
-    "Changes requested",
+    "Returned for changes",
     "Open the registration, read the reason, and select Edit.",
   ],
   ["Registered", "DBGI confirmed the registration and its opportunity match."],
@@ -64,11 +64,11 @@ const companyScenarios: PracticeScenario[] = [
     title: "Submit a new registration",
     actor: "Company user",
     before:
-      "Prepare the End-user, project dates, contact, evidence description, one competitor item, and one requested product.",
+      "Prepare the End-user, project dates, contact, attachment description, one competitor item, and one requested product.",
     steps: [
       "Open Registrations and select Create a registration.",
       "Select the End-user and complete every required project and contact field.",
-      "Describe the evidence and confirm that you are authorized to share it.",
+      "Describe the attachment and confirm that you are authorized to share it.",
       "Add at least one competitor item and one requested product with quantity, requested price, and justification.",
       "Review the values and submit the registration.",
       "Open Notifications and select the Submission confirmed message.",
@@ -80,7 +80,7 @@ const companyScenarios: PracticeScenario[] = [
     title: "Correct a registration after DBGI requests changes",
     actor: "Company user",
     before:
-      "Use a registration with status Changes requested and read the administrator's reason.",
+      "Use a registration with status Returned for changes and read the administrator's reason.",
     steps: [
       "Open the notification for the requested change.",
       "Open the registration and identify the exact fields DBGI asked you to correct.",
@@ -112,7 +112,7 @@ const adminScenarios: PracticeScenario[] = [
     title: "Review and confirm a registration match",
     actor: "DBGI administrator",
     before:
-      "Use a Submitted registration with complete evidence and a matching suggestion.",
+      "Use a Submitted registration with complete attachments and a matching suggestion.",
     steps: [
       "Open the registration and compare the End-user, address, requested products, supporting factors, and conflicts.",
       "Select Start review and enter a useful rationale.",
@@ -127,7 +127,7 @@ const adminScenarios: PracticeScenario[] = [
     title: "Request corrections and review the resubmission",
     actor: "DBGI administrator, then company user",
     before:
-      "Use a registration whose evidence or business details need a specific correction.",
+      "Use a registration whose attachments or business details need a specific correction.",
     steps: [
       "Start review as the DBGI administrator.",
       "Select Request changes and write an exact, actionable reason.",
@@ -375,7 +375,7 @@ export default function HelpPage() {
                 Add the project title, bid and delivery dates, and the person
                 DBGI may contact about the opportunity.
               </NumberedStep>
-              <NumberedStep number={4} title="Describe your evidence">
+              <NumberedStep number={4} title="Describe your attachment">
                 Explain how you learned about the opportunity and confirm that
                 you are authorized to share the information. Add supporting
                 files when available.
@@ -429,12 +429,12 @@ export default function HelpPage() {
                 number={1}
                 title="Open a registration that needs review"
               >
-                Confirm the company, End-user, evidence, requested products,
+                Confirm the company, End-user, attachments, requested products,
                 competitor information, and matching suggestion.
               </NumberedStep>
               <NumberedStep number={2} title="Start review">
                 Review the system recommendation, match score, supporting and
-                conflicting factors, and the registration evidence. Enter the
+                conflicting factors, and the registration attachments. Enter the
                 review reason and select Start review. This step records that
                 examination began but does not link or create an opportunity.
               </NumberedStep>
@@ -461,7 +461,7 @@ export default function HelpPage() {
                 number={1}
                 title="Review new and changed registrations"
               >
-                Prioritize Submitted, Changes requested responses, and Review
+                Prioritize Submitted, Returned for changes responses, and Review
                 required after edit. Open Activity to see exactly what changed.
               </NumberedStep>
               <NumberedStep number={2} title="Resolve matching suggestions">
@@ -497,7 +497,7 @@ export default function HelpPage() {
               <ListItem disableGutters>
                 <ListItemText
                   primary="Link to an existing opportunity"
-                  secondary="Choose the correct Opportunity scope only when the evidence shows this registration belongs to an existing procurement opportunity."
+                  secondary="Choose the correct Opportunity scope only when the attachments show this registration belongs to an existing procurement opportunity."
                 />
               </ListItem>
               <ListItem disableGutters>

@@ -500,7 +500,7 @@ export default function RegistrationListPage() {
           <MenuItem value="">All Registration Statuses</MenuItem>
           <MenuItem value="submitted">Submitted</MenuItem>
           <MenuItem value="under_review">Under review</MenuItem>
-          <MenuItem value="changes_requested">Changes requested</MenuItem>
+          <MenuItem value="changes_requested">Returned for changes</MenuItem>
           <MenuItem value="resubmitted">Resubmitted</MenuItem>
           <MenuItem value="eligible_matched">Registered</MenuItem>
           <MenuItem value="review_required">

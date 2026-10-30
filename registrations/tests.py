@@ -2007,7 +2007,9 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.json()["version"], version + 1)
         self.registration_a.refresh_from_db()
         self.assertTrue(self.registration_a.needs_review)
-        self.assertTrue(self.registration_a.events.filter(event_type="Evidence submitted").exists())
+        self.assertTrue(
+            self.registration_a.events.filter(event_type="Attachments submitted").exists()
+        )
 
         stale = self.client.post(
             f"/api/v1/registrations/{self.registration_a.pk}/finalize",

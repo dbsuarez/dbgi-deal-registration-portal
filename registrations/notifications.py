@@ -194,7 +194,7 @@ def notify_submission(registration):
 
 def notify_registration_decision(registration, decision):
     labels = {
-        "request_changes": "Changes requested",
+        "request_changes": "Returned for changes",
         "confirm_match": "Registration confirmed",
         "reject": "Registration rejected",
     }
@@ -215,7 +215,7 @@ def notify_registration_decision(registration, decision):
 
 def notify_admin_status_change(registration, previous_status):
     labels = {
-        registration.Status.CHANGES_REQUESTED: "Changes requested",
+        registration.Status.CHANGES_REQUESTED: "Returned for changes",
         registration.Status.ELIGIBLE_MATCHED: "Registration confirmed",
         registration.Status.APPROVED: "Registration approved",
         registration.Status.REJECTED: "Registration rejected",

@@ -379,7 +379,7 @@ class Registration(models.Model):
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "Submitted"
         UNDER_REVIEW = "under_review", "Under review"
-        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        CHANGES_REQUESTED = "changes_requested", "Returned for changes"
         RESUBMITTED = "resubmitted", "Resubmitted"
         ELIGIBLE_MATCHED = "eligible_matched", "Registered"
         REVIEW_REQUIRED = "review_required", "Review required after edit"
@@ -448,13 +448,13 @@ class Registration(models.Model):
         super().clean()
         if not self.evidence_description.strip():
             raise ValidationError(
-                {"evidence_description": "Describe the evidence for this opportunity."}
+                {"evidence_description": "Describe the attachment for this opportunity."}
             )
         if not self.evidence_sharing_confirmed:
             raise ValidationError(
                 {
                     "evidence_sharing_confirmed": (
-                        "Confirm that you are authorized to share this evidence."
+                        "Confirm that you are authorized to share this attachment."
                     )
                 }
             )
