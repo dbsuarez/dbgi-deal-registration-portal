@@ -1,7 +1,7 @@
 # Decision Responses
 
 **Questions:** [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md)  
-**Forms received:** 2 of 3 (filled-in forms are kept locally in `docs/guides/Answers`, which git ignores)  
+**Forms received:** 3 of 3 (filled-in forms are kept locally in `docs/guides/Answers`, which git ignores)  
 **Status:** inputs, not final decisions. A question is decided when the responses agree or DBGI confirms; then it moves into the roadmap's decision register (section 12) and becomes a build task.
 
 ## Response 1: Business Development, 2026-10-29
@@ -73,6 +73,36 @@ Parts C and D were left blank on the first form and answered on an updated form 
 | D2  | Who gets emails                  | (b) Email only the person who submitted                                                                                        |
 | D3  | Records and backups              | (a) Keep everything for 5 years, daily backups, back within one working day                                                    |
 | D4  | Working days                     | (a) Monday to Friday, Philippine public holidays excluded, 5:00 PM cutoff                                                      |
+
+## Response 3: Product Specialist (does most Canon and Epson registrations), 2026-10-30
+
+| #   | Question                         | Answer                                                                                                                             |
+| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Is this the process DBGI wants?  | Use "Attachment" rather than "Evidence"                                                                                            |
+| A2  | Who uses it first                | (a) Small pilot: 2 to 3 trusted partners and one DBGI reviewer                                                                     |
+| A3  | Day-one scope                    | (a) Launch with today's loop plus withdrawal                                                                                       |
+| A4  | Do the labels make sense         | Yes                                                                                                                                |
+| B1  | Editing after submit             | (b) Only edit when DBGI requests changes                                                                                           |
+| B2  | Withdrawal and restore           | (b) Partner withdraws instantly, DBGI is notified                                                                                  |
+| B3  | Merge or split                   | (b) DBGI decides case by case with a written reason                                                                                |
+| B4  | Who decides Won, Lost, Cancelled | (b) Partners report, DBGI confirms                                                                                                 |
+| B5  | Exact tie                        | (b) The better-documented registration wins                                                                                        |
+| B6  | Early registration validity      | 3 months would be better                                                                                                           |
+| B7  | Reposted tender                  | (a) A repost of the same project keeps the original place in line                                                                  |
+| C1  | Approved price validity          | 45 days                                                                                                                            |
+| C2  | VAT                              | (a) All prices VAT-inclusive                                                                                                       |
+| C3  | Rounding                         | (a) Round each line to 2 decimals, add the lines                                                                                   |
+| C4  | Non-catalog products             | (a) DBGI adds the product to the catalog first, then reviews                                                                       |
+| C5  | Price visibility                 | (a) Keep today's rule                                                                                                              |
+| D1  | Repeat orders                    | The end-user's purchase order; first registered in the portal, marked "Repeat order", with the original approved registration code |
+| D2  | Who gets emails                  | (c) Also email DBGI reviewers when something needs action                                                                          |
+| D3  | Records and backups              | (b) IT sets the targets                                                                                                            |
+| D4  | Working days                     | (b) Calendar days only                                                                                                             |
+
+**Follow-up (2026-10-30):** where this response differs from the decisions, the questions went back to the head for a
+final call in "Portal Decisions - Follow-up" (docs/guides/Decision Questions): launch timing, ties, working days,
+editing after submit, price validity, the 60-day limits, reposted tenders, repeat-order proof, DBGI emails, the
+"Evidence" label, the "Changes requested" label, and backup targets. The decisions below stand until the head answers.
 
 ## Decisions (2026-10-30)
 
