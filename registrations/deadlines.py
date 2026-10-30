@@ -77,6 +77,7 @@ def process_deadlines(now=None):
                 registration=registration,
                 event_type=RegistrationNotification.EventType.DEADLINE_REACHED,
                 event_key=f"registration:{registration.pk}:limit-reached",
+                email=True,
                 title="60-day limit reached",
                 message=(
                     f"{registration.reference} ({registration.project_title}) from "
@@ -131,6 +132,7 @@ def process_deadlines(now=None):
                     registration=registration,
                     event_type=RegistrationNotification.EventType.DEADLINE_REACHED,
                     event_key=f"opportunity:{opportunity.pk}:hold-limit:{registration.pk}",
+                    email=True,
                     title="60-day hold limit reached",
                     message=(
                         f"{registration.reference} ({registration.project_title}): the project "

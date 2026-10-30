@@ -45,6 +45,8 @@ from .models import (
     normalize_end_user_value,
 )
 from .notifications import (
+    notify_dbgi_renewal_requested,
+    notify_dbgi_review_needed,
     notify_dbgi_withdrawal,
     notify_outcome_decision,
     notify_outcome_reported,
@@ -1477,6 +1479,7 @@ def create_registration(request, payload: RegistrationInput):
             snapshot=registration_snapshot(registration),
         )
         notify_submission(registration)
+        notify_dbgi_review_needed(registration, "new registration submitted")
         generate_matching_suggestion(registration)
     return Status(201, _serialize_registration(registration))
 
@@ -1554,11 +1557,19 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
         registration.end_user_address = end_user.full_address
         registration.version += 1
         registration.needs_review = True
+        previous_status = registration.status
         if registration.status == Registration.Status.CHANGES_REQUESTED:
             registration.status = Registration.Status.RESUBMITTED
         elif registration.status == Registration.Status.ELIGIBLE_MATCHED:
             registration.status = Registration.Status.REVIEW_REQUIRED
         registration.save()
+        if registration.status != previous_status:
+            notify_dbgi_review_needed(
+                registration,
+                "corrections submitted"
+                if registration.status == Registration.Status.RESUBMITTED
+                else "edited after it was registered",
+            )
         if not _save_children(registration, payload):
             transaction.set_rollback(True)
             return Status(
@@ -2231,7 +2242,7 @@ def request_price_renewal(request, approval_id: int, payload: RenewalRequestInpu
             400,
             {"code": "renewal_pending", "message": "A renewal request is already pending."},
         )
-    PriceApprovalRenewal.objects.create(
+    renewal = PriceApprovalRenewal.objects.create(
         category_approval=approval,
         requested_by=request.user,
         reason=payload.reason.strip(),
@@ -2244,6 +2255,7 @@ def request_price_renewal(request, approval_id: int, payload: RenewalRequestInpu
         details=f"Renewal requested for {approval.category}: {payload.reason.strip()}",
         snapshot=registration_snapshot(approval.registration),
     )
+    notify_dbgi_renewal_requested(approval, renewal)
     return Status(201, _serialize_category_approval(approval))
 
 

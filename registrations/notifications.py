@@ -60,39 +60,31 @@ def retry_notification_email(notification):
     return True
 
 
-def notify_company_users(
-    *,
-    registration,
-    event_type,
-    event_key,
-    title,
-    message,
-):
-    """Create one durable, tenant-scoped notification per active company user."""
-    recipients = User.objects.filter(
-        company_id=registration.company_id,
-        role=User.Role.COMPANY,
-        is_active=True,
-    ).only("id", "email")
+def _notify(recipients, *, registration, event_type, event_key, title, message, emailed):
+    """Create one portal notification per recipient; email those for whom `emailed` is True.
+
+    Email also needs the event type switched on in the notification settings (off without one).
+    """
     event_setting = NotificationEventSetting.objects.filter(event_type=event_type).first()
-    if event_setting is None:
-        event_setting = NotificationEventSetting(event_type=event_type, email_enabled=False)
-    email_enabled = event_setting.email_enabled
-    email_subject, email_body = event_setting.render_email(
-        {
-            "title": title,
-            "message": message,
-            "registration_reference": registration.reference,
-            "portal_url": settings.PORTAL_BASE_URL,
-        }
-    )
+    email_enabled = bool(event_setting and event_setting.email_enabled)
+    email_subject = email_body = ""
+    if email_enabled:
+        email_subject, email_body = event_setting.render_email(
+            {
+                "title": title,
+                "message": message,
+                "registration_reference": registration.reference,
+                "portal_url": settings.PORTAL_BASE_URL,
+            }
+        )
     for recipient in recipients:
-        email_address = recipient.email.strip()
+        send = email_enabled and emailed(recipient)
+        email_address = recipient.email.strip() if send else ""
         email_status = (
             RegistrationNotification.EmailStatus.PENDING
-            if email_enabled and email_address
+            if send and email_address
             else RegistrationNotification.EmailStatus.SKIPPED
-            if email_enabled
+            if send
             else RegistrationNotification.EmailStatus.NOT_REQUESTED
         )
         notification, created = RegistrationNotification.objects.get_or_create(
@@ -105,8 +97,8 @@ def notify_company_users(
                 "message": message,
                 "email_address": email_address,
                 "email_status": email_status,
-                "email_subject": email_subject if email_enabled else "",
-                "email_body": email_body if email_enabled else "",
+                "email_subject": email_subject if send else "",
+                "email_body": email_body if send else "",
             },
         )
         if created and email_status == RegistrationNotification.EmailStatus.PENDING:
@@ -115,24 +107,70 @@ def notify_company_users(
             )
 
 
-def notify_dbgi_admins(*, registration, event_type, event_key, title, message):
-    """Notify every active DBGI administrator in the portal; no email (only submitters)."""
+def notify_company_users(*, registration, event_type, event_key, title, message):
+    """Notify every active company user in the portal; email only the submitter (decision D2)."""
+    recipients = User.objects.filter(
+        company_id=registration.company_id,
+        role=User.Role.COMPANY,
+        is_active=True,
+    ).only("id", "email")
+    _notify(
+        recipients,
+        registration=registration,
+        event_type=event_type,
+        event_key=event_key,
+        title=title,
+        message=message,
+        emailed=lambda user: user.pk == registration.submitted_by_id,
+    )
+
+
+def notify_dbgi_admins(*, registration, event_type, event_key, title, message, email=False):
+    """Notify every active DBGI administrator in the portal; also email them when `email` is set,
+    which is used when the event needs DBGI's action (decision D2)."""
     # Same rule as User.is_dbgi_admin
     administrators = User.objects.filter(
         Q(is_superuser=True) | Q(is_staff=True, role=User.Role.DBGI_ADMIN), is_active=True
-    ).only("id")
-    for administrator in administrators:
-        RegistrationNotification.objects.get_or_create(
-            recipient=administrator,
-            event_key=event_key,
-            defaults={
-                "registration": registration,
-                "event_type": event_type,
-                "title": title,
-                "message": message,
-                "email_status": RegistrationNotification.EmailStatus.NOT_REQUESTED,
-            },
-        )
+    ).only("id", "email")
+    _notify(
+        administrators,
+        registration=registration,
+        event_type=event_type,
+        event_key=event_key,
+        title=title,
+        message=message,
+        emailed=lambda user: email,
+    )
+
+
+def notify_dbgi_review_needed(registration, reason):
+    """A registration waits for DBGI review: new, resubmitted, or edited after confirmation."""
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REVIEW_NEEDED,
+        event_key=f"registration:{registration.pk}:review-needed:v{registration.version}",
+        title=f"Review needed: {reason}",
+        message=(
+            f"{registration.reference} ({registration.project_title}) from "
+            f"{registration.company.name}: {reason}. Open the registration to review it."
+        ),
+        email=True,
+    )
+
+
+def notify_dbgi_renewal_requested(approval, renewal):
+    registration = approval.registration
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.RENEWAL_REQUESTED,
+        event_key=f"renewal:{renewal.pk}:requested",
+        title="Price renewal requested",
+        message=(
+            f"{registration.company.name} asked to renew the approved {approval.category} prices "
+            f"for {registration.reference}. Open the registration to decide."
+        ),
+        email=True,
+    )
 
 
 def notify_dbgi_withdrawal(registration, reason):
@@ -154,6 +192,7 @@ def notify_outcome_reported(report):
         registration=registration,
         event_type=RegistrationNotification.EventType.OUTCOME_REPORTED,
         event_key=f"outcome-report:{report.pk}:reported",
+        email=True,
         title=f"Project reported {report.get_outcome_display().lower()}",
         message=(
             f"{registration.company.name} reported {registration.reference} "

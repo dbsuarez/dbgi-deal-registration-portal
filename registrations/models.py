@@ -910,6 +910,8 @@ class RegistrationNotification(models.Model):
         OUTCOME_REPORTED = "outcome_reported", "Project outcome reported"
         DEADLINE_REMINDER = "deadline_reminder", "60-day deadline reminder"
         DEADLINE_REACHED = "deadline_reached", "60-day deadline reached"
+        REVIEW_NEEDED = "review_needed", "Registration needs review"
+        RENEWAL_REQUESTED = "renewal_requested", "Price renewal requested"
 
     class EmailStatus(models.TextChoices):
         NOT_REQUESTED = "not_requested", "Not requested"

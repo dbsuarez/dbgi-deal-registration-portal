@@ -181,11 +181,14 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live:** DBGI turns email on or off per event type and edits the email templates, with previews, delivery
   tracking, and retries.
 - **Live:** company notifications (submission confirmed, review decisions, price decisions, outcome decisions,
-  60-day reminders) go to **every active user of the company**.
-- **Decided (D2):** email goes to the **person who submitted** the registration, and to **DBGI reviewers** when
-  something needs their action. Not built yet.
-- **Live:** DBGI administrators get in-portal notices (no email) when a partner withdraws, reports an outcome, or a
-  60-day limit is reached.
+  60-day reminders) appear in the portal for **every active user of the company**.
+- **Live (D2):** of those users, only the **person who submitted** the registration gets the email.
+- **Live (D2):** DBGI administrators get a portal notice **and an email** when something needs their action: a new
+  registration, corrections submitted, an edit after the registration was confirmed, a project outcome report, a
+  60-day limit reached, or a price renewal request.
+- **Live:** a withdrawal only informs DBGI, so it is a portal notice without email.
+- **Live:** each email still needs its event type switched on in the notification settings. The DBGI action events
+  start switched on; DBGI can turn any of them off.
 - **Live:** emails never contain competitor details, private evidence, or detailed pricing.
 
 ## 14. Dates, times, and working days

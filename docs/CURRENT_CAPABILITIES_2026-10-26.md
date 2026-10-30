@@ -16,7 +16,7 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 - **Tracking:** a registration list with search, quick and advanced filters, and pagination. Status badges explain themselves on hover or keyboard focus, and ranking views show only what the company is allowed to see.
 - **Report the project outcome:** once DBGI links a registration to a project, report it as Won, Lost, or Cancelled with a short note. DBGI confirms or declines it.
 - **Withdraw:** withdraw a registration with a short reason. Withdrawal is final: the registration leaves the ranking and can no longer change, and DBGI is notified.
-- **Notifications and help:** in-portal notifications plus email, and a Help page with step-by-step beginner walkthroughs.
+- **Notifications and help:** in-portal notifications for everyone in the company, with email only to the person who submitted, and a Help page with step-by-step beginner walkthroughs.
 
 ## DBGI administrators
 

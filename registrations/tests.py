@@ -1375,9 +1375,10 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(first.status_code, 201, first.content)
         registration = Registration.objects.get(pk=first.json()["id"])
         recipients = set(
-            RegistrationNotification.objects.filter(registration=registration).values_list(
-                "recipient__username", flat=True
-            )
+            RegistrationNotification.objects.filter(
+                registration=registration,
+                event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            ).values_list("recipient__username", flat=True)
         )
         self.assertEqual(recipients, {self.user_a.username, colleague.username})
         self.assertNotIn(inactive.username, recipients)
@@ -1407,9 +1408,9 @@ class RegistrationApiTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 201, response.content)
-        self.assertEqual(len(mail.outbox), 1)
-        email = mail.outbox[0]
-        self.assertEqual(email.to, [self.user_a.email])
+        partner_mail = [m for m in mail.outbox if m.to == [self.user_a.email]]
+        self.assertEqual(len(partner_mail), 1)
+        email = partner_mail[0]
         self.assertEqual(
             email.subject,
             f"Registration update: DBGI-{response.json()['id']:06d}",
@@ -2167,7 +2168,7 @@ class RegistrationApiTests(TestCase):
             event_type=RegistrationNotification.EventType.OUTCOME_REPORTED
         )
         self.assertEqual(notice.recipient, self.admin)
-        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.NOT_REQUESTED)
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.PENDING)
         second = self.report_outcome(self.registration_a, outcome="lost")
         self.assertEqual(second.status_code, 409, second.content)
         self.assertEqual(second.json()["code"], "outcome_report_pending")
@@ -2312,3 +2313,81 @@ class RegistrationApiTests(TestCase):
         )
         opportunity.refresh_from_db()
         self.assertIsNone(opportunity.on_hold_since)
+
+    def test_only_the_submitter_is_emailed_but_the_whole_company_is_notified(self):
+        NotificationEventSetting.objects.update_or_create(
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+            defaults={"email_enabled": True},
+        )
+        colleague = User.objects.create_user(
+            username="dealer-a-colleague",
+            email="colleague@example.invalid",
+            password="example-password",
+            company=self.company_a,
+        )
+        self.client.force_login(self.user_a)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/registrations",
+                data=json.dumps(self.payload()),
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 201, response.content)
+        notices = RegistrationNotification.objects.filter(
+            registration_id=response.json()["id"],
+            event_type=RegistrationNotification.EventType.SUBMISSION_CONFIRMED,
+        )
+        self.assertEqual(
+            notices.get(recipient=self.user_a).email_status,
+            RegistrationNotification.EmailStatus.SENT,
+        )
+        self.assertEqual(
+            notices.get(recipient=colleague).email_status,
+            RegistrationNotification.EmailStatus.NOT_REQUESTED,
+        )
+        self.assertFalse([m for m in mail.outbox if colleague.email in m.to])
+
+    def test_dbgi_is_emailed_when_a_registration_needs_review(self):
+        self.client.force_login(self.user_a)
+        with self.captureOnCommitCallbacks(execute=True):
+            created = self.client.post(
+                "/api/v1/registrations",
+                data=json.dumps(self.payload()),
+                content_type="application/json",
+            )
+        self.assertEqual(created.status_code, 201, created.content)
+        notice = RegistrationNotification.objects.get(
+            registration_id=created.json()["id"],
+            recipient=self.admin,
+            event_type=RegistrationNotification.EventType.REVIEW_NEEDED,
+        )
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.SENT)
+        self.assertIn(self.admin.email, [address for m in mail.outbox for address in m.to])
+
+        Registration.objects.filter(pk=self.registration_a.pk).update(
+            status=Registration.Status.CHANGES_REQUESTED
+        )
+        self.registration_a.refresh_from_db()
+        edit = self.client.put(
+            f"/api/v1/registrations/{self.registration_a.pk}",
+            data=json.dumps({**self.payload(), "version": self.registration_a.version}),
+            content_type="application/json",
+        )
+        self.assertEqual(edit.status_code, 200, edit.content)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                registration=self.registration_a,
+                recipient=self.admin,
+                event_type=RegistrationNotification.EventType.REVIEW_NEEDED,
+                title="Review needed: corrections submitted",
+            ).exists()
+        )
+
+    def test_withdrawal_notice_to_dbgi_is_not_emailed(self):
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.withdraw(self.registration_a).status_code, 200)
+        notice = RegistrationNotification.objects.get(
+            recipient=self.admin,
+            event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
+        )
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.NOT_REQUESTED)
