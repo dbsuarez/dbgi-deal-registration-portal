@@ -2115,7 +2115,10 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
             RegistrationCategoryApproval.Status.APPROVED,
             RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
         }:
-            if not payload.valid_until or payload.valid_until < timezone.localdate():
+            if not payload.valid_until:
+                # Decision C1: approved prices are valid for 90 days unless DBGI sets a date
+                payload.valid_until = timezone.localdate() + timedelta(days=90)
+            if payload.valid_until < timezone.localdate():
                 return Status(
                     400,
                     {
