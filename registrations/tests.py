@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from io import StringIO
 from tempfile import TemporaryDirectory
@@ -18,6 +18,7 @@ from django.db import IntegrityError, connection, transaction
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from devtools.models import RegistrationTestPreset
 
@@ -2391,3 +2392,23 @@ class RegistrationApiTests(TestCase):
             event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
         )
         self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.NOT_REQUESTED)
+
+    def test_company_is_reminded_14_days_before_an_approved_price_expires(self):
+        approval = RegistrationCategoryApproval.objects.create(
+            registration=self.registration_a,
+            category="Test category",
+            status=RegistrationCategoryApproval.Status.APPROVED,
+            valid_until=date(2026, 12, 31),
+        )
+        early = process_deadlines(now=timezone.make_aware(datetime(2026, 12, 16, 9)))
+        self.assertEqual(early.price_reminders, 0)
+        due = process_deadlines(now=timezone.make_aware(datetime(2026, 12, 17, 9)))
+        self.assertEqual(due.price_reminders, 1)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a,
+                event_key__startswith=f"approval:{approval.pk}:expiry-reminder",
+            ).exists()
+        )
+        again = process_deadlines(now=timezone.make_aware(datetime(2026, 12, 18, 9)))
+        self.assertEqual(again.price_reminders, 0)

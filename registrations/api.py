@@ -2147,6 +2147,7 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
         approval.reviewed_by = request.user
         approval.reviewed_at = timezone.now()
         approval.valid_until = payload.valid_until
+        approval.expiry_reminder_sent_at = None
         approval.version += 1
         approval.save()
         approval.item_approvals.all().delete()
@@ -2299,8 +2300,11 @@ def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput
             renewal.status = PriceApprovalRenewal.Status.APPROVED
             renewal.new_valid_until = base_date + timedelta(days=30)
             approval.valid_until = renewal.new_valid_until
+            approval.expiry_reminder_sent_at = None
             approval.version += 1
-            approval.save(update_fields=["valid_until", "version", "updated_at"])
+            approval.save(
+                update_fields=["valid_until", "expiry_reminder_sent_at", "version", "updated_at"]
+            )
         else:
             renewal.status = PriceApprovalRenewal.Status.REJECTED
         renewal.save()

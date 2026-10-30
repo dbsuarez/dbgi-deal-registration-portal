@@ -15,6 +15,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(
                 f"Reminders sent: {summary.reminders}; returned to DBGI review: "
                 f"{summary.limits_reached}; hold reminders: {summary.hold_reminders}; "
-                f"hold limits reached: {summary.hold_limits_reached}"
+                f"hold limits reached: {summary.hold_limits_reached}; "
+                f"price expiry reminders: {summary.price_reminders}"
             )
         )

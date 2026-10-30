@@ -158,7 +158,8 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live:** a requested price is a proposal, never an approved price.
 - **Live:** DBGI types the validity date when approving. After that date the price shows as Expired automatically.
 - **Live (C1):** if DBGI leaves the validity date empty when approving, it is set to **90 days** from today.
-- **Decided (C1):** a reminder **14 days** before an approved price expires. Not built yet.
+- **Live (C1):** the company gets a reminder **14 days** before an approved price expires (sent by the daily
+  `process_deadlines` job; a new date or an approved renewal allows a new reminder).
 - **Live:** a partner can request a renewal of an approved or partly approved price, one request at a time. If DBGI
   approves, the validity is extended by **30 days**, counted from the current expiry date, or from today if it has
   already expired.

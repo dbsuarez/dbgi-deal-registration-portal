@@ -14,11 +14,18 @@ from django.db import transaction
 from django.utils import timezone
 
 from .audit import registration_snapshot
-from .models import Opportunity, Registration, RegistrationEvent, RegistrationNotification
+from .models import (
+    Opportunity,
+    Registration,
+    RegistrationCategoryApproval,
+    RegistrationEvent,
+    RegistrationNotification,
+)
 from .notifications import notify_company_users, notify_dbgi_admins
 
 LIMIT_DAYS = 60
 REMINDER_DAYS_BEFORE = 7
+PRICE_REMINDER_DAYS_BEFORE = 14  # decision C1
 
 UNCONFIRMED_STATUSES = {
     Registration.Status.SUBMITTED,
@@ -35,6 +42,7 @@ class DeadlineSummary:
     limits_reached: int = 0
     hold_reminders: int = 0
     hold_limits_reached: int = 0
+    price_reminders: int = 0
 
 
 def _flag_for_review(registration, now, title, details):
@@ -165,6 +173,40 @@ def process_deadlines(now=None):
                     ),
                 )
             summary.hold_reminders += 1
+    # C1: approved prices that expire within 14 days
+    today = timezone.localtime(now).date()
+    expiring = RegistrationCategoryApproval.objects.filter(
+        status__in=(
+            RegistrationCategoryApproval.Status.APPROVED,
+            RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+        ),
+        valid_until__gte=today,
+        valid_until__lte=today + timedelta(days=PRICE_REMINDER_DAYS_BEFORE),
+        expiry_reminder_sent_at__isnull=True,
+    ).exclude(registration__status=Registration.Status.WITHDRAWN)
+    for pk in expiring.values_list("pk", flat=True):
+        with transaction.atomic():
+            approval = (
+                RegistrationCategoryApproval.objects.select_for_update(of=("self",))
+                .select_related("registration")
+                .get(pk=pk)
+            )
+            if approval.expiry_reminder_sent_at:
+                continue
+            approval.expiry_reminder_sent_at = now
+            approval.save(update_fields=["expiry_reminder_sent_at"])
+            registration = approval.registration
+            notify_company_users(
+                registration=registration,
+                event_type=RegistrationNotification.EventType.DEADLINE_REMINDER,
+                event_key=f"approval:{approval.pk}:expiry-reminder:{approval.valid_until:%Y%m%d}",
+                title="Approved price expires soon",
+                message=(
+                    f"The approved {approval.category} prices for {registration.reference} expire "
+                    f"on {approval.valid_until:%Y-%m-%d}. Request a renewal if you still need them."
+                ),
+            )
+            summary.price_reminders += 1
     return summary
 
 

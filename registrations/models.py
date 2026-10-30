@@ -759,6 +759,8 @@ class RegistrationCategoryApproval(models.Model):
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     valid_until = models.DateField(null=True, blank=True)
+    # Decision C1: the 14-day expiry reminder; cleared whenever valid_until changes
+    expiry_reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
