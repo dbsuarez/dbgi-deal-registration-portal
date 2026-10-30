@@ -51,26 +51,38 @@ No change: B1, C3, D2 (keep today).
 
 Parts C and D were left blank.
 
-| #     | Question                           | Answer                                                         |
-| ----- | ---------------------------------- | -------------------------------------------------------------- |
-| A1    | Is this the process DBGI wants?    | Blank                                                          |
-| A2    | Who uses it first                  | (a) Small pilot: 2 to 3 trusted partners and one DBGI reviewer |
-| A3    | Day-one scope                      | (b) Wait for pricing history too                               |
-| A4    | Do the labels make sense           | Blank                                                          |
-| B1    | Editing after submit               | (c) Allow small fixes freely, re-review for big ones           |
-| B2    | Withdrawal and restore             | (b) Partner withdraws instantly, DBGI is notified              |
-| B3    | Merge or split                     | (b) DBGI decides case by case with a written reason            |
-| B4    | Who decides Won, Lost, Cancelled   | (b) Partners report, DBGI confirms                             |
-| B5    | Exact tie                          | (a) Keep a shared rank, DBGI decides                           |
-| B6    | Early registration validity        | (a) 60 days, reminder 7 days before, then DBGI reviews         |
-| B7    | Reposted tender                    | Other: "B6" (meaning to be confirmed)                          |
-| C1-D4 | Pricing, repeat orders, operations | Blank                                                          |
+| #     | Question                           | Answer                                                                                      |
+| ----- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| A1    | Is this the process DBGI wants?    | Blank                                                                                       |
+| A2    | Who uses it first                  | (a) Small pilot: 2 to 3 trusted partners and one DBGI reviewer                              |
+| A3    | Day-one scope                      | (b) Wait for pricing history too                                                            |
+| A4    | Do the labels make sense           | Blank                                                                                       |
+| B1    | Editing after submit               | (c) Allow small fixes freely, re-review for big ones                                        |
+| B2    | Withdrawal and restore             | (b) Partner withdraws instantly, DBGI is notified                                           |
+| B3    | Merge or split                     | (b) DBGI decides case by case with a written reason                                         |
+| B4    | Who decides Won, Lost, Cancelled   | (b) Partners report, DBGI confirms                                                          |
+| B5    | Exact tie                          | (a) Keep a shared rank, DBGI decides                                                        |
+| B6    | Early registration validity        | (a) 60 days, reminder 7 days before, then DBGI reviews                                      |
+| B7    | Reposted tender                    | Same as B6: valid 60 days, reminder 7 days before, then DBGI reviews (clarified 2026-10-30) |
+| C1-D4 | Pricing, repeat orders, operations | Blank                                                                                       |
 
-## Agreement so far (2 of 3 responses)
+## Decisions (2026-10-30)
 
-| Status              | Questions                                                                                       |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| Both agree          | A2 small pilot; B4 partners report the outcome, DBGI confirms; B6 60 days with a 7-day reminder |
-| Responses differ    | A3, B1, B2, B3, B5                                                                              |
-| One answer only     | A1, A4, C1-C5, D1-D4 (response 1 only)                                                          |
-| Needs clarification | B7 (response 2 wrote "B6")                                                                      |
+Where the two responses differ, response 2 (the head of pricing and business development) decides.
+
+| #   | Decision                                                                                     | Basis             |
+| --- | -------------------------------------------------------------------------------------------- | ----------------- |
+| A2  | Start with a pilot: 2 to 3 trusted partners and one DBGI reviewer                            | Both agree        |
+| A3  | Launch waits for price history as well as withdrawal                                         | Head decides      |
+| B1  | Small fixes are allowed freely; big changes go back for re-review                            | Head decides      |
+| B2  | Partners withdraw instantly and DBGI is notified                                             | Head decides      |
+| B3  | DBGI decides merges and splits case by case, with a written reason                           | Head decides      |
+| B4  | Partners report Won, Lost, or Cancelled; DBGI confirms                                       | Both agree        |
+| B5  | Exact ties share a rank, and DBGI decides                                                    | Head decides      |
+| B6  | Early registrations are valid for 60 days, with a reminder 7 days before, then DBGI reviews  | Both agree        |
+| B7  | Reposted tenders follow the B6 rule: valid 60 days, reminder 7 days before, then DBGI review | Head (same as B6) |
+
+**Still open:**
+
+- **A1, A4, C1-C5, D1-D4:** only response 1 answered; waiting for the third form or the head's confirmation (Part C is the head's own area).
+- **B1:** what counts as a "small fix" versus a "big change" still needs a definition before it can be built.
