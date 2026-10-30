@@ -104,25 +104,56 @@ final call in "Portal Decisions - Follow-up" (docs/guides/Decision Questions): l
 editing after submit, price validity, the 60-day limits, reposted tenders, repeat-order proof, DBGI emails, the
 "Evidence" label, the "Changes requested" label, and backup targets. The decisions below stand until the head answers.
 
+## Head's follow-up decisions (2026-10-30)
+
+The head answered "Portal Decisions - Follow-up" by highlighting one choice per question.
+
+| Question                                 | Final decision                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| When should the portal go live?          | Kept: wait for price history too                                                      |
+| Two partners register at the same moment | Kept: same rank, DBGI decides                                                         |
+| How do we count working days?            | Kept: Monday to Friday, no Philippine holidays, 5:00 PM cutoff                        |
+| Changing a deal after submitting it      | Kept: small fixes any time, big changes checked again (small and big not yet defined) |
+| How long an approved price lasts         | Kept: 90 days, reminder 14 days before                                                |
+| How long a deal can wait for DBGI        | Kept: 60 days (already built)                                                         |
+| Postponed or reposted tender             | Kept: place kept for 60 days, then DBGI reviews (already built)                       |
+| Repeat orders                            | Kept: same end-user, NOA and NTP stating a repeat order; otherwise declined           |
+| Should DBGI reviewers also get emails?   | **Changed:** yes, email DBGI reviewers when something needs their action              |
+| "Evidence" or "Attachment"?              | **Changed:** call it "Attachment"                                                     |
+| Is "Changes requested" clear?            | **Changed:** rename it to "Returned for changes"                                      |
+| Backup and recovery targets              | Kept: 5 years, daily backups, back within one working day                             |
+
 ## Decisions (2026-10-30)
 
 Where the two responses differ, response 2 (the head of pricing and business development) decides.
 
-| #   | Decision                                                                                     | Basis             |
-| --- | -------------------------------------------------------------------------------------------- | ----------------- |
-| A2  | Start with a pilot: 2 to 3 trusted partners and one DBGI reviewer                            | Both agree        |
-| A3  | Launch waits for price history as well as withdrawal                                         | Head decides      |
-| B1  | Small fixes are allowed freely; big changes go back for re-review                            | Head decides      |
-| B2  | Partners withdraw instantly and DBGI is notified                                             | Head decides      |
-| B3  | DBGI decides merges and splits case by case, with a written reason                           | Head decides      |
-| B4  | Partners report Won, Lost, or Cancelled; DBGI confirms                                       | Both agree        |
-| B5  | Exact ties share a rank, and DBGI decides                                                    | Head decides      |
-| B6  | Early registrations are valid for 60 days, with a reminder 7 days before, then DBGI reviews  | Both agree        |
-| B7  | Reposted tenders follow the B6 rule: valid 60 days, reminder 7 days before, then DBGI review | Head (same as B6) |
+| #   | Decision                                                                                                                                              | Basis                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| A2  | Start with a pilot: 2 to 3 trusted partners and one DBGI reviewer                                                                                     | Both agree                      |
+| A3  | Launch waits for price history as well as withdrawal                                                                                                  | Head decides                    |
+| B1  | Small fixes are allowed freely; big changes go back for re-review                                                                                     | Head decides                    |
+| B2  | Partners withdraw instantly and DBGI is notified                                                                                                      | Head decides                    |
+| B3  | DBGI decides merges and splits case by case, with a written reason                                                                                    | Head decides                    |
+| B4  | Partners report Won, Lost, or Cancelled; DBGI confirms                                                                                                | Both agree                      |
+| B5  | Exact ties share a rank, and DBGI decides                                                                                                             | Head decides                    |
+| B6  | Early registrations are valid for 60 days, with a reminder 7 days before, then DBGI reviews                                                           | Both agree                      |
+| B7  | Reposted tenders follow the B6 rule: valid 60 days, reminder 7 days before, then DBGI review                                                          | Head (same as B6)               |
+| A1  | Yes, this is the process DBGI wants                                                                                                                   | Response 1; head did not object |
+| C1  | Approved prices are valid for 90 days, with a reminder 14 days before expiry                                                                          | Head decides                    |
+| C2  | All prices are VAT-inclusive                                                                                                                          | All agree                       |
+| C3  | Round each line total to 2 decimals, then add the lines (today's rule)                                                                                | All agree                       |
+| C4  | A non-catalog product is added to the catalog first, then its price is reviewed                                                                       | All agree                       |
+| C5  | Keep today: partners see list prices and their own approved prices, never other partners'                                                             | Head decides                    |
+| D1  | Repeat orders are allowed for the same end-user, with the NOA and NTP stating it is a repeat order as proof; requests that do not comply are declined | Head decides                    |
+| D2  | Email the person who submitted the registration, and DBGI reviewers when something needs their action                                                 | Head, after follow-up           |
+| D3  | Keep records for 5 years, daily backups, recovery within one working day                                                                              | Head decides                    |
+| D4  | Working days are Monday to Friday, Philippine public holidays excluded, 5:00 PM cutoff                                                                | Head decides                    |
+| A4  | Rename the status "Changes requested" to "Returned for changes"                                                                                       | Head, after follow-up           |
+| -   | Rename "Evidence" to "Attachment" on screens                                                                                                          | Head, after follow-up           |
 
 **Still open:**
 
-- **A4:** response 1 found the label "Changes requested" unclear; a clearer wording needs choosing.
-- **B1:** what counts as a "small fix" versus a "big change" needs a definition before it can be built.
-- **Day counts:** assumed that validity periods (60 and 90 days) and renewals (30 days) are calendar days, and that working days (D4) apply only to deadlines stated in working days. To be confirmed.
-- The third form has not come back; the head's answers already settle every question except A4 and B1.
+- **B1:** what counts as a "small fix" versus a "big change". Suggested: contact details and descriptions are small;
+  the end-user, products, quantities, and prices are big.
+- **Day counts:** validity periods (60 and 90 days) and renewals (30 days) are calendar days; working days apply only
+  to deadlines stated in working days.

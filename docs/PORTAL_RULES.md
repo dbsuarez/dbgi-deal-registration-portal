@@ -50,6 +50,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   requested unit price. The catalog list price is captured when the deal is submitted, and the discount and line
   total are calculated.
 - **Live:** each line total is rounded to 2 decimals (C3 keeps this).
+- **Decided:** call this section "Attachment" instead of "Evidence" on screens. Not built yet.
 - **Live:** evidence needs a description and a confirmation that the partner may share it; files are private and
   checked on upload.
 - **Live:** the portal records the **submission time on the server**. That time decides the ranking and cannot be
@@ -72,7 +73,8 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 | Withdrawn                  | The partner withdrew it                                      | Final                                  |
 
 - **Live:** a registration shows three separate badges: registration status, project status, and pricing status.
-- **Open (A4):** the label "Changes requested" confused a reviewer; clearer wording is still to be chosen.
+- **Decided (A4):** rename "Changes requested" to "Returned for changes". Not built yet; screens still say
+  "Changes requested".
 
 ## 5. Editing a registration
 
@@ -180,7 +182,8 @@ All counts are calendar days, starting from the server's recorded time.
   tracking, and retries.
 - **Live:** company notifications (submission confirmed, review decisions, price decisions, outcome decisions,
   60-day reminders) go to **every active user of the company**.
-- **Decided (D2):** email goes **only to the person who submitted** the registration. Not built yet.
+- **Decided (D2):** email goes to the **person who submitted** the registration, and to **DBGI reviewers** when
+  something needs their action. Not built yet.
 - **Live:** DBGI administrators get in-portal notices (no email) when a partner withdraws, reports an outcome, or a
   60-day limit is reached.
 - **Live:** emails never contain competitor details, private evidence, or detailed pricing.
@@ -205,7 +208,6 @@ All counts are calendar days, starting from the server's recorded time.
 
 | Code | Question                                                    |
 | ---- | ----------------------------------------------------------- |
-| A4   | A clearer label for "Changes requested"                     |
 | B1   | Which fields count as a small fix and which as a big change |
 
 ## 17. Keeping this file current
