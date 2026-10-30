@@ -1,7 +1,7 @@
 # Decision Responses
 
 **Questions:** [DECISIONS_TO_MAKE_2026-10-28.md](DECISIONS_TO_MAKE_2026-10-28.md)  
-**Forms received:** 1 of 3 (filled-in forms are kept locally in `docs/guides/Answers`, which git ignores)  
+**Forms received:** 2 of 3 (filled-in forms are kept locally in `docs/guides/Answers`, which git ignores)  
 **Status:** inputs, not final decisions. A question is decided when the responses agree or DBGI confirms; then it moves into the roadmap's decision register (section 12) and becomes a build task.
 
 ## Response 1: Business Development, 2026-10-29
@@ -31,7 +31,7 @@ Clarifications added on 2026-10-30, when the form was reviewed, are marked "(cla
 | D3  | Records and backups              | (a) Keep everything for 5 years, daily backups, back within one working day                                                |
 | D4  | Working days                     | (b) Calendar days only                                                                                                     |
 
-## What these answers would change in the portal
+## What response 1 would change in the portal
 
 If the other responses agree, the build tasks are:
 
@@ -46,3 +46,31 @@ If the other responses agree, the build tasks are:
 - **Operations (D3, D4):** 5-year retention, daily backups, one-working-day recovery; deadlines counted in calendar days.
 
 No change: B1, C3, D2 (keep today).
+
+## Response 2: Pricing and Business Development (head), 2026-10-29
+
+Parts C and D were left blank.
+
+| #     | Question                           | Answer                                                         |
+| ----- | ---------------------------------- | -------------------------------------------------------------- |
+| A1    | Is this the process DBGI wants?    | Blank                                                          |
+| A2    | Who uses it first                  | (a) Small pilot: 2 to 3 trusted partners and one DBGI reviewer |
+| A3    | Day-one scope                      | (b) Wait for pricing history too                               |
+| A4    | Do the labels make sense           | Blank                                                          |
+| B1    | Editing after submit               | (c) Allow small fixes freely, re-review for big ones           |
+| B2    | Withdrawal and restore             | (b) Partner withdraws instantly, DBGI is notified              |
+| B3    | Merge or split                     | (b) DBGI decides case by case with a written reason            |
+| B4    | Who decides Won, Lost, Cancelled   | (b) Partners report, DBGI confirms                             |
+| B5    | Exact tie                          | (a) Keep a shared rank, DBGI decides                           |
+| B6    | Early registration validity        | (a) 60 days, reminder 7 days before, then DBGI reviews         |
+| B7    | Reposted tender                    | Other: "B6" (meaning to be confirmed)                          |
+| C1-D4 | Pricing, repeat orders, operations | Blank                                                          |
+
+## Agreement so far (2 of 3 responses)
+
+| Status              | Questions                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| Both agree          | A2 small pilot; B4 partners report the outcome, DBGI confirms; B6 60 days with a 7-day reminder |
+| Responses differ    | A3, B1, B2, B3, B5                                                                              |
+| One answer only     | A1, A4, C1-C5, D1-D4 (response 1 only)                                                          |
+| Needs clarification | B7 (response 2 wrote "B6")                                                                      |
