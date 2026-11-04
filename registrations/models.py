@@ -408,6 +408,15 @@ class Opportunity(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="opportunities")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def update_hold_clock(self, previous_status):
+        """Decision B7: a new hold starts a new 60-day period; leaving the hold ends it."""
+        if self.project_status != self.ProjectStatus.ON_HOLD:
+            self.on_hold_since = None
+        elif previous_status != self.ProjectStatus.ON_HOLD:
+            self.on_hold_since = timezone.now()
+            self.hold_reminder_sent_at = None
+            self.hold_limit_reached_at = None
+
     class Meta:
         ordering = ["title", "id"]
         indexes = [models.Index(fields=["is_active", "end_user_name"])]

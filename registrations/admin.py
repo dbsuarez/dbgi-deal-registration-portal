@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib import admin
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -400,6 +402,7 @@ class OpportunityAdmin(ModelAdmin):
             previous_status = self.get_queryset(request).get(pk=obj.pk).project_status
         if not obj.pk:
             obj.created_by = request.user
+        obj.update_hold_clock(previous_status)
         super().save_model(request, obj, form, change)
         if change and previous_status != obj.project_status:
             for registration in Registration.objects.filter(opportunity_scope__opportunity=obj):
@@ -856,10 +859,27 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
     readonly_fields = ("reviewed_by", "reviewed_at", "version", "created_at", "updated_at")
     inlines = (RegistrationItemApprovalInline,)
 
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.registration.status == Registration.Status.WITHDRAWN:
+            return False
+        return super().has_change_permission(request, obj)
+
     def save_model(self, request, obj, form, change):
         request.commercial_prior_snapshot = registration_snapshot(obj.registration)
         if change:
             obj.version += 1
+        if (
+            obj.status
+            in {
+                RegistrationCategoryApproval.Status.APPROVED,
+                RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+            }
+            and not obj.valid_until
+        ):
+            # Decision C1: approved prices last 90 days unless DBGI sets a date
+            obj.valid_until = timezone.localdate() + timedelta(days=90)
+        if "valid_until" in form.changed_data or not change:
+            obj.expiry_reminder_sent_at = None
         obj.reviewed_by = request.user
         obj.reviewed_at = timezone.now()
         super().save_model(request, obj, form, change)

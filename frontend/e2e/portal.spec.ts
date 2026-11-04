@@ -1794,3 +1794,89 @@ test("DBGI administrator decides a tied ranking", async ({ page }) => {
   await expect(page.getByText("1 (tie decided)")).toBeVisible();
   await expect(page.getByText("2 (tie decided)")).toBeVisible();
 });
+
+test("partner requests a price renewal from the registration", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: session }),
+  );
+  const approval = (overrides: Record<string, unknown>) => ({
+    id: 4,
+    category: "Laser Printers",
+    status: "approved",
+    status_label: "Approved",
+    rationale: "Within the allowed discount.",
+    reviewed_by: "DBGI Reviewer",
+    reviewed_at: "2026-11-01T02:00:00Z",
+    valid_until: "2026-11-15",
+    version: 2,
+    can_request_renewal: true,
+    pending_renewal_id: null,
+    pending_renewal_reason: null,
+    ...overrides,
+  });
+  let current = approval({});
+  await page.route("**/api/v1/registrations/14", (route) =>
+    route.fulfill({
+      json: {
+        id: 14,
+        reference: "DBGI-000014",
+        project_title: "Renewal project",
+        company_name: "North Dealer",
+        end_user_name: "Sample municipality",
+        end_user_address: "Test address",
+        bid_date: "2026-12-01",
+        delivery_date: "2027-01-15",
+        contact_person: "Test person",
+        contact_designation: "Buyer",
+        contact_email: "test@example.invalid",
+        contact_number: "0000000000",
+        evidence_description: "Public procurement notice",
+        evidence_url: "",
+        evidence_sharing_confirmed: true,
+        status: "eligible_matched",
+        status_label: "Registered",
+        project_status: "active",
+        project_status_label: "Active",
+        price_status: "approved",
+        price_status_label: "Approved",
+        needs_review: false,
+        created_at: "2026-11-01T02:00:00Z",
+        version: 3,
+        can_edit: true,
+        can_withdraw: true,
+        can_report_outcome: false,
+        outcome_reports: [],
+        competitor_items: [],
+        items: [],
+        attachments: [],
+        events: [],
+        opportunity_scope_id: 3,
+        opportunity_scope_label: "Renewal project | Whole opportunity",
+        category_approvals: [current],
+        matching_suggestion: null,
+      },
+    }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/category-approvals/4/renewals", (route) => {
+    sent = route.request().postDataJSON();
+    current = approval({
+      can_request_renewal: false,
+      pending_renewal_id: 8,
+      pending_renewal_reason: "The bid moved.",
+    });
+    return route.fulfill({ status: 201, json: current });
+  });
+
+  await page.goto("/registrations/14/");
+  await page.getByRole("button", { name: "Request renewal" }).click();
+  const dialog = page.getByRole("dialog", { name: "Request a price renewal" });
+  await dialog.getByLabel(/Reason/).fill("The bid moved.");
+  await dialog.getByRole("button", { name: "Send request" }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toEqual({ reason: "The bid moved." });
+  await expect(page.getByText("Waiting for DBGI")).toBeVisible();
+});

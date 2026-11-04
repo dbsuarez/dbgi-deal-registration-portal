@@ -278,6 +278,9 @@ export type CategoryApproval = {
   reviewed_at: string | null;
   valid_until: string | null;
   version: number;
+  can_request_renewal?: boolean;
+  pending_renewal_id?: number | null;
+  pending_renewal_reason?: string | null;
 };
 
 export type RegistrationPayload = {
@@ -718,6 +721,34 @@ export function decideRankingTie(
 ) {
   return mutation<{ id: number; decided_at: string }>(
     `/api/v1/review/opportunity-scopes/${scopeId}/tie-decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function requestPriceRenewal(
+  approvalId: number,
+  reason: string,
+  csrfToken: string,
+) {
+  return mutation<CategoryApproval>(
+    `/api/v1/category-approvals/${approvalId}/renewals`,
+    "POST",
+    csrfToken,
+    JSON.stringify({ reason }),
+    "application/json",
+  );
+}
+
+export function decidePriceRenewal(
+  renewalId: number,
+  payload: { approve: boolean; reason: string },
+  csrfToken: string,
+) {
+  return mutation<CategoryApproval>(
+    `/api/v1/review/renewals/${renewalId}/decision`,
     "POST",
     csrfToken,
     JSON.stringify(payload),

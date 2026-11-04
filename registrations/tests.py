@@ -2928,3 +2928,123 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(remaining[a]["rank"], 1)
         self.assertFalse(remaining[a]["is_tied"])
         self.assertEqual(remaining[third.pk]["rank"], 2)
+
+    def approve_in_admin(self, approval, valid_until=""):
+        return self.client.post(
+            reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk]),
+            {
+                "registration": approval.registration_id,
+                "category": approval.category,
+                "status": RegistrationCategoryApproval.Status.APPROVED,
+                "rationale": "Within the allowed discount.",
+                "valid_until": valid_until,
+                "item_approvals-TOTAL_FORMS": "0",
+                "item_approvals-INITIAL_FORMS": "0",
+                "item_approvals-MIN_NUM_FORMS": "0",
+                "item_approvals-MAX_NUM_FORMS": "1000",
+            },
+        )
+
+    def test_price_approved_in_django_admin_defaults_to_90_days(self):
+        self.set_price("100.00")
+        approval = self.register_deal().category_approvals.get()
+        self.client.force_login(self.admin)
+        response = self.approve_in_admin(approval)
+        self.assertEqual(response.status_code, 302, response.content[:1500])
+        approval.refresh_from_db()
+        self.assertEqual(approval.valid_until, timezone.localdate() + timedelta(days=90))
+
+        response = self.approve_in_admin(approval, "2027-06-30")
+        self.assertEqual(response.status_code, 302, response.content[:1500])
+        approval.refresh_from_db()
+        self.assertEqual(approval.valid_until, date(2027, 6, 30))
+
+    def test_price_of_a_withdrawn_deal_cannot_be_decided_in_django_admin(self):
+        self.set_price("100.00")
+        registration = self.register_deal()
+        approval = registration.category_approvals.get()
+        Registration.objects.filter(pk=registration.pk).update(status=Registration.Status.WITHDRAWN)
+        self.client.force_login(self.admin)
+        response = self.approve_in_admin(approval)
+        self.assertEqual(response.status_code, 403)
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+
+    def test_project_put_on_hold_in_django_admin_starts_the_60_day_clock(self):
+        opportunity = self.link_to_project(self.registration_a)
+        self.client.force_login(self.admin)
+        url = reverse("admin:registrations_opportunity_change", args=[opportunity.pk])
+        scope = opportunity.scopes.get()
+        body = {
+            "title": opportunity.title,
+            "end_user": opportunity.end_user_id,
+            "end_user_name": opportunity.end_user_name,
+            "end_user_address": opportunity.end_user_address,
+            "project_status": Opportunity.ProjectStatus.ON_HOLD,
+            "is_active": "on",
+            "scopes-TOTAL_FORMS": "1",
+            "scopes-INITIAL_FORMS": "1",
+            "scopes-MIN_NUM_FORMS": "0",
+            "scopes-MAX_NUM_FORMS": "1000",
+            "scopes-0-id": scope.pk,
+            "scopes-0-opportunity": opportunity.pk,
+            "scopes-0-name": scope.name,
+            "scopes-0-scope_type": scope.scope_type,
+            "scopes-0-is_active": "on",
+        }
+        response = self.client.post(url, body)
+        self.assertEqual(response.status_code, 302, response.content[:1500])
+        opportunity.refresh_from_db()
+        self.assertIsNotNone(opportunity.on_hold_since)
+        summary = process_deadlines(now=opportunity.on_hold_since + timedelta(days=60))
+        self.assertEqual(summary.hold_limits_reached, 1)
+
+        response = self.client.post(url, {**body, "project_status": "active"})
+        self.assertEqual(response.status_code, 302, response.content[:1500])
+        opportunity.refresh_from_db()
+        self.assertIsNone(opportunity.on_hold_since)
+
+    def test_renewal_can_be_requested_and_decided_from_the_registration(self):
+        self.set_price("100.00")
+        registration = self.register_deal()
+        approval = registration.category_approvals.get()
+        RegistrationCategoryApproval.objects.filter(pk=approval.pk).update(
+            status=RegistrationCategoryApproval.Status.APPROVED,
+            valid_until=timezone.localdate() + timedelta(days=10),
+        )
+        detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+        self.assertTrue(detail["category_approvals"][0]["can_request_renewal"])
+
+        requested = self.client.post(
+            f"/api/v1/category-approvals/{approval.pk}/renewals",
+            data=json.dumps({"reason": "The bid was moved to next month."}),
+            content_type="application/json",
+        )
+        self.assertEqual(requested.status_code, 201, requested.content)
+        self.assertFalse(requested.json()["can_request_renewal"])
+        renewal_id = requested.json()["pending_renewal_id"]
+
+        self.client.force_login(self.admin)
+        decided = self.client.post(
+            f"/api/v1/review/renewals/{renewal_id}/decision",
+            data=json.dumps({"approve": True, "reason": "The new bid date is confirmed."}),
+            content_type="application/json",
+        )
+        self.assertEqual(decided.status_code, 200, decided.content)
+        self.assertIsNone(decided.json()["pending_renewal_id"])
+        approval.refresh_from_db()
+        self.assertEqual(approval.valid_until, timezone.localdate() + timedelta(days=40))
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, title="Price renewal approved"
+            ).exists()
+        )
+
+        Registration.objects.filter(pk=registration.pk).update(status=Registration.Status.WITHDRAWN)
+        self.client.force_login(self.user_a)
+        refused = self.client.post(
+            f"/api/v1/category-approvals/{approval.pk}/renewals",
+            data=json.dumps({"reason": "The bid was moved again."}),
+            content_type="application/json",
+        )
+        self.assertEqual(refused.status_code, 409, refused.content)

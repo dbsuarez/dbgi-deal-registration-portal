@@ -48,12 +48,15 @@ import {
   refreshMatchingSuggestion,
   addItemToCatalog,
   decideOutcomeReport,
+  decidePriceRenewal,
   getProducts,
   repriceRegistration,
   reportProjectOutcome,
+  requestPriceRenewal,
   reviewRegistration,
   withdrawRegistration,
   type OpportunityScope,
+  type CategoryApproval,
   type OutcomeReport,
   type ProductOption,
   type RegistrationDetail,
@@ -132,6 +135,13 @@ export default function RegistrationDetailPage() {
   const [catalogReason, setCatalogReason] = useState("");
   const [cataloging, setCataloging] = useState(false);
   const [catalogError, setCatalogError] = useState("");
+  const [renewal, setRenewal] = useState<{
+    approval: CategoryApproval;
+    action: "request" | "approve" | "decline";
+  } | null>(null);
+  const [renewalReason, setRenewalReason] = useState("");
+  const [renewing, setRenewing] = useState(false);
+  const [renewalError, setRenewalError] = useState("");
   const [repriceOpen, setRepriceOpen] = useState(false);
   const [repriceReason, setRepriceReason] = useState("");
   const [repricing, setRepricing] = useState(false);
@@ -300,6 +310,45 @@ export default function RegistrationDetailPage() {
       );
     } finally {
       setCataloging(false);
+    }
+  };
+
+  const openRenewal = (
+    approval: CategoryApproval,
+    action: "request" | "approve" | "decline",
+  ) => {
+    setRenewal({ approval, action });
+    setRenewalReason("");
+    setRenewalError("");
+  };
+
+  const handleRenewal = async () => {
+    if (!registration || !renewal) return;
+    setRenewing(true);
+    setRenewalError("");
+    try {
+      const reason = renewalReason.trim();
+      if (renewal.action === "request") {
+        await requestPriceRenewal(
+          renewal.approval.id,
+          reason,
+          session.csrf_token,
+        );
+      } else {
+        await decidePriceRenewal(
+          renewal.approval.pending_renewal_id as number,
+          { approve: renewal.action === "approve", reason },
+          session.csrf_token,
+        );
+      }
+      setRegistration(await getRegistration(registration.id));
+      setRenewal(null);
+    } catch (reason) {
+      setRenewalError(
+        reason instanceof Error ? reason.message : "The renewal failed.",
+      );
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -918,6 +967,7 @@ export default function RegistrationDetailPage() {
                 <TableCell>Valid until</TableCell>
                 <TableCell>Reviewer</TableCell>
                 <TableCell>Reason</TableCell>
+                <TableCell>Renewal</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -937,11 +987,45 @@ export default function RegistrationDetailPage() {
                     {approval.reviewed_by ?? "Not reviewed"}
                   </TableCell>
                   <TableCell>{approval.rationale || "Not provided"}</TableCell>
+                  <TableCell>
+                    {approval.pending_renewal_id ? (
+                      session.is_dbgi_admin ? (
+                        <>
+                          <Typography variant="body2">
+                            {approval.pending_renewal_reason}
+                          </Typography>
+                          <Button
+                            size="small"
+                            onClick={() => openRenewal(approval, "approve")}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() => openRenewal(approval, "decline")}
+                          >
+                            Decline
+                          </Button>
+                        </>
+                      ) : (
+                        "Waiting for DBGI"
+                      )
+                    ) : approval.can_request_renewal &&
+                      !session.is_dbgi_admin ? (
+                      <Button
+                        size="small"
+                        onClick={() => openRenewal(approval, "request")}
+                      >
+                        Request renewal
+                      </Button>
+                    ) : null}
+                  </TableCell>
                 </TableRow>
               ))}
               {!(registration.category_approvals ?? []).length && (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     No catalog category requires pricing review.
                   </TableCell>
                 </TableRow>
@@ -1359,6 +1443,60 @@ export default function RegistrationDetailPage() {
             onClick={handleAddToCatalog}
           >
             Add to catalog
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={renewal !== null}
+        onClose={() => !renewing && setRenewal(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {renewal?.action === "request"
+            ? "Request a price renewal"
+            : renewal?.action === "approve"
+              ? "Approve this renewal?"
+              : "Decline this renewal?"}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {renewal?.action === "decline"
+              ? "The current end date stays the same."
+              : "An approved renewal adds 30 days to the price."}
+            {renewal?.action === "request" &&
+              " Please allow at least one working day for DBGI to review your request."}
+          </Typography>
+          {renewalError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {renewalError}
+            </Alert>
+          )}
+          <TextField
+            required
+            fullWidth
+            multiline
+            minRows={3}
+            label="Reason"
+            helperText="At least 5 characters."
+            value={renewalReason}
+            onChange={(event) => setRenewalReason(event.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenewal(null)} disabled={renewing}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={renewing || renewalReason.trim().length < 5}
+            onClick={handleRenewal}
+          >
+            {renewal?.action === "request"
+              ? "Send request"
+              : renewal?.action === "approve"
+                ? "Approve renewal"
+                : "Decline renewal"}
           </Button>
         </DialogActions>
       </Dialog>

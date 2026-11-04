@@ -246,6 +246,9 @@ class CategoryApprovalOutput(Schema):
     reviewed_at: datetime | None
     valid_until: date | None
     version: int
+    can_request_renewal: bool
+    pending_renewal_id: int | None
+    pending_renewal_reason: str | None
 
 
 class CategoryApprovalDecisionInput(Schema):
@@ -850,15 +853,9 @@ def _serialize_outcome_report(report):
 def _set_project_status(opportunity, status, actor, reason):
     """Change a project's status and record it on every registration linked to the project."""
     old_label = opportunity.get_project_status_display()
-    was_on_hold = opportunity.project_status == Opportunity.ProjectStatus.ON_HOLD
+    previous_status = opportunity.project_status
     opportunity.project_status = status
-    if status == Opportunity.ProjectStatus.ON_HOLD and not was_on_hold:
-        # Decision B7: a new hold starts a new 60-day period
-        opportunity.on_hold_since = timezone.now()
-        opportunity.hold_reminder_sent_at = None
-        opportunity.hold_limit_reached_at = None
-    elif status != Opportunity.ProjectStatus.ON_HOLD:
-        opportunity.on_hold_since = None
+    opportunity.update_hold_clock(previous_status)
     opportunity.save(
         update_fields=[
             "project_status",
@@ -975,24 +972,10 @@ def _serialize_registration_detail(registration, user):
                 else None
             ),
             "category_approvals": [
-                {
-                    "id": approval.pk,
-                    "category": approval.category,
-                    "status": approval.effective_status,
-                    "status_label": RegistrationCategoryApproval.Status(
-                        approval.effective_status
-                    ).label,
-                    "rationale": approval.rationale,
-                    "reviewed_by": (
-                        approval.reviewed_by.get_full_name() or approval.reviewed_by.username
-                        if approval.reviewed_by_id
-                        else None
-                    ),
-                    "reviewed_at": approval.reviewed_at,
-                    "valid_until": approval.valid_until,
-                    "version": approval.version,
-                }
-                for approval in registration.category_approvals.select_related("reviewed_by").all()
+                _serialize_category_approval(approval)
+                for approval in registration.category_approvals.select_related(
+                    "reviewed_by", "registration"
+                ).all()
             ],
         }
     )
@@ -1021,7 +1004,22 @@ def _serialize_matching_suggestion(suggestion):
 
 
 def _serialize_category_approval(approval):
+    withdrawn = approval.registration.status == Registration.Status.WITHDRAWN
+    pending = (
+        None
+        if withdrawn
+        else approval.renewals.filter(status=PriceApprovalRenewal.Status.PENDING).first()
+    )
     return {
+        "can_request_renewal": pending is None
+        and not withdrawn
+        and approval.status
+        in {
+            RegistrationCategoryApproval.Status.APPROVED,
+            RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+        },
+        "pending_renewal_id": pending.pk if pending else None,
+        "pending_renewal_reason": pending.reason if pending else None,
         "id": approval.pk,
         "category": approval.category,
         "status": approval.effective_status,
@@ -2634,6 +2632,7 @@ def update_project_status(request, opportunity_id: int, payload: ProjectStatusIn
         400: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
+        409: ErrorResponse,
     },
 )
 def request_price_renewal(request, approval_id: int, payload: RenewalRequestInput):
@@ -2658,6 +2657,8 @@ def request_price_renewal(request, approval_id: int, payload: RenewalRequestInpu
                 "message": "Only approved commercial terms can be renewed.",
             },
         )
+    if approval.registration.status == Registration.Status.WITHDRAWN:
+        return Status(409, WITHDRAWN_ERROR)
     if approval.renewals.filter(status=PriceApprovalRenewal.Status.PENDING).exists():
         return Status(
             400,
@@ -2688,6 +2689,7 @@ def request_price_renewal(request, approval_id: int, payload: RenewalRequestInpu
         400: ErrorResponse,
         403: ErrorResponse,
         404: ErrorResponse,
+        409: ErrorResponse,
     },
 )
 def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput):
@@ -2704,6 +2706,8 @@ def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput
             status=PriceApprovalRenewal.Status.PENDING,
         )
         approval = renewal.category_approval
+        if approval.registration.status == Registration.Status.WITHDRAWN:
+            return Status(409, WITHDRAWN_ERROR)
         renewal.decided_by = request.user
         renewal.decided_at = timezone.now()
         renewal.decision_reason = payload.reason.strip()
@@ -2736,6 +2740,16 @@ def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput
                 f"{'approved' if payload.approve else 'rejected'}: {payload.reason.strip()}"
             ),
             snapshot=registration_snapshot(approval.registration),
+        )
+        notify_company_users(
+            registration=approval.registration,
+            event_type=RegistrationNotification.EventType.PRICE_DECISION,
+            event_key=f"renewal:{renewal.pk}:decided",
+            title="Price renewal approved" if payload.approve else "Price renewal declined",
+            message=(
+                f"DBGI decided your {approval.category} price renewal for "
+                f"{approval.registration.reference}. Open the registration to read the reason."
+            ),
         )
     return _serialize_category_approval(approval)
 
