@@ -257,6 +257,8 @@ The application is not yet production-ready. Opportunity merge and split, comple
 
 - `DEBUG=False` and deployment checks pass.
 - Backup restore is demonstrated.
+- The daily `process_deadlines` job is scheduled on the production server and its log is watched (infrastructure proposal, section 8). Without it, no 60-day or price-expiry reminders go out.
+- The head of pricing and business development has confirmed the rules in PORTAL_RULES.md, section 16.
 - No critical or high security finding remains open.
 - Product owners approve workflow and pricing policies.
 - Monitoring, alerting, and operational owners are active.

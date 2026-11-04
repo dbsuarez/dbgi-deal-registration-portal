@@ -95,8 +95,10 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
     quantities, or requested prices, or a repricing request.
 - **Live:** saving a "Returned for changes" registration always returns it to DBGI, even for an administrative
   correction.
-- **Open:** whether changing attachment files is administrative. Today it never changes prices or status, but it
-  flags the registration for DBGI to look at.
+- **Live:** adding, replacing, or removing attachment files is administrative. It is recorded in the Activity and
+  needs no DBGI review. Files stay locked during review and after a decision.
+- **Not yet confirmed:** the rules in this section and the repricing rules in section 11 still need the head's
+  confirmation; see section 16.
 
 ## 6. DBGI review and matching
 
@@ -232,11 +234,33 @@ All counts are calendar days, starting from the server's recorded time.
 - **Decided (D3):** keep records for 5 years, back up daily, and recover within one working day. To be set up with
   the production server.
 
-## 16. Still open
+## 16. Waiting for confirmation from the head of pricing and business development
 
-| Code | Question                                                        |
-| ---- | --------------------------------------------------------------- |
-| Open | Whether changing attachment files is administrative or material |
+**These rules are already working in the portal, but the head has not seen them.** They were supplied on 2026-11-04,
+after the head's follow-up. Ask about each one, then record the answer in
+[DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.md) and change the portal if the answer differs.
+
+| Question to ask                                                | What the portal does now                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Can partners fix contact details without DBGI checking?        | Yes: contact details, competitor remarks, product justifications, and changes only in capitals, punctuation, or spacing need no review. Status and rank stay the same, and the change is recorded.                                                                                  |
+| Can they do that even after the pricing review has started?    | Yes. Products, quantities, and requested prices stay locked.                                                                                                                                                                                                                        |
+| Which changes must DBGI check?                                 | End-user, project title, bid and delivery dates, attachment description and link, competitor brand, item, or bid price, products, quantities, requested prices, and repricing requests.                                                                                             |
+| Can partners replace an attachment file without DBGI checking? | Yes: adding, replacing, or removing a file needs no review, and is recorded in the Activity. Files stay locked during review and after a decision. **Point to raise:** a partner holding an early place in line can swap its proof on a Registered deal without DBGI being alerted. |
+| Should editing a deal change its price?                        | No, unless the edit changes what is priced. Unchanged lines keep the captured price.                                                                                                                                                                                                |
+| What if only the quantity changes?                             | The unit price stays; the total is recalculated. DBGI reviews the change.                                                                                                                                                                                                           |
+| What if a product is added or changed?                         | Only that line takes the current price.                                                                                                                                                                                                                                             |
+| What if the End-user or dates change?                          | The price stays, and DBGI reviews the change and can apply current prices.                                                                                                                                                                                                          |
+| Can a partner ask for the current price?                       | Yes, by ticking a box when editing. All catalog lines take the current price, and DBGI reviews it.                                                                                                                                                                                  |
+| Can DBGI apply the current price itself?                       | Yes, with a reason, until the pricing review starts. The partner is notified.                                                                                                                                                                                                       |
+
+Also worth confirming, because these details were chosen while building his decisions:
+
+| Question to ask                                                          | What the portal does now                                                                                                                                                   |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which deals does the 60-day limit cover?                                 | Deals DBGI has not confirmed, counted from submission.                                                                                                                     |
+| What counts as a postponed or reposted tender?                           | DBGI sets the project to On hold, which starts the 60 days.                                                                                                                |
+| Which events email DBGI reviewers?                                       | A new registration, corrections submitted, an edit after registration, an outcome report, a 60-day limit, and a price renewal request. Withdrawals are in the portal only. |
+| Can a typed-in product join a category whose prices are already decided? | Not until DBGI requests changes on that category.                                                                                                                          |
 
 ## 17. Keeping this file current
 

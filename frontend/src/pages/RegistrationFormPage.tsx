@@ -722,7 +722,6 @@ export default function RegistrationFormPage() {
         const finalized = await finalizeRegistration(
           saved.id,
           saved.version,
-          evidenceChanged,
           session.csrf_token,
         );
         setVersion(finalized.version);

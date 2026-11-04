@@ -622,14 +622,13 @@ export function deleteAttachment(
 export function finalizeRegistration(
   id: number,
   version: number,
-  evidenceChanged: boolean,
   csrfToken: string,
 ) {
   return mutation<RegistrationListItem>(
     `/api/v1/registrations/${id}/finalize`,
     "POST",
     csrfToken,
-    JSON.stringify({ version, evidence_changed: evidenceChanged }),
+    JSON.stringify({ version }),
     "application/json",
   );
 }

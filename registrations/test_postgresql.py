@@ -91,7 +91,7 @@ class PostgreSQLConcurrencyTests(TransactionTestCase):
         responses = self._concurrent_requests(
             "post",
             f"/api/v1/registrations/{self.registration.pk}/finalize",
-            {"version": self.registration.version, "evidence_changed": True},
+            {"version": self.registration.version},
             self.user.pk,
         )
 

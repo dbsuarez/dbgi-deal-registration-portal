@@ -153,7 +153,6 @@ class RegistrationRepriceInput(Schema):
 
 class RegistrationFinalize(Schema):
     version: int
-    evidence_changed: bool = False
 
 
 class RegistrationWithdrawInput(Schema):
@@ -2714,9 +2713,7 @@ def finalize_registration(request, registration_id: int, payload: RegistrationFi
             return guard
         prior_snapshot = registration_snapshot(registration)
         registration.version += 1
-        if payload.evidence_changed:
-            registration.needs_review = True
-        registration.save(update_fields=["version", "needs_review", "updated_at"])
+        registration.save(update_fields=["version", "updated_at"])
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,

@@ -813,7 +813,6 @@ test("failed evidence upload retries the same registration", async ({
     finalizeCount += 1;
     expect(route.request().postDataJSON()).toEqual({
       version: 2,
-      evidence_changed: true,
     });
     await route.fulfill({ json: registrationResponse(3) });
   });
