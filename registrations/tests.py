@@ -4,6 +4,7 @@ from decimal import Decimal
 from io import StringIO
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import patch
 
 from django.contrib.admin.models import LogEntry
@@ -2669,3 +2670,98 @@ class RegistrationApiTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(locked.status_code, 409)
+
+    def non_catalog_deal(self):
+        self.set_price("100.00")
+        registration = self.register_deal()
+        line = registration.items.get()
+        RegistrationItem.objects.filter(pk=line.pk).update(
+            product=None,
+            non_catalog_name="Special scanner",
+            list_unit_price_snapshot="0.00",
+            price_version=None,
+        )
+        registration.category_approvals.all().delete()
+        registration.refresh_from_db()
+        return registration, registration.items.get()
+
+    def add_to_catalog(self, registration, line, **body):
+        return self.client.post(
+            f"/api/v1/review/registration-items/{line.pk}/catalog",
+            data=json.dumps(
+                {"version": registration.version, "reason": "Approved for the catalog.", **body}
+            ),
+            content_type="application/json",
+        )
+
+    NEW_PRODUCT: ClassVar[dict] = {
+        "code": "SCAN-1",
+        "name": "Scanner",
+        "category": "Scanners",
+        "list_price": "80.00",
+    }
+
+    def test_dbgi_adds_a_new_product_and_its_price_review_opens(self):
+        registration, line = self.non_catalog_deal()
+        self.client.force_login(self.user_a)
+        denied = self.add_to_catalog(registration, line, new_product=self.NEW_PRODUCT)
+        self.assertEqual(denied.status_code, 403)
+
+        self.client.force_login(self.admin)
+        response = self.add_to_catalog(registration, line, new_product=self.NEW_PRODUCT)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        line.refresh_from_db()
+        product = Product.objects.get(code="SCAN-1")
+        self.assertEqual(line.product, product)
+        self.assertEqual(line.non_catalog_name, "")
+        self.assertEqual(str(line.list_unit_price_snapshot), "80.00")
+        self.assertEqual(line.price_version.created_by, self.admin)
+        self.assertEqual(
+            registration.category_approvals.get(category="Scanners").status,
+            RegistrationCategoryApproval.Status.PENDING,
+        )
+        self.assertIn(
+            "Special scanner",
+            registration.events.get(event_type="Product added to catalog").details,
+        )
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, event_key=f"catalog-item:{line.pk}"
+            ).exists()
+        )
+        again = self.add_to_catalog(
+            Registration.objects.get(pk=registration.pk), line, new_product=self.NEW_PRODUCT
+        )
+        self.assertEqual(again.status_code, 400, again.content)
+
+    def test_dbgi_can_link_an_existing_product_and_new_codes_must_be_unique(self):
+        registration, line = self.non_catalog_deal()
+        self.client.force_login(self.admin)
+        neither = self.add_to_catalog(registration, line)
+        self.assertEqual(neither.status_code, 400)
+        duplicate = self.add_to_catalog(
+            registration, line, new_product={**self.NEW_PRODUCT, "code": self.product.code}
+        )
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(duplicate.json()["code"], "duplicate_product")
+
+        linked = self.add_to_catalog(registration, line, product_id=self.product.pk)
+        self.assertEqual(linked.status_code, 200, linked.content)
+        line.refresh_from_db()
+        self.assertEqual(line.product, self.product)
+        self.assertEqual(str(line.list_unit_price_snapshot), "100.00")
+
+    def test_a_decided_category_must_be_reopened_before_a_line_joins_it(self):
+        registration, line = self.non_catalog_deal()
+        RegistrationCategoryApproval.objects.create(
+            registration=registration,
+            category=self.product.category,
+            status=RegistrationCategoryApproval.Status.APPROVED,
+        )
+        self.client.force_login(self.admin)
+        response = self.add_to_catalog(registration, line, product_id=self.product.pk)
+        self.assertEqual(response.status_code, 409, response.content)
+        self.assertEqual(response.json()["code"], "commercial_review_locked")
+        line.refresh_from_db()
+        self.assertIsNone(line.product)

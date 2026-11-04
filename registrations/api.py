@@ -33,6 +33,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProductPrice,
     ProjectOutcomeReport,
     Registration,
     RegistrationAttachment,
@@ -129,6 +130,20 @@ class RegistrationTestPresetOutput(Schema):
 class RegistrationUpdate(RegistrationInput):
     version: int
     request_repricing: bool = False
+
+
+class CatalogNewProductInput(Schema):
+    code: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=240)
+    category: str = Field(min_length=1, max_length=120)
+    list_price: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+
+
+class CatalogLinkInput(Schema):
+    version: int
+    reason: str = Field(min_length=5, max_length=1000)
+    product_id: int | None = None
+    new_product: CatalogNewProductInput | None = None
 
 
 class RegistrationRepriceInput(Schema):
@@ -1988,6 +2003,134 @@ def report_project_outcome(request, registration_id: int, payload: OutcomeReport
         )
         notify_outcome_reported(report)
     return _detail_response(request, registration_id)
+
+
+@api.post(
+    "/review/registration-items/{item_id}/catalog",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def add_item_to_catalog(request, item_id: int, payload: CatalogLinkInput):
+    """Decision C4: DBGI puts a typed-in product in the catalog, which opens its price review."""
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    if bool(payload.product_id) == bool(payload.new_product):
+        return Status(
+            400,
+            {
+                "code": "validation_error",
+                "message": "Choose an existing product or describe a new one.",
+            },
+        )
+    with transaction.atomic():
+        item = get_object_or_404(
+            RegistrationItem.objects.select_related("registration"), pk=item_id
+        )
+        registration = Registration.objects.select_for_update().get(pk=item.registration_id)
+        if registration.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This registration changed. Refresh before updating the catalog.",
+                },
+            )
+        if item.product_id or registration.status in {
+            Registration.Status.WITHDRAWN,
+            Registration.Status.REJECTED,
+        }:
+            return Status(
+                400,
+                {
+                    "code": "invalid_transition",
+                    "message": "This line cannot be added to the catalog.",
+                },
+            )
+        reason = payload.reason.strip()
+        if payload.new_product:
+            new = payload.new_product
+            if Product.objects.filter(code__iexact=new.code.strip()).exists():
+                return Status(
+                    409,
+                    {
+                        "code": "duplicate_product",
+                        "message": "A product with this code already exists. Link it instead.",
+                    },
+                )
+            category = new.category.strip()
+        else:
+            existing = get_object_or_404(Product, pk=payload.product_id, is_active=True)
+            category = existing.category
+        decided = (
+            registration.category_approvals.filter(category=category)
+            .exclude(
+                status__in=[
+                    RegistrationCategoryApproval.Status.PENDING,
+                    RegistrationCategoryApproval.Status.CHANGES_REQUESTED,
+                ]
+            )
+            .exists()
+        )
+        if decided:
+            return Status(
+                409,
+                {
+                    "code": "commercial_review_locked",
+                    "message": (
+                        "This category's prices were already decided. "
+                        "Request changes on them first."
+                    ),
+                },
+            )
+        if payload.new_product:
+            created = Product.objects.create(
+                code=new.code.strip(), name=new.name.strip(), category=category
+            )
+            ProductPrice.objects.create(
+                product=created, unit_price=new.list_price, reason=reason, created_by=request.user
+            )
+            product_id = created.pk
+        else:
+            product_id = existing.pk
+        product = Product.objects.with_list_price().get(pk=product_id)
+        prior_snapshot = registration_snapshot(registration)
+        typed_name = item.non_catalog_name
+        item.product = product
+        item.non_catalog_name = ""
+        _capture_price(item, product, RegistrationItem.PriceBasis.ORIGINAL)
+        item.save()
+        RegistrationCategoryApproval.objects.get_or_create(
+            registration=registration, category=category
+        )
+        registration.version += 1
+        registration.save(update_fields=["version", "updated_at"])
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Product added to catalog",
+            details=f"{typed_name} is now {product}. {reason}",
+            snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
+        )
+        notify_company_users(
+            registration=registration,
+            event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+            event_key=f"catalog-item:{item.pk}",
+            title="Product added to the catalog",
+            message=(
+                f"DBGI added a product you requested on {registration.reference} to the catalog. "
+                "Its price can now be reviewed."
+            ),
+        )
+    return _detail_response(request, registration.pk)
 
 
 @api.post(

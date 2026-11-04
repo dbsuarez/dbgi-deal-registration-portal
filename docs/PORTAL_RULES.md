@@ -185,8 +185,11 @@ All counts are calendar days, starting from the server's recorded time.
     reviews it ("Repriced: requested by the company").
   - DBGI uses **Apply current list prices**, with a reason ("Repriced: DBGI decision"). The company is notified.
   - Repricing is not available once pricing review has started.
-- **Live:** non-catalog products can be requested but get **no price review**.
-- **Decided (C4):** DBGI adds a non-catalog product to the catalog first, then reviews its price. Not built yet.
+- **Live (C4):** a partner can request a product that is not in the catalog. It gets **no price review until DBGI
+  adds it to the catalog**. On the registration, DBGI uses **Add to catalog** to create a new product with its first
+  price or link an existing one, with a reason. The line then captures the list price, its category's price review
+  opens, and the partner is notified. If that category's prices were already decided, DBGI must request changes on
+  them first.
 - **Live (C5 keeps this):** partners see list prices and their own approved prices, never other companies' prices.
 - **Decided (A3):** the launch waits for price history (now built) as well as withdrawal (built).
 

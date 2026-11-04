@@ -1598,3 +1598,120 @@ test("DBGI administrator applies current list prices with a reason", async ({
     page.getByText("Repriced: DBGI decision, 2026-11-04"),
   ).toBeVisible();
 });
+
+test("DBGI administrator adds a typed-in product to the catalog", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/v1/products", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  const line = (overrides: Record<string, unknown>) => ({
+    id: 7,
+    product_id: null,
+    product_code: null,
+    product_name: null,
+    non_catalog_name: "Special scanner",
+    display_name: "Special scanner",
+    quantity: 1,
+    requested_unit_price: "70.00",
+    currency: "PHP",
+    list_unit_price: "0.00",
+    requested_discount_percent: null,
+    requested_total: "70.00",
+    approved_unit_price: null,
+    justification: "",
+    ...overrides,
+  });
+  const detail = (overrides: Record<string, unknown>) => ({
+    id: 13,
+    reference: "DBGI-000013",
+    project_title: "Scanner project",
+    company_name: "North Dealer",
+    end_user_name: "Sample municipality",
+    end_user_address: "Test address",
+    bid_date: "2026-12-01",
+    delivery_date: "2027-01-15",
+    contact_person: "Test person",
+    contact_designation: "Buyer",
+    contact_email: "test@example.invalid",
+    contact_number: "0000000000",
+    evidence_description: "Public procurement notice",
+    evidence_url: "",
+    evidence_sharing_confirmed: true,
+    status: "submitted",
+    status_label: "Submitted",
+    project_status: null,
+    project_status_label: "Not linked",
+    price_status: "not_requested",
+    price_status_label: "Not requested",
+    needs_review: false,
+    created_at: "2026-11-01T02:00:00Z",
+    version: 2,
+    can_edit: false,
+    can_withdraw: false,
+    can_report_outcome: false,
+    outcome_reports: [],
+    competitor_items: [],
+    items: [line({})],
+    attachments: [],
+    events: [],
+    opportunity_scope_id: null,
+    opportunity_scope_label: null,
+    category_approvals: [],
+    matching_suggestion: null,
+    ...overrides,
+  });
+  await page.route("**/api/v1/registrations/13", (route) =>
+    route.fulfill({ json: detail({}) }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/review/registration-items/7/catalog", (route) => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({
+      json: detail({
+        version: 3,
+        items: [
+          line({
+            product_id: 9,
+            non_catalog_name: "",
+            display_name: "SCAN-1 - Scanner",
+            list_unit_price: "80.00",
+          }),
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/registrations/13/");
+  await expect(page.getByText(/Not in the catalog yet/)).toBeVisible();
+  await page.getByRole("button", { name: "Add to catalog" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add to the catalog" });
+  await dialog.getByLabel(/Product code/).fill("SCAN-1");
+  await dialog.getByLabel(/Product name/).fill("Scanner");
+  await dialog.getByLabel(/Category/).fill("Scanners");
+  await dialog.getByLabel(/List price/).fill("80.00");
+  await dialog.getByLabel(/Reason/).fill("Approved for the catalog.");
+  await dialog.getByRole("button", { name: "Add to catalog" }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toEqual({
+    version: 2,
+    reason: "Approved for the catalog.",
+    new_product: {
+      code: "SCAN-1",
+      name: "Scanner",
+      category: "Scanners",
+      list_price: "80.00",
+    },
+  });
+  await expect(page.getByText("SCAN-1 - Scanner")).toBeVisible();
+  await expect(page.getByText(/Not in the catalog yet/)).toHaveCount(0);
+});

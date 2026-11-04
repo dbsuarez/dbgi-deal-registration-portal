@@ -686,6 +686,30 @@ export function reviewRegistration(
   );
 }
 
+export function addItemToCatalog(
+  itemId: number,
+  payload: {
+    version: number;
+    reason: string;
+    product_id?: number;
+    new_product?: {
+      code: string;
+      name: string;
+      category: string;
+      list_price: string;
+    };
+  },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/review/registration-items/${itemId}/catalog`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
 export function repriceRegistration(
   registrationId: number,
   payload: { version: number; reason: string },

@@ -46,13 +46,16 @@ import {
   getOpportunityScopes,
   getRegistration,
   refreshMatchingSuggestion,
+  addItemToCatalog,
   decideOutcomeReport,
+  getProducts,
   repriceRegistration,
   reportProjectOutcome,
   reviewRegistration,
   withdrawRegistration,
   type OpportunityScope,
   type OutcomeReport,
+  type ProductOption,
   type RegistrationDetail,
 } from "../api";
 import { useSession } from "../session";
@@ -116,6 +119,19 @@ export default function RegistrationDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
+  const [catalogItem, setCatalogItem] = useState<
+    RegistrationDetail["items"][number] | null
+  >(null);
+  const [catalogMode, setCatalogMode] = useState<"new" | "existing">("new");
+  const [catalogProducts, setCatalogProducts] = useState<ProductOption[]>([]);
+  const [catalogProductId, setCatalogProductId] = useState("");
+  const [catalogCode, setCatalogCode] = useState("");
+  const [catalogName, setCatalogName] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogPrice, setCatalogPrice] = useState("");
+  const [catalogReason, setCatalogReason] = useState("");
+  const [cataloging, setCataloging] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
   const [repriceOpen, setRepriceOpen] = useState(false);
   const [repriceReason, setRepriceReason] = useState("");
   const [repricing, setRepricing] = useState(false);
@@ -235,6 +251,55 @@ export default function RegistrationDetailPage() {
       );
     } finally {
       setDeciding(false);
+    }
+  };
+
+  const openCatalog = (item: RegistrationDetail["items"][number]) => {
+    setCatalogItem(item);
+    setCatalogMode("new");
+    setCatalogProductId("");
+    setCatalogCode("");
+    setCatalogName(item.non_catalog_name);
+    setCatalogCategory("");
+    setCatalogPrice("");
+    setCatalogReason("");
+    setCatalogError("");
+    getProducts()
+      .then(setCatalogProducts)
+      .catch(() => setCatalogProducts([]));
+  };
+
+  const handleAddToCatalog = async () => {
+    if (!registration || !catalogItem?.id) return;
+    setCataloging(true);
+    setCatalogError("");
+    try {
+      const updated = await addItemToCatalog(
+        catalogItem.id,
+        {
+          version: registration.version,
+          reason: catalogReason.trim(),
+          ...(catalogMode === "existing"
+            ? { product_id: Number(catalogProductId) }
+            : {
+                new_product: {
+                  code: catalogCode.trim(),
+                  name: catalogName.trim(),
+                  category: catalogCategory.trim(),
+                  list_price: catalogPrice,
+                },
+              }),
+        },
+        session.csrf_token,
+      );
+      setRegistration(updated);
+      setCatalogItem(null);
+    } catch (reason) {
+      setCatalogError(
+        reason instanceof Error ? reason.message : "The catalog update failed.",
+      );
+    } finally {
+      setCataloging(false);
     }
   };
 
@@ -907,7 +972,31 @@ export default function RegistrationDetailPage() {
             <TableBody>
               {registration.items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{item.display_name}</TableCell>
+                  <TableCell>
+                    {item.display_name}
+                    {!item.product_id && (
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        color="text.secondary"
+                      >
+                        Not in the catalog yet. Its price is reviewed after DBGI
+                        adds it.
+                      </Typography>
+                    )}
+                    {!item.product_id &&
+                      session.is_dbgi_admin &&
+                      registration.status !== "withdrawn" &&
+                      registration.status !== "rejected" && (
+                        <Button
+                          size="small"
+                          onClick={() => openCatalog(item)}
+                          sx={{ display: "block", px: 0 }}
+                        >
+                          Add to catalog
+                        </Button>
+                      )}
+                  </TableCell>
                   <TableCell sx={moneyCell}>
                     {item.quantity.toLocaleString("en-PH")}
                   </TableCell>
@@ -1150,6 +1239,129 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
+      <Dialog
+        open={catalogItem !== null}
+        onClose={() => !cataloging && setCatalogItem(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Add to the catalog</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            The company asked for: {catalogItem?.non_catalog_name}. After this,
+            the line captures the list price and its price review opens.
+          </Typography>
+          {catalogError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {catalogError}
+            </Alert>
+          )}
+          <FormControl sx={{ mb: 2 }}>
+            <RadioGroup
+              row
+              aria-label="Catalog product"
+              value={catalogMode}
+              onChange={(event) =>
+                setCatalogMode(event.target.value as "new" | "existing")
+              }
+            >
+              <FormControlLabel
+                value="new"
+                control={<Radio />}
+                label="New product"
+              />
+              <FormControlLabel
+                value="existing"
+                control={<Radio />}
+                label="Existing product"
+              />
+            </RadioGroup>
+          </FormControl>
+          {catalogMode === "existing" ? (
+            <TextField
+              select
+              fullWidth
+              required
+              label="Product"
+              value={catalogProductId}
+              onChange={(event) => setCatalogProductId(event.target.value)}
+              sx={{ mb: 2 }}
+            >
+              {catalogProducts.map((product) => (
+                <MenuItem key={product.id} value={String(product.id)}>
+                  {product.code} - {product.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          ) : (
+            <Stack spacing={2} sx={{ mb: 2 }}>
+              <TextField
+                required
+                label="Product code"
+                value={catalogCode}
+                onChange={(event) => setCatalogCode(event.target.value)}
+              />
+              <TextField
+                required
+                label="Product name"
+                value={catalogName}
+                onChange={(event) => setCatalogName(event.target.value)}
+              />
+              <TextField
+                required
+                label="Category"
+                value={catalogCategory}
+                onChange={(event) => setCatalogCategory(event.target.value)}
+              />
+              <TextField
+                required
+                label="List price (VAT-inclusive)"
+                type="number"
+                value={catalogPrice}
+                onChange={(event) => setCatalogPrice(event.target.value)}
+                slotProps={{
+                  htmlInput: {
+                    min: 0,
+                    step: "0.01",
+                    style: { textAlign: "right" },
+                  },
+                }}
+              />
+            </Stack>
+          )}
+          <TextField
+            required
+            fullWidth
+            multiline
+            minRows={2}
+            label="Reason"
+            helperText="At least 5 characters."
+            value={catalogReason}
+            onChange={(event) => setCatalogReason(event.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCatalogItem(null)} disabled={cataloging}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={
+              cataloging ||
+              catalogReason.trim().length < 5 ||
+              (catalogMode === "existing"
+                ? !catalogProductId
+                : !catalogCode.trim() ||
+                  !catalogName.trim() ||
+                  !catalogCategory.trim() ||
+                  !catalogPrice)
+            }
+            onClick={handleAddToCatalog}
+          >
+            Add to catalog
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={repriceOpen}
         onClose={() => !repricing && setRepriceOpen(false)}

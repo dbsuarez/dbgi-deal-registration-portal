@@ -15,12 +15,15 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 - **Evidence:** upload private evidence files, which are validated, finalized, locked, and audited.
 - **Tracking:** a registration list with search, quick and advanced filters, and pagination. Status badges explain themselves on hover or keyboard focus, and ranking views show only what the company is allowed to see.
 - **Report the project outcome:** once DBGI links a registration to a project, report it as Won, Lost, or Cancelled with a short note. DBGI confirms or declines it.
+- **Correct details freely:** contact corrections need no DBGI review and never change a captured price. Changes to the End-user, products, quantities, prices, dates, or attachment details go to DBGI review.
 - **Withdraw:** withdraw a registration with a short reason. Withdrawal is final: the registration leaves the ranking and can no longer change, and DBGI is notified.
 - **Notifications and help:** in-portal notifications for everyone in the company, with email only to the person who submitted, and a Help page with step-by-step beginner walkthroughs.
 
 ## DBGI administrators
 
 - **Matching:** the system suggests matches and auto-matches only when it is safe to. Administrators review step by step and can open a dialog explaining each match. Matched registrations are grouped into opportunity scopes, and companies are ranked within each.
+- **Non-catalog products:** add a company's typed-in product to the catalog from the registration, which opens its price review.
+- **Repricing:** apply the current list prices to a registration, with a reason, until its pricing review starts.
 - **Price history:** change a list price by adding a dated record with a reason (Products in Django Admin), including future start dates. Saved prices cannot change, and existing deals keep the price they captured.
 - **60-day limits:** registrations not confirmed within 60 days, and registrations on projects on hold for 60 days, come back to the review queue; companies get a reminder 7 days before. This runs through a daily job that must be scheduled on the server.
 - **Outcome reports:** confirm or decline a company's Won, Lost, or Cancelled report from the registration page; confirming sets the project status for every linked registration.
