@@ -1,6 +1,6 @@
 # DBGI Project Registration Portal: Current Capabilities
 
-**As of:** 2026-10-30  
+**As of:** 2026-11-04  
 **Status:** Working internal beta, not yet production-ready  
 **Source:** Current baseline in [PRODUCT_ROADMAP_2026-10-21.md](PRODUCT_ROADMAP_2026-10-21.md)
 
@@ -21,6 +21,7 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 ## DBGI administrators
 
 - **Matching:** the system suggests matches and auto-matches only when it is safe to. Administrators review step by step and can open a dialog explaining each match. Matched registrations are grouped into opportunity scopes, and companies are ranked within each.
+- **Price history:** change a list price by adding a dated record with a reason (Products in Django Admin), including future start dates. Saved prices cannot change, and existing deals keep the price they captured.
 - **60-day limits:** registrations not confirmed within 60 days, and registrations on projects on hold for 60 days, come back to the review queue; companies get a reminder 7 days before. This runs through a daily job that must be scheduled on the server.
 - **Outcome reports:** confirm or decline a company's Won, Lost, or Cancelled report from the registration page; confirming sets the project status for every linked registration.
 - **Commercial approvals:** approve pricing by product category with item-level approved prices, an expiry date, and 30-day renewals. Project status, registration status, and pricing approval are tracked separately.
@@ -40,12 +41,12 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 
 ## Not yet available
 
-| Capability                                          | Roadmap milestone | Waiting on                         |
-| --------------------------------------------------- | ----------------- | ---------------------------------- |
-| Opportunity merge and split                         | 1                 | Product-owner merge and split rule |
-| Versioned price history and full renewal processing | 2                 | Finance and pricing decisions      |
-| Reorder verification                                | 3                 | Milestone 2                        |
-| Role-specific dashboard counts and exports          | 4                 | None (can start now)               |
-| Production deployment, monitoring, and backups      | 5                 | Earlier milestones                 |
+| Capability                                     | Roadmap milestone | Waiting on                         |
+| ---------------------------------------------- | ----------------- | ---------------------------------- |
+| Opportunity merge and split                    | 1                 | Product-owner merge and split rule |
+| Full renewal processing                        | 2                 | Finance and pricing decisions      |
+| Reorder verification                           | 3                 | Milestone 2                        |
+| Role-specific dashboard counts and exports     | 4                 | None (can start now)               |
+| Production deployment, monitoring, and backups | 5                 | Earlier milestones                 |
 
 See the roadmap's decision register (section 12) for the open policy decisions and their owners.

@@ -28,6 +28,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProductPrice,
     Registration,
     RegistrationAttachment,
     RegistrationCategoryApproval,
@@ -112,11 +113,40 @@ class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
     )
 
 
+class ProductPriceInline(TabularInline):
+    """Add-only price history: a saved price can never be edited or deleted."""
+
+    model = ProductPrice
+    extra = 0
+    fields = ("unit_price", "effective_from", "reason", "vat_basis", "created_by", "created_at")
+    readonly_fields = ("vat_basis", "created_by", "created_at")
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ("code", "name", "category", "currency", "list_price", "is_active")
+    list_display = ("code", "name", "category", "currency", "current_price", "is_active")
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
+    inlines = (ProductPriceInline,)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).with_list_price()
+
+    @admin.display(description="Current list price", ordering="list_price")
+    def current_price(self, obj):
+        return obj.list_price
+
+    def save_formset(self, request, form, formset, change):
+        for price in formset.save(commit=False):
+            price.created_by = request.user
+            price.save()
+        formset.save_m2m()
 
 
 class CompetitorBrandAliasInline(TabularInline):

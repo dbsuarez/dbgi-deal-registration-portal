@@ -163,11 +163,17 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live:** a partner can request a renewal of an approved or partly approved price, one request at a time. If DBGI
   approves, the validity is extended by **30 days**, counted from the current expiry date, or from today if it has
   already expired.
-- **Decided (C2):** all prices are **VAT-inclusive**. Not built yet (prices carry no VAT basis today).
+- **Live (C2):** all prices are **VAT-inclusive**. Each list price records this, and the deal screens say so.
+- **Live (A3):** list prices have a **history**. DBGI changes a price by adding a new record with its amount, start
+  date, and reason (Django Admin, Products). A saved price can never be edited or deleted, and a price cannot start
+  in the past; a future start date schedules the change.
+- **Live:** a deal keeps the list price captured when its products were last saved, linked to the exact price
+  record, so later price changes never alter it. Editing a deal before its pricing review saves its products again,
+  which captures the price in effect at that moment.
 - **Live:** non-catalog products can be requested but get **no price review**.
 - **Decided (C4):** DBGI adds a non-catalog product to the catalog first, then reviews its price. Not built yet.
 - **Live (C5 keeps this):** partners see list prices and their own approved prices, never other companies' prices.
-- **Decided (A3):** the launch waits for price history (dated price versions) as well as withdrawal. Not built yet.
+- **Decided (A3):** the launch waits for price history (now built) as well as withdrawal (built).
 
 ## 12. Repeat orders
 

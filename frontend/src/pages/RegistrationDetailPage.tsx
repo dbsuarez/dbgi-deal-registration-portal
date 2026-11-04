@@ -910,7 +910,8 @@ export default function RegistrationDetailPage() {
           </Table>
         </TableContainer>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Requested prices are proposals, not approved prices.
+          All prices include VAT. Requested prices are proposals, not approved
+          prices.
         </Typography>
       </Paper>
 

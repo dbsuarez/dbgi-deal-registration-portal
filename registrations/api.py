@@ -1278,7 +1278,7 @@ def get_registration(request, registration_id: int):
 
 @api.get("/products", auth=django_auth, response=list[ProductOption])
 def list_products(request, search: str = ""):
-    queryset = Product.objects.filter(is_active=True)
+    queryset = Product.objects.with_list_price().filter(is_active=True)
     if search.strip():
         term = search.strip()
         queryset = queryset.filter(
@@ -1392,7 +1392,7 @@ def _save_children(registration, payload):
     product_ids = {item.product_id for item in payload.items if item.product_id}
     products = {
         product.pk: product
-        for product in Product.objects.filter(pk__in=product_ids, is_active=True)
+        for product in Product.objects.with_list_price().filter(pk__in=product_ids, is_active=True)
     }
     if len(products) != len(product_ids):
         return False
@@ -1407,6 +1407,9 @@ def _save_children(registration, payload):
                 currency=(products[item.product_id].currency if item.product_id else "PHP"),
                 list_unit_price_snapshot=(
                     products[item.product_id].list_price if item.product_id else Decimal("0.00")
+                ),
+                price_version_id=(
+                    products[item.product_id].list_price_id if item.product_id else None
                 ),
                 justification=item.justification,
             )

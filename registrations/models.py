@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.db import models, transaction
+from django.db.models.functions import Coalesce
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -94,25 +95,90 @@ class User(AbstractUser):
             raise ValidationError({"is_staff": "DBGI admins must have staff access."})
 
 
+class ProductQuerySet(models.QuerySet):
+    def with_list_price(self, at=None):
+        """Annotate each product with the price in effect `at` (default now): list_price, and
+        list_price_id, the ProductPrice it came from. A product with no price yet shows 0.00."""
+        in_effect = ProductPrice.objects.filter(
+            product=models.OuterRef("pk"), effective_from__lte=at or timezone.now()
+        ).order_by("-effective_from", "-id")
+        return self.annotate(
+            list_price_id=models.Subquery(in_effect.values("pk")[:1]),
+            list_price=Coalesce(
+                models.Subquery(in_effect.values("unit_price")[:1]),
+                models.Value(Decimal("0.00")),
+                output_field=models.DecimalField(max_digits=14, decimal_places=2),
+            ),
+        )
+
+
 class Product(models.Model):
     code = models.CharField(max_length=80, unique=True)
     name = models.CharField(max_length=240)
     category = models.CharField(max_length=120)
     currency = models.CharField(max_length=3, default="PHP")
-    list_price = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        default=Decimal("0.00"),
-        validators=[MinValueValidator(0)],
-    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ProductQuerySet.as_manager()
 
     class Meta:
         ordering = ["code", "name"]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class ProductPrice(models.Model):
+    """A permanent, dated list price. To change a price, add a new record; never edit one."""
+
+    class VatBasis(models.TextChoices):
+        INCLUSIVE = "inclusive", "VAT-inclusive"
+
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="prices")
+    unit_price = models.DecimalField(
+        max_digits=14, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    currency = models.CharField(max_length=3, editable=False)
+    vat_basis = models.CharField(
+        max_length=20, choices=VatBasis.choices, default=VatBasis.INCLUSIVE, editable=False
+    )
+    effective_from = models.DateTimeField(default=timezone.now)
+    reason = models.TextField()
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="product_prices",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "effective_from"], name="unique_product_price_start"
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        if self._state.adding and self.effective_from:
+            if timezone.localtime(self.effective_from).date() < timezone.localdate():
+                raise ValidationError(
+                    {"effective_from": "A price cannot start in the past. Use today or later."}
+                )
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("A saved price cannot change. Add a new price instead.")
+        self.currency = self.product.currency
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.product.code}: {self.unit_price} from {self.effective_from:%Y-%m-%d}"
 
 
 def normalize_end_user_value(value):
@@ -707,6 +773,14 @@ class RegistrationItem(models.Model):
         decimal_places=2,
         default=Decimal("0.00"),
         validators=[MinValueValidator(0)],
+    )
+    price_version = models.ForeignKey(
+        ProductPrice,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="registration_items",
     )
     justification = models.TextField(blank=True)
 

@@ -42,6 +42,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProductPrice,
     ProjectOutcomeReport,
     Registration,
     RegistrationAttachment,
@@ -1504,8 +1505,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(hidden.status_code, 404)
 
     def test_create_snapshots_list_price_and_opens_category_review(self):
-        self.product.list_price = "125.00"
-        self.product.save(update_fields=["list_price"])
+        self.set_price("125.00")
         self.client.force_login(self.user_a)
 
         response = self.client.post(
@@ -1524,8 +1524,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
 
     def test_admin_can_approve_category_prices_with_expiry(self):
-        self.product.list_price = "125.00"
-        self.product.save(update_fields=["list_price"])
+        self.set_price("125.00")
         self.client.force_login(self.user_a)
         created = self.client.post(
             "/api/v1/registrations",
@@ -2412,3 +2411,97 @@ class RegistrationApiTests(TestCase):
         )
         again = process_deadlines(now=timezone.make_aware(datetime(2026, 12, 18, 9)))
         self.assertEqual(again.price_reminders, 0)
+
+    def set_price(self, amount, **fields):
+        return ProductPrice.objects.create(
+            product=self.product, unit_price=amount, reason="Test price", **fields
+        )
+
+    def register_deal(self):
+        self.client.force_login(self.user_a)
+        response = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload()),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        return Registration.objects.get(pk=response.json()["id"])
+
+    def test_new_price_never_changes_an_earlier_registration(self):
+        old_price = self.set_price("100.00")
+        earlier = self.register_deal()
+        new_price = self.set_price("150.00")
+        later = self.register_deal()
+
+        earlier_item = earlier.items.get()
+        self.assertEqual(str(earlier_item.list_unit_price_snapshot), "100.00")
+        self.assertEqual(earlier_item.price_version, old_price)
+        later_item = later.items.get()
+        self.assertEqual(str(later_item.list_unit_price_snapshot), "150.00")
+        self.assertEqual(later_item.price_version, new_price)
+        self.assertEqual(new_price.vat_basis, ProductPrice.VatBasis.INCLUSIVE)
+        self.assertEqual(new_price.currency, self.product.currency)
+
+    def test_future_price_waits_for_its_start_date(self):
+        current = self.set_price("100.00")
+        self.set_price("150.00", effective_from=timezone.now() + timedelta(days=7))
+
+        self.client.force_login(self.user_a)
+        options = self.client.get("/api/v1/products").json()
+        option = next(o for o in options if o["id"] == self.product.pk)
+        self.assertEqual(Decimal(option["list_price"]), Decimal("100.00"))
+        self.assertEqual(self.register_deal().items.get().price_version, current)
+        later = Product.objects.with_list_price(at=timezone.now() + timedelta(days=8)).get(
+            pk=self.product.pk
+        )
+        self.assertEqual(later.list_price, Decimal("150.00"))
+
+    def test_product_without_a_price_shows_zero(self):
+        product = Product.objects.with_list_price().get(pk=self.product.pk)
+        self.assertEqual(product.list_price, Decimal("0.00"))
+        item = self.register_deal().items.get()
+        self.assertEqual(str(item.list_unit_price_snapshot), "0.00")
+        self.assertIsNone(item.price_version)
+
+    def test_saved_price_cannot_change_and_cannot_start_in_the_past(self):
+        price = self.set_price("100.00")
+        price.unit_price = "1.00"
+        with self.assertRaises(ValidationError):
+            price.save()
+        past = ProductPrice(
+            product=self.product,
+            unit_price="90.00",
+            reason="Backdated",
+            effective_from=timezone.now() - timedelta(days=2),
+        )
+        with self.assertRaises(ValidationError):
+            past.full_clean()
+        self.set_price("120.00", effective_from=timezone.now() + timedelta(days=1)).full_clean()
+
+    def test_admin_adds_a_price_and_records_who_set_it(self):
+        self.client.force_login(self.admin)
+        url = reverse("admin:registrations_product_change", args=[self.product.pk])
+        start = timezone.localtime() + timedelta(days=1)
+        response = self.client.post(
+            url,
+            {
+                "code": self.product.code,
+                "name": self.product.name,
+                "category": self.product.category,
+                "currency": self.product.currency,
+                "is_active": "on",
+                "prices-TOTAL_FORMS": "1",
+                "prices-INITIAL_FORMS": "0",
+                "prices-MIN_NUM_FORMS": "0",
+                "prices-MAX_NUM_FORMS": "1000",
+                "prices-0-unit_price": "130.00",
+                "prices-0-effective_from_0": start.strftime("%Y-%m-%d"),
+                "prices-0-effective_from_1": start.strftime("%H:%M:%S"),
+                "prices-0-reason": "Supplier increase",
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content[:2000])
+        price = ProductPrice.objects.get(product=self.product)
+        self.assertEqual(price.created_by, self.admin)
+        self.assertEqual(str(price.unit_price), "130.00")
+        self.assertEqual(self.client.get(url).status_code, 200)

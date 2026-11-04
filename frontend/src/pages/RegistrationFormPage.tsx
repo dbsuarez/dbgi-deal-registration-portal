@@ -752,7 +752,8 @@ export default function RegistrationFormPage() {
         {title}
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Requested prices are proposals and require DBGI review.
+        All prices include VAT. Requested prices are proposals and require DBGI
+        review.
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>

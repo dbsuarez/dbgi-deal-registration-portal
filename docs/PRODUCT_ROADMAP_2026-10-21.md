@@ -65,7 +65,7 @@ The application is a working internal beta with these foundations implemented:
 - Controlled End-user classification selectors with fixed government branches and administrator-reviewed Organization type and Sector catalogs.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
-The application is not yet production-ready. Opportunity merge and split, authoritative price versioning, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
+The application is not yet production-ready. Opportunity merge and split, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
 
 ## 3. Delivery principles
 
@@ -159,9 +159,9 @@ The application is not yet production-ready. Opportunity merge and split, author
 
 ### Engineering scope
 
-1. Replace a single mutable product list price with dated, versioned prices.
-2. Record currency, VAT basis, effective start, optional end, creator, and change reason.
-3. Select and snapshot the authoritative price version during registration and later order verification.
+1. [x] Replace a single mutable product list price with dated, versioned prices (2026-11-04).
+2. [x] Record currency, VAT basis, effective start, creator, and change reason; a price ends when the next one starts (2026-11-04).
+3. [x] Select and snapshot the authoritative price version during registration (2026-11-04). Order verification follows with Milestone 3.
 4. Complete item-level approved-price and discount calculations using backend decimal arithmetic.
    - Support either a percentage discount or a flat peso amount per unit.
    - Calculate percentage line totals from full precision and round the line total to two decimals.
