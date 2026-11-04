@@ -29,6 +29,7 @@ from .models import (
     PriceApprovalRenewal,
     Product,
     ProductPrice,
+    RankingTieDecision,
     Registration,
     RegistrationAttachment,
     RegistrationCategoryApproval,
@@ -44,6 +45,7 @@ from .notifications import (
     notify_price_decision,
     retry_notification_email,
 )
+from .ranking import latest_tie_decisions, rank_scope, ranked_registrations
 
 
 @admin.register(Company)
@@ -603,12 +605,42 @@ class OpportunityRankingAdmin(ModelAdmin):
 
     @admin.display(description="Rank", ordering="calculated_rank")
     def calculated_rank_display(self, obj):
-        return obj.calculated_rank
+        scope_id = obj.opportunity_scope_id
+        if not RankingTieDecision.objects.filter(
+            opportunity_scope_id=scope_id, submitted_at=obj.original_submitted_at
+        ).exists():
+            return obj.calculated_rank
+        entries = rank_scope(
+            scope_id, ranked_registrations([scope_id])[scope_id], latest_tie_decisions([scope_id])
+        )
+        return next(entry.rank for entry in entries if entry.registration.pk == obj.pk)
 
     @admin.display(description="Registration")
     def registration_link(self, obj):
         url = reverse("admin:registrations_registration_change", args=(obj.pk,))
         return format_html('<a href="{}">{}</a>', url, obj.reference)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RankingTieDecision)
+class RankingTieDecisionAdmin(ModelAdmin):
+    list_display = ("opportunity_scope", "submitted_at", "decided_by", "decided_at")
+    readonly_fields = (
+        "opportunity_scope",
+        "submitted_at",
+        "order",
+        "reason",
+        "decided_by",
+        "decided_at",
+    )
 
     def has_add_permission(self, request):
         return False

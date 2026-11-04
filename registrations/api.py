@@ -35,6 +35,7 @@ from .models import (
     Product,
     ProductPrice,
     ProjectOutcomeReport,
+    RankingTieDecision,
     Registration,
     RegistrationAttachment,
     RegistrationCategoryApproval,
@@ -56,6 +57,7 @@ from .notifications import (
     notify_registration_decision,
     notify_submission,
 )
+from .ranking import latest_tie_decisions, rank_scope, ranked_registrations
 
 api = NinjaAPI(
     title="DBGI Project Registration API",
@@ -437,9 +439,21 @@ class OpportunityScopeOutput(Schema):
     label: str
 
 
+class TieDecisionInput(Schema):
+    order: list[int] = Field(min_length=2)
+    reason: str = Field(min_length=5, max_length=2000)
+
+
+class TieDecisionOutput(Schema):
+    id: int
+    decided_at: datetime
+
+
 class RankingEntryOutput(Schema):
     rank: int
     is_tied: bool
+    tie_decided: bool
+    tie_reason: str | None
     registration_id: int
     reference: str
     company_name: str
@@ -1779,39 +1793,26 @@ def list_rankings(request, page: int = 1, page_size: int = 25, search: str = "")
     page_scopes = list(scopes[start : start + page_size])
     scope_ids = [scope.pk for scope in page_scopes]
 
-    registrations = (
-        Registration.objects.filter(
-            status=Registration.Status.ELIGIBLE_MATCHED,
-            opportunity_scope_id__in=scope_ids,
-        )
-        .select_related("company")
-        .order_by("opportunity_scope_id", "original_submitted_at", "id")
-    )
-    registrations_by_scope = defaultdict(list)
-    seen_companies = set()
-    for registration in registrations:
-        company_key = (registration.opportunity_scope_id, registration.company_id)
-        if company_key in seen_companies:
-            continue
-        seen_companies.add(company_key)
-        registrations_by_scope[registration.opportunity_scope_id].append(registration)
+    registrations_by_scope = ranked_registrations(scope_ids)
+    decisions = latest_tie_decisions(scope_ids)
 
     items = []
     for scope in page_scopes:
         ranked = registrations_by_scope[scope.pk]
-        timestamp_counts = Counter(item.original_submitted_at for item in ranked)
         entries = []
-        current_rank = 0
-        prior_timestamp = None
-        for position, registration in enumerate(ranked, start=1):
-            if registration.original_submitted_at != prior_timestamp:
-                current_rank = position
-                prior_timestamp = registration.original_submitted_at
+        for ranked_entry in rank_scope(scope.pk, ranked, decisions):
+            registration = ranked_entry.registration
             if company_id is None or registration.company_id == company_id:
                 entries.append(
                     {
-                        "rank": current_rank,
-                        "is_tied": timestamp_counts[registration.original_submitted_at] > 1,
+                        "rank": ranked_entry.rank,
+                        "is_tied": ranked_entry.is_tied,
+                        "tie_decided": ranked_entry.tie_decision is not None,
+                        "tie_reason": (
+                            ranked_entry.tie_decision.reason
+                            if ranked_entry.tie_decision and company_id is None
+                            else None
+                        ),
                         "registration_id": registration.pk,
                         "reference": registration.reference,
                         "company_name": registration.company.name,
@@ -1832,6 +1833,72 @@ def list_rankings(request, page: int = 1, page_size: int = 25, search: str = "")
             }
         )
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@api.post(
+    "/review/opportunity-scopes/{scope_id}/tie-decision",
+    auth=django_auth,
+    response={200: TieDecisionOutput, 400: ErrorResponse, 403: ErrorResponse, 404: ErrorResponse},
+)
+def decide_ranking_tie(request, scope_id: int, payload: TieDecisionInput):
+    """DBGI sets the order of registrations with the same submission time (decision B5)."""
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        get_object_or_404(OpportunityScope.objects.select_for_update(), pk=scope_id, is_active=True)
+        ranked = ranked_registrations([scope_id])[scope_id]
+        by_id = {registration.pk: registration for registration in ranked}
+        first = by_id.get(payload.order[0])
+        tied_ids = {
+            registration.pk
+            for registration in ranked
+            if first and registration.original_submitted_at == first.original_submitted_at
+        }
+        if (
+            len(tied_ids) < 2
+            or len(set(payload.order)) != len(payload.order)
+            or set(payload.order) != tied_ids
+        ):
+            return Status(
+                400,
+                {
+                    "code": "invalid_tie",
+                    "message": "List every registration in this tie exactly once.",
+                },
+            )
+        decision = RankingTieDecision.objects.create(
+            opportunity_scope_id=scope_id,
+            submitted_at=first.original_submitted_at,
+            order=payload.order,
+            reason=payload.reason.strip(),
+            decided_by=request.user,
+        )
+        decisions = latest_tie_decisions([scope_id])
+        for entry in rank_scope(scope_id, ranked, decisions):
+            registration = entry.registration
+            if registration.pk not in tied_ids:
+                continue
+            # The company sees its own result only: the reason may name another company.
+            RegistrationEvent.objects.create(
+                registration=registration,
+                actor=request.user,
+                event_type="Tied ranking decided",
+                details=f"DBGI decided a tied ranking. This registration is now rank {entry.rank}.",
+                snapshot=registration_snapshot(registration),
+            )
+            notify_company_users(
+                registration=registration,
+                event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+                event_key=f"tie-decision:{decision.pk}:{registration.pk}",
+                title="Tied ranking decided",
+                message=(
+                    f"DBGI decided a tied ranking for {registration.reference}. "
+                    "Open Rankings to see your rank."
+                ),
+            )
+    return {"id": decision.pk, "decided_at": decision.decided_at}
 
 
 @api.get(

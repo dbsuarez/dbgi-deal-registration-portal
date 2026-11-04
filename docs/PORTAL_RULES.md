@@ -121,8 +121,12 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   the server. Only Registered registrations are ranked, and each company counts once per scope.
 - **Live:** a vague first claim cannot gain an earlier place later by adding details.
 - **Live:** a partner sees only its own rank; DBGI sees the full ranking.
-- **Live:** exact ties (the same submission time) share a rank and are marked as tied.
-- **Decided (B5):** for a tie, DBGI decides. A place to record that decision is not built yet.
+- **Live (B5):** exact ties (the same submission time) share a rank and show as tied until DBGI decides. On the
+  Rankings page, DBGI uses **Decide tie** to set the order, with a reason. Later places do not move: a tie for 1st
+  becomes 1 and 2, and the next company stays 3rd.
+- **Live:** companies see only their own new rank and a notice. The reason is for DBGI only, because it may name
+  another company. A decision can be changed by adding a new one, and every decision stays on record. If a company
+  joins the tie later, the tie reopens; if one leaves, the decision still applies to the rest.
 - **Live:** a withdrawn registration leaves the ranking.
 
 ## 8. Projects and outcomes
@@ -259,12 +263,13 @@ after the head's follow-up. Ask about each one, then record the answer in
 
 Also worth confirming, because these details were chosen while building his decisions:
 
-| Question to ask                                                          | What the portal does now                                                                                                                                                   |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Which deals does the 60-day limit cover?                                 | Deals DBGI has not confirmed, counted from submission.                                                                                                                     |
-| What counts as a postponed or reposted tender?                           | DBGI sets the project to On hold, which starts the 60 days.                                                                                                                |
-| Which events email DBGI reviewers?                                       | A new registration, corrections submitted, an edit after registration, an outcome report, a 60-day limit, and a price renewal request. Withdrawals are in the portal only. |
-| Can a typed-in product join a category whose prices are already decided? | Not until DBGI requests changes on that category.                                                                                                                          |
+| Question to ask                                                                                              | What the portal does now                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which deals does the 60-day limit cover?                                                                     | Deals DBGI has not confirmed, counted from submission.                                                                                                                     |
+| What counts as a postponed or reposted tender?                                                               | DBGI sets the project to On hold, which starts the 60 days.                                                                                                                |
+| Which events email DBGI reviewers?                                                                           | A new registration, corrections submitted, an edit after registration, an outcome report, a 60-day limit, and a price renewal request. Withdrawals are in the portal only. |
+| When DBGI decides a tie, should it set a final order, or only note the decision while the rank stays shared? | It sets a final order, so the companies get different ranks.                                                                                                               |
+| Can a typed-in product join a category whose prices are already decided?                                     | Not until DBGI requests changes on that category.                                                                                                                          |
 
 ## 17. Keeping this file current
 

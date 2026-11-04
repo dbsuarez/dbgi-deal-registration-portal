@@ -572,6 +572,33 @@ class Registration(models.Model):
         return labels[self.price_status]
 
 
+class RankingTieDecision(models.Model):
+    """DBGI's permanent order for registrations with the same submission time. Changing it adds a
+    new record; the latest one applies. The reason is DBGI-only, as it may name other companies."""
+
+    opportunity_scope = models.ForeignKey(
+        OpportunityScope, on_delete=models.PROTECT, related_name="tie_decisions"
+    )
+    submitted_at = models.DateTimeField()
+    order = models.JSONField()
+    reason = models.TextField()
+    decided_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="ranking_tie_decisions"
+    )
+    decided_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-decided_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("A saved tie decision cannot change. Add a new one instead.")
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.opportunity_scope}: tie at {self.submitted_at:%Y-%m-%d %H:%M}"
+
+
 class OpportunityRanking(Registration):
     class Meta:
         proxy = True

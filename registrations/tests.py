@@ -45,6 +45,7 @@ from .models import (
     Product,
     ProductPrice,
     ProjectOutcomeReport,
+    RankingTieDecision,
     Registration,
     RegistrationAttachment,
     RegistrationCategoryApproval,
@@ -2828,3 +2829,102 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 204, response.content)
         self.registration_a.refresh_from_db()
         self.assertTrue(self.registration_a.needs_review)
+
+    def tied_project(self):
+        opportunity = self.link_to_project(self.registration_a, self.registration_b)
+        moment = timezone.now()
+        Registration.objects.filter(pk__in=[self.registration_a.pk, self.registration_b.pk]).update(
+            original_submitted_at=moment
+        )
+        return opportunity.scopes.get()
+
+    def decide_tie(self, scope, order, reason="Better documents on file."):
+        return self.client.post(
+            f"/api/v1/review/opportunity-scopes/{scope.pk}/tie-decision",
+            data=json.dumps({"order": order, "reason": reason}),
+            content_type="application/json",
+        )
+
+    def ranks(self):
+        rows = self.client.get("/api/v1/rankings").json()["items"][0]["entries"]
+        return {row["registration_id"]: row for row in rows}
+
+    def test_tie_is_shared_until_dbgi_decides_the_order(self):
+        scope = self.tied_project()
+        a, b = self.registration_a.pk, self.registration_b.pk
+        self.client.force_login(self.admin)
+        before = self.ranks()
+        self.assertTrue(before[a]["is_tied"] and before[b]["is_tied"])
+        self.assertEqual((before[a]["rank"], before[b]["rank"]), (1, 1))
+
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.decide_tie(scope, [b, a]).status_code, 403)
+
+        self.client.force_login(self.admin)
+        self.assertEqual(self.decide_tie(scope, [b, a]).status_code, 200)
+        after = self.ranks()
+        self.assertEqual((after[b]["rank"], after[a]["rank"]), (1, 2))
+        self.assertFalse(after[a]["is_tied"])
+        self.assertEqual(after[a]["tie_reason"], "Better documents on file.")
+        url = reverse("admin:registrations_opportunityranking_changelist")
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.user_a)
+        own = self.ranks()
+        self.assertEqual(list(own), [a])
+        self.assertEqual(own[a]["rank"], 2)
+        self.assertIsNone(own[a]["tie_reason"])
+        notice = RegistrationNotification.objects.get(
+            recipient=self.user_a, title="Tied ranking decided"
+        )
+        self.assertNotIn("Better documents", notice.message)
+        event = self.registration_a.events.get(event_type="Tied ranking decided")
+        self.assertNotIn("Better documents", event.details)
+
+    def test_tie_decision_must_list_the_whole_tie_once(self):
+        scope = self.tied_project()
+        a, b = self.registration_a.pk, self.registration_b.pk
+        self.client.force_login(self.admin)
+        self.assertEqual(self.decide_tie(scope, [a, a]).status_code, 400)
+        self.assertEqual(self.decide_tie(scope, [a, 999999]).status_code, 400)
+        Registration.objects.filter(pk=b).update(
+            original_submitted_at=timezone.now() + timedelta(seconds=1)
+        )
+        self.assertEqual(self.decide_tie(scope, [a, b]).status_code, 400)
+        self.assertFalse(RankingTieDecision.objects.exists())
+
+    def test_latest_tie_decision_applies_and_a_decision_cannot_be_edited(self):
+        scope = self.tied_project()
+        a, b = self.registration_a.pk, self.registration_b.pk
+        self.client.force_login(self.admin)
+        self.decide_tie(scope, [a, b])
+        self.decide_tie(scope, [b, a], reason="Corrected after checking.")
+        self.assertEqual(RankingTieDecision.objects.count(), 2)
+        self.assertEqual(self.ranks()[b]["rank"], 1)
+        decision = RankingTieDecision.objects.first()
+        decision.reason = "Changed"
+        with self.assertRaises(ValidationError):
+            decision.save()
+
+    def test_decided_tie_keeps_later_places_and_survives_a_withdrawal(self):
+        scope = self.tied_project()
+        third_company = Company.objects.create(name="Third Dealer")
+        third_user = User.objects.create_user(
+            username="dealer-c", password="example-password", company=third_company
+        )
+        third = self.make_registration(third_company, third_user, "Third project")
+        Registration.objects.filter(pk=third.pk).update(
+            status=Registration.Status.ELIGIBLE_MATCHED,
+            opportunity_scope=scope,
+            original_submitted_at=timezone.now() + timedelta(days=1),
+        )
+        a, b = self.registration_a.pk, self.registration_b.pk
+        self.client.force_login(self.admin)
+        self.decide_tie(scope, [b, a])
+        self.assertEqual(self.ranks()[third.pk]["rank"], 3)
+
+        Registration.objects.filter(pk=b).update(status=Registration.Status.WITHDRAWN)
+        remaining = self.ranks()
+        self.assertEqual(remaining[a]["rank"], 1)
+        self.assertFalse(remaining[a]["is_tied"])
+        self.assertEqual(remaining[third.pk]["rank"], 2)

@@ -1,3 +1,5 @@
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
@@ -14,15 +16,19 @@ import {
   IconButton,
   InputAdornment,
   Link,
+  List,
+  ListItem,
+  ListItemText,
   Stack,
   TablePagination,
   TextField,
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  decideRankingTie,
   getOpportunityRankings,
   type OpportunityRanking,
   type RankingEntry,
@@ -31,6 +37,7 @@ import { useSession } from "../session";
 
 type RankingRow = RankingEntry & {
   id: string;
+  scope_id: number;
   opportunity_title: string;
   scope_name: string;
   participant_count: number;
@@ -56,6 +63,7 @@ function flattenRankings(rankings: OpportunityRanking[]): RankingRow[] {
     ranking.entries.map((entry) => ({
       ...entry,
       id: `${ranking.scope_id}-${entry.registration_id}`,
+      scope_id: ranking.scope_id,
       opportunity_title: ranking.opportunity_title,
       scope_name: ranking.scope_name,
       participant_count: ranking.participant_count,
@@ -115,6 +123,61 @@ export default function OpportunityRankingsPage() {
     return () => controller.abort();
   }, [debouncedSearch, paginationModel, refreshKey]);
 
+  const [tieRows, setTieRows] = useState<RankingRow[] | null>(null);
+  const [tieReason, setTieReason] = useState("");
+  const [decidingTie, setDecidingTie] = useState(false);
+  const [tieError, setTieError] = useState("");
+
+  const openTie = useCallback(
+    (row: RankingRow) => {
+      setTieRows(
+        rows
+          .filter(
+            (other) =>
+              other.scope_id === row.scope_id &&
+              other.original_submitted_at === row.original_submitted_at,
+          )
+          .sort((a, b) => a.rank - b.rank),
+      );
+      setTieReason(row.tie_reason ?? "");
+      setTieError("");
+    },
+    [rows],
+  );
+
+  const moveTieRow = (index: number, change: number) => {
+    setTieRows((current) => {
+      if (!current) return current;
+      const next = [...current];
+      [next[index], next[index + change]] = [next[index + change], next[index]];
+      return next;
+    });
+  };
+
+  const saveTie = async () => {
+    if (!tieRows) return;
+    setDecidingTie(true);
+    setTieError("");
+    try {
+      await decideRankingTie(
+        tieRows[0].scope_id,
+        {
+          order: tieRows.map((row) => row.registration_id),
+          reason: tieReason.trim(),
+        },
+        session.csrf_token,
+      );
+      setTieRows(null);
+      setRefreshKey((value) => value + 1);
+    } catch (reason) {
+      setTieError(
+        reason instanceof Error ? reason.message : "The decision failed.",
+      );
+    } finally {
+      setDecidingTie(false);
+    }
+  };
+
   const columns = useMemo<GridColDef<RankingRow>[]>(
     () => [
       {
@@ -132,10 +195,15 @@ export default function OpportunityRankingsPage() {
       {
         field: "rank",
         headerName: "Rank",
-        width: 100,
+        width: 150,
         align: "right",
         headerAlign: "right",
-        renderCell: ({ row }) => (row.is_tied ? `Tied ${row.rank}` : row.rank),
+        renderCell: ({ row }) =>
+          row.is_tied
+            ? `Tied ${row.rank}`
+            : row.tie_decided
+              ? `${row.rank} (tie decided)`
+              : row.rank,
       },
       ...(session.is_dbgi_admin
         ? [{ field: "company_name", headerName: "Company", minWidth: 180 }]
@@ -163,8 +231,24 @@ export default function OpportunityRankingsPage() {
         align: "right",
         headerAlign: "right",
       },
+      ...(session.is_dbgi_admin
+        ? [
+            {
+              field: "tie_action",
+              headerName: "Tie",
+              minWidth: 130,
+              sortable: false,
+              renderCell: ({ row }: { row: RankingRow }) =>
+                row.is_tied || row.tie_decided ? (
+                  <Button size="small" onClick={() => openTie(row)}>
+                    {row.is_tied ? "Decide tie" : "Change"}
+                  </Button>
+                ) : null,
+            },
+          ]
+        : []),
     ],
-    [session.is_dbgi_admin],
+    [session.is_dbgi_admin, openTie],
   );
 
   return (
@@ -254,6 +338,80 @@ export default function OpportunityRankingsPage() {
       </Box>
 
       <Dialog
+        open={tieRows !== null}
+        onClose={() => !decidingTie && setTieRows(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Decide the tied ranking</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            These registrations have the same submission time. Put them in rank
+            order, first place at the top. Companies see only their own rank,
+            not your reason.
+          </Typography>
+          {tieError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {tieError}
+            </Alert>
+          )}
+          <List dense sx={{ mb: 1 }}>
+            {(tieRows ?? []).map((row, index) => (
+              <ListItem
+                key={row.id}
+                divider
+                secondaryAction={
+                  <>
+                    <IconButton
+                      aria-label={`Move ${row.company_name} up`}
+                      disabled={index === 0}
+                      onClick={() => moveTieRow(index, -1)}
+                    >
+                      <ArrowUpwardIcon />
+                    </IconButton>
+                    <IconButton
+                      aria-label={`Move ${row.company_name} down`}
+                      disabled={index === (tieRows ?? []).length - 1}
+                      onClick={() => moveTieRow(index, 1)}
+                    >
+                      <ArrowDownwardIcon />
+                    </IconButton>
+                  </>
+                }
+              >
+                <ListItemText
+                  primary={`${index + 1}. ${row.company_name}`}
+                  secondary={row.reference}
+                />
+              </ListItem>
+            ))}
+          </List>
+          <TextField
+            required
+            fullWidth
+            multiline
+            minRows={3}
+            label="Reason for this order"
+            helperText="At least 5 characters. Only DBGI sees this."
+            value={tieReason}
+            onChange={(event) => setTieReason(event.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTieRows(null)} disabled={decidingTie}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={decidingTie || tieReason.trim().length < 5}
+            onClick={saveTie}
+          >
+            Save order
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
         open={explanationOpen}
         onClose={() => setExplanationOpen(false)}
         slotProps={{
@@ -276,7 +434,7 @@ export default function OpportunityRankingsPage() {
           </Typography>
           <Typography>
             Registrations with the exact same timestamp share a rank and are
-            marked as tied.
+            marked as tied until DBGI decides their order.
           </Typography>
         </DialogContent>
         <DialogActions>

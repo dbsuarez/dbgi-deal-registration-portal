@@ -201,6 +201,8 @@ export type OpportunityScope = {
 export type RankingEntry = {
   rank: number;
   is_tied: boolean;
+  tie_decided?: boolean;
+  tie_reason?: string | null;
   registration_id: number;
   reference: string;
   company_name: string;
@@ -702,6 +704,20 @@ export function addItemToCatalog(
 ) {
   return mutation<RegistrationDetail>(
     `/api/v1/review/registration-items/${itemId}/catalog`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function decideRankingTie(
+  scopeId: number,
+  payload: { order: number[]; reason: string },
+  csrfToken: string,
+) {
+  return mutation<{ id: number; decided_at: string }>(
+    `/api/v1/review/opportunity-scopes/${scopeId}/tie-decision`,
     "POST",
     csrfToken,
     JSON.stringify(payload),
