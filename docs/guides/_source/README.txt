@@ -45,6 +45,11 @@ Content source
   Take every rule and workflow from docs\PORTAL_RULES.md. Describe only rules marked Live as
   available; never present a Decided rule as working.
 
+Sample end-user
+  At the next refresh, the example deal uses the City of Lucena Mayor's Office, Lucena City Government
+  Complex, Diversion Road, Barangay Mayao Kanluran, Lucena City, Quezon 4301, instead of the Pasig City
+  Schools Division Office. Update the text in the deck and Word guide, and retake the screenshots.
+
 Rules for the portal guide (it is shared with colleagues)
   - Use only demo or test accounts in screenshots.
   - Do not show other partner companies' names or data.
