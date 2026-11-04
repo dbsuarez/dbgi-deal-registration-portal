@@ -198,9 +198,14 @@ class CompetitorModelAdmin(ModelAdmin):
 
 @admin.register(PortalSetting)
 class PortalSettingAdmin(ModelAdmin):
-    list_display = ("__str__", "show_end_user_field_help", "updated_at")
+    list_display = (
+        "__str__",
+        "show_end_user_field_help",
+        "alert_dbgi_on_attachment_change",
+        "updated_at",
+    )
     readonly_fields = ("updated_at",)
-    fields = ("show_end_user_field_help", "updated_at")
+    fields = ("show_end_user_field_help", "alert_dbgi_on_attachment_change", "updated_at")
 
     def has_module_permission(self, request):
         return request.user.is_superuser

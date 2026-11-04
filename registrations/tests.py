@@ -2008,7 +2008,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["version"], version + 1)
         self.registration_a.refresh_from_db()
-        # Changing attachment files is administrative: recorded, but no DBGI review
+        # Not confirmed yet, so DBGI sees the files when it reviews; no separate alert
         self.assertFalse(self.registration_a.needs_review)
         self.assertTrue(
             self.registration_a.events.filter(event_type="Attachments submitted").exists()
@@ -2766,3 +2766,65 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.json()["code"], "commercial_review_locked")
         line.refresh_from_db()
         self.assertIsNone(line.product)
+
+    def change_files_on_registered_deal(self):
+        Registration.objects.filter(pk=self.registration_a.pk).update(
+            status=Registration.Status.ELIGIBLE_MATCHED, needs_review=False
+        )
+        self.registration_a.refresh_from_db()
+        version = self.registration_a.version
+        self.client.force_login(self.user_a)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            upload = self.client.post(
+                f"/api/v1/registrations/{self.registration_a.pk}/attachments?version={version}",
+                data={"file": SimpleUploadedFile("proof.pdf", b"%PDF-1.4 proof")},
+            )
+            self.assertEqual(upload.status_code, 201, upload.content)
+            self.registration_a.refresh_from_db()
+            flagged_before_finalize = self.registration_a.needs_review
+            done = self.client.post(
+                f"/api/v1/registrations/{self.registration_a.pk}/finalize",
+                data=json.dumps({"version": version}),
+                content_type="application/json",
+            )
+            self.assertEqual(done.status_code, 200, done.content)
+        self.registration_a.refresh_from_db()
+        return flagged_before_finalize
+
+    def attachment_alerts(self):
+        return RegistrationNotification.objects.filter(
+            registration=self.registration_a,
+            recipient=self.admin,
+            title="Review needed: attachment files changed",
+        )
+
+    def test_file_change_on_a_registered_deal_alerts_dbgi_by_default(self):
+        self.assertFalse(
+            PortalSetting.objects.filter(alert_dbgi_on_attachment_change=False).exists()
+        )
+        self.assertTrue(self.change_files_on_registered_deal())
+        self.assertTrue(self.registration_a.needs_review)
+        self.assertEqual(self.registration_a.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertEqual(self.attachment_alerts().count(), 1)
+
+    def test_file_change_alert_can_be_turned_off(self):
+        PortalSetting.objects.update_or_create(
+            key="portal", defaults={"alert_dbgi_on_attachment_change": False}
+        )
+        self.assertFalse(self.change_files_on_registered_deal())
+        self.assertFalse(self.registration_a.needs_review)
+        self.assertFalse(self.attachment_alerts().exists())
+        self.assertTrue(self.registration_a.events.filter(event_type="Attachment added").exists())
+
+    def test_removing_a_file_from_a_registered_deal_also_flags_it(self):
+        self.change_files_on_registered_deal()
+        Registration.objects.filter(pk=self.registration_a.pk).update(needs_review=False)
+        self.registration_a.refresh_from_db()
+        attachment = self.registration_a.attachments.get()
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.delete(
+                f"/api/v1/attachments/{attachment.pk}?version={self.registration_a.version}"
+            )
+        self.assertEqual(response.status_code, 204, response.content)
+        self.registration_a.refresh_from_db()
+        self.assertTrue(self.registration_a.needs_review)

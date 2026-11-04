@@ -1401,6 +1401,25 @@ def _validate_input(payload):
     return details
 
 
+def _alerts_dbgi_on_attachment_change(registration):
+    """On by default, including before the settings record exists. Only a registration DBGI already
+    confirmed needs this: on any other open registration, DBGI sees the files when it reviews."""
+    if registration.status != Registration.Status.ELIGIBLE_MATCHED:
+        return False
+    return (
+        PortalSetting.objects.filter(key="portal")
+        .values_list("alert_dbgi_on_attachment_change", flat=True)
+        .first()
+        is not False
+    )
+
+
+def _flag_attachment_change(registration):
+    if _alerts_dbgi_on_attachment_change(registration):
+        registration.needs_review = True
+        registration.save(update_fields=["needs_review", "updated_at"])
+
+
 def _commercial_review_started(registration):
     return registration.category_approvals.exclude(
         status=RegistrationCategoryApproval.Status.PENDING
@@ -2714,6 +2733,8 @@ def finalize_registration(request, registration_id: int, payload: RegistrationFi
         prior_snapshot = registration_snapshot(registration)
         registration.version += 1
         registration.save(update_fields=["version", "updated_at"])
+        if _alerts_dbgi_on_attachment_change(registration):
+            notify_dbgi_review_needed(registration, "attachment files changed")
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
@@ -2784,6 +2805,7 @@ def upload_attachment(
             )
         prior_snapshot = registration_snapshot(registration)
         attachment.save()
+        _flag_attachment_change(registration)
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
@@ -2835,6 +2857,7 @@ def delete_attachment(request, attachment_id: int, version: int):
         original_name = attachment.original_name
         prior_snapshot = registration_snapshot(registration)
         attachment.delete()
+        _flag_attachment_change(registration)
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,

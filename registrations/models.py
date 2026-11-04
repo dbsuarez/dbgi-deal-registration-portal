@@ -1055,6 +1055,14 @@ class PortalSetting(models.Model):
         default=True,
         help_text="Show example popovers beside fields in the Add missing End-user dialog.",
     )
+    alert_dbgi_on_attachment_change = models.BooleanField(
+        "alert DBGI when attachment files change on a registered deal",
+        default=True,
+        help_text=(
+            "On: changing files on a registration DBGI already confirmed flags it for review and "
+            "notifies DBGI. Off: the change is only recorded in the registration's Activity."
+        ),
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -132,8 +132,8 @@ Provided on 2026-11-04 to settle the small-versus-big edit question and when an 
 - **An edit is not a repricing event unless it changes the priced scope.** Administrative edits keep the captured
   price. A quantity change keeps the unit price. A changed or added product captures the current price on that line
   only. End-user, scope, and evidence changes keep the price until DBGI decides. A company can request repricing.
-- **Attachment files (2026-11-04):** adding, replacing, or removing a file is administrative. The attachment
-  description and link stay material.
+- **Attachment files (2026-11-04):** changing a file never reprices a deal. On a Registered deal it alerts DBGI by
+  default, through an admin setting that can turn the alert off. The attachment description and link stay material.
 
 ## Decisions (2026-10-30)
 
