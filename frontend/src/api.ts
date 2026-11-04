@@ -124,6 +124,9 @@ export type RequestedItem = {
   requested_unit_price: string;
   currency?: string;
   list_unit_price?: string;
+  price_basis?: string;
+  price_basis_label?: string;
+  price_captured_at?: string;
   requested_discount_percent?: string | null;
   requested_total?: string;
   approved_unit_price?: string | null;
@@ -251,6 +254,7 @@ export type RegistrationDetail = RegistrationListItem & {
   can_edit: boolean;
   can_withdraw: boolean;
   can_report_outcome: boolean;
+  can_reprice?: boolean;
   outcome_reports: OutcomeReport[];
   competitor_items: CompetitorItem[];
   items: RequestedItem[];
@@ -276,6 +280,7 @@ export type CategoryApproval = {
 
 export type RegistrationPayload = {
   version?: number;
+  request_repricing?: boolean;
   end_user_id: number;
   project_title: string;
   bid_date: string;
@@ -674,6 +679,20 @@ export function reviewRegistration(
 ) {
   return mutation<RegistrationDetail>(
     `/api/v1/review/registrations/${registrationId}/decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function repriceRegistration(
+  registrationId: number,
+  payload: { version: number; reason: string },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/review/registrations/${registrationId}/reprice`,
     "POST",
     csrfToken,
     JSON.stringify(payload),

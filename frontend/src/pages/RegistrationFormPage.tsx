@@ -259,6 +259,7 @@ const numericCell = {
 export default function RegistrationFormPage() {
   const { id } = useParams();
   const registrationId = id ? Number(id) : null;
+  const [requestRepricing, setRequestRepricing] = useState(false);
   const session = useSession();
   const navigate = useNavigate();
   const [savedRegistrationId, setSavedRegistrationId] = useState<number | null>(
@@ -684,6 +685,9 @@ export default function RegistrationFormPage() {
           justification,
         }),
       ),
+      ...(savedRegistrationId && requestRepricing
+        ? { request_repricing: true }
+        : {}),
     };
     try {
       const saved = savedRegistrationId
@@ -755,6 +759,27 @@ export default function RegistrationFormPage() {
         All prices include VAT. Requested prices are proposals and require DBGI
         review.
       </Typography>
+      {registrationId && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary">
+            Saving keeps each product's captured list price. Correcting contact
+            details does not need DBGI review. Changes to the End-user,
+            products, quantities, prices, dates, or attachment details do.
+          </Typography>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={requestRepricing}
+                onChange={(event) => {
+                  setRequestRepricing(event.target.checked);
+                  setDirty(true);
+                }}
+              />
+            }
+            label="Use the current list prices for all products (DBGI reviews this request)"
+          />
+        </Box>
+      )}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}

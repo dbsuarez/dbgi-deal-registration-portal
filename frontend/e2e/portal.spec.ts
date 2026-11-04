@@ -1486,3 +1486,115 @@ test("partner reports a project outcome and DBGI confirms it", async ({
   });
   await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
 });
+
+test("DBGI administrator applies current list prices with a reason", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  const line = (overrides: Record<string, unknown>) => ({
+    id: 1,
+    product_id: 1,
+    product_code: "M1820W",
+    product_name: "Printer",
+    non_catalog_name: "",
+    display_name: "M1820W - Printer",
+    quantity: 2,
+    requested_unit_price: "90.00",
+    currency: "PHP",
+    list_unit_price: "100.00",
+    price_basis: "original",
+    price_basis_label: "Original registration price basis",
+    price_captured_at: "2026-11-01T02:00:00Z",
+    requested_discount_percent: "10.00",
+    requested_total: "180.00",
+    approved_unit_price: null,
+    justification: "",
+    ...overrides,
+  });
+  const detail = (overrides: Record<string, unknown>) => ({
+    id: 12,
+    reference: "DBGI-000012",
+    project_title: "Repriced printer project",
+    company_name: "North Dealer",
+    end_user_name: "Sample municipality",
+    end_user_address: "Test address",
+    bid_date: "2026-12-01",
+    delivery_date: "2027-01-15",
+    contact_person: "Test person",
+    contact_designation: "Buyer",
+    contact_email: "test@example.invalid",
+    contact_number: "0000000000",
+    evidence_description: "Public procurement notice",
+    evidence_url: "",
+    evidence_sharing_confirmed: true,
+    status: "submitted",
+    status_label: "Submitted",
+    project_status: null,
+    project_status_label: "Not linked",
+    price_status: "pending",
+    price_status_label: "Pending",
+    needs_review: false,
+    created_at: "2026-11-01T02:00:00Z",
+    version: 3,
+    can_edit: false,
+    can_withdraw: false,
+    can_report_outcome: false,
+    can_reprice: true,
+    outcome_reports: [],
+    competitor_items: [],
+    items: [line({})],
+    attachments: [],
+    events: [],
+    opportunity_scope_id: null,
+    opportunity_scope_label: null,
+    category_approvals: [],
+    matching_suggestion: null,
+    ...overrides,
+  });
+  await page.route("**/api/v1/registrations/12", (route) =>
+    route.fulfill({ json: detail({}) }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/review/registrations/12/reprice", (route) => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({
+      json: detail({
+        version: 4,
+        items: [
+          line({
+            list_unit_price: "150.00",
+            price_basis: "dbgi_decision",
+            price_basis_label: "Repriced: DBGI decision",
+            price_captured_at: "2026-11-04T02:00:00Z",
+          }),
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/registrations/12/");
+  await expect(
+    page.getByText("Original registration price basis, 2026-11-01"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Apply current list prices" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Apply the current list prices?",
+  });
+  const confirm = dialog.getByRole("button", { name: "Apply prices" });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel(/Reason for repricing/).fill("Scope was re-quoted.");
+  await confirm.click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toEqual({ version: 3, reason: "Scope was re-quoted." });
+  await expect(
+    page.getByText("Repriced: DBGI decision, 2026-11-04"),
+  ).toBeVisible();
+});

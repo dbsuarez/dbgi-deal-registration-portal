@@ -758,6 +758,12 @@ class CompetitorModel(models.Model):
 
 
 class RegistrationItem(models.Model):
+    class PriceBasis(models.TextChoices):
+        ORIGINAL = "original", "Original registration price basis"
+        PRODUCT_CHANGED = "product_changed", "Repriced: product changed"
+        COMPANY_REQUEST = "company_request", "Repriced: requested by the company"
+        DBGI_DECISION = "dbgi_decision", "Repriced: DBGI decision"
+
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(
         Product, on_delete=models.PROTECT, null=True, blank=True, related_name="registration_items"
@@ -782,6 +788,10 @@ class RegistrationItem(models.Model):
         editable=False,
         related_name="registration_items",
     )
+    price_basis = models.CharField(
+        max_length=20, choices=PriceBasis.choices, default=PriceBasis.ORIGINAL, editable=False
+    )
+    price_captured_at = models.DateTimeField(default=timezone.now, editable=False)
     justification = models.TextField(blank=True)
 
     def clean(self):

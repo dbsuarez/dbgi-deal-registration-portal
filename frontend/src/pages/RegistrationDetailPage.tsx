@@ -47,6 +47,7 @@ import {
   getRegistration,
   refreshMatchingSuggestion,
   decideOutcomeReport,
+  repriceRegistration,
   reportProjectOutcome,
   reviewRegistration,
   withdrawRegistration,
@@ -115,6 +116,10 @@ export default function RegistrationDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
+  const [repriceOpen, setRepriceOpen] = useState(false);
+  const [repriceReason, setRepriceReason] = useState("");
+  const [repricing, setRepricing] = useState(false);
+  const [repriceError, setRepriceError] = useState("");
   const [outcomeOpen, setOutcomeOpen] = useState(false);
   const [outcomeChoice, setOutcomeChoice] =
     useState<OutcomeReport["outcome"]>("won");
@@ -230,6 +235,27 @@ export default function RegistrationDetailPage() {
       );
     } finally {
       setDeciding(false);
+    }
+  };
+
+  const handleReprice = async () => {
+    if (!registration) return;
+    setRepricing(true);
+    setRepriceError("");
+    try {
+      const updated = await repriceRegistration(
+        registration.id,
+        { version: registration.version, reason: repriceReason.trim() },
+        session.csrf_token,
+      );
+      setRegistration(updated);
+      setRepriceOpen(false);
+    } catch (reason) {
+      setRepriceError(
+        reason instanceof Error ? reason.message : "Repricing failed.",
+      );
+    } finally {
+      setRepricing(false);
     }
   };
 
@@ -376,6 +402,18 @@ export default function RegistrationDetailPage() {
           <Typography variant="h1">{registration.project_title}</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
+          {registration.can_reprice && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setRepriceReason("");
+                setRepriceError("");
+                setRepriceOpen(true);
+              }}
+            >
+              Apply current list prices
+            </Button>
+          )}
           {registration.can_report_outcome && (
             <Button
               variant="outlined"
@@ -877,6 +915,19 @@ export default function RegistrationDetailPage() {
                     {Number(item.list_unit_price ?? 0).toLocaleString("en-PH", {
                       minimumFractionDigits: 2,
                     })}
+                    {item.price_basis_label && item.price_captured_at && (
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        color="text.secondary"
+                      >
+                        {item.price_basis_label},{" "}
+                        {formatEventTimestamp(item.price_captured_at).slice(
+                          0,
+                          10,
+                        )}
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell sx={moneyCell}>
                     {Number(item.requested_unit_price).toLocaleString("en-PH", {
@@ -1099,6 +1150,48 @@ export default function RegistrationDetailPage() {
         onClose={() => setCopied(false)}
         message="Reference copied"
       />
+      <Dialog
+        open={repriceOpen}
+        onClose={() => !repricing && setRepriceOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Apply the current list prices?</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Every catalog product on this registration moves to today's list
+            price. The company is notified and sees your reason.
+          </Alert>
+          {repriceError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {repriceError}
+            </Alert>
+          )}
+          <TextField
+            label="Reason for repricing"
+            value={repriceReason}
+            onChange={(event) => setRepriceReason(event.target.value)}
+            helperText="At least 5 characters."
+            multiline
+            minRows={3}
+            fullWidth
+            required
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRepriceOpen(false)} disabled={repricing}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={repricing || repriceReason.trim().length < 5}
+            onClick={handleReprice}
+          >
+            Apply prices
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={outcomeOpen}
         onClose={() => !outcomeSaving && setOutcomeOpen(false)}

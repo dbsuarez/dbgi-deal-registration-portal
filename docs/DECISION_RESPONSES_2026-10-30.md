@@ -123,6 +123,17 @@ The head answered "Portal Decisions - Follow-up" by highlighting one choice per 
 | Is "Changes requested" clear?            | **Changed:** rename it to "Returned for changes"                                      |
 | Backup and recovery targets              | Kept: 5 years, daily backups, back within one working day                             |
 
+## Edit and repricing rules (2026-11-04)
+
+Provided on 2026-11-04 to settle the small-versus-big edit question and when an edit changes a price.
+
+- **Administrative or material is decided by the field, not by judgment.** A change is material if it could affect
+  opportunity matching, ranking, eligibility, or pricing. Otherwise it is administrative.
+- **An edit is not a repricing event unless it changes the priced scope.** Administrative edits keep the captured
+  price. A quantity change keeps the unit price. A changed or added product captures the current price on that line
+  only. End-user, scope, and evidence changes keep the price until DBGI decides. A company can request repricing.
+- **Still open:** the rules list "replacing an attachment" as administrative and "replacing the evidence" as material.
+
 ## Decisions (2026-10-30)
 
 Where the two responses differ, response 2 (the head of pricing and business development) decides.
@@ -153,7 +164,6 @@ Where the two responses differ, response 2 (the head of pricing and business dev
 
 **Still open:**
 
-- **B1:** what counts as a "small fix" versus a "big change". Suggested: contact details and descriptions are small;
-  the end-user, products, quantities, and prices are big.
+- **Attachment files:** see the edit and repricing rules above.
 - **Day counts:** validity periods (60 and 90 days) and renewals (30 days) are calendar days; working days apply only
   to deadlines stated in working days.

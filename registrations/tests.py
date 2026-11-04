@@ -2505,3 +2505,167 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(price.created_by, self.admin)
         self.assertEqual(str(price.unit_price), "130.00")
         self.assertEqual(self.client.get(url).status_code, 200)
+
+    def edit_deal(self, registration, **changes):
+        registration.refresh_from_db()
+        item = registration.items.get()
+        payload = {
+            **self.payload(),
+            "project_title": registration.project_title,
+            "contact_person": registration.contact_person,
+            "items": [
+                {
+                    "product_id": item.product_id,
+                    "non_catalog_name": item.non_catalog_name,
+                    "quantity": item.quantity,
+                    "requested_unit_price": str(item.requested_unit_price),
+                    "justification": item.justification,
+                }
+            ],
+            "version": registration.version,
+            **changes,
+        }
+        return self.client.put(
+            f"/api/v1/registrations/{registration.pk}",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def registered_deal(self):
+        self.set_price("100.00")
+        registration = self.register_deal()
+        Registration.objects.filter(pk=registration.pk).update(
+            status=Registration.Status.ELIGIBLE_MATCHED, needs_review=False
+        )
+        self.set_price("150.00")
+        return registration
+
+    def test_administrative_correction_keeps_price_status_and_needs_no_review(self):
+        registration = self.registered_deal()
+        response = self.edit_deal(registration, contact_person="Corrected Name")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        registration.refresh_from_db()
+        self.assertEqual(registration.contact_person, "Corrected Name")
+        self.assertEqual(registration.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertFalse(registration.needs_review)
+        item = registration.items.get()
+        self.assertEqual(str(item.list_unit_price_snapshot), "100.00")
+        self.assertEqual(item.price_basis, RegistrationItem.PriceBasis.ORIGINAL)
+        self.assertTrue(registration.events.filter(event_type="Administrative correction").exists())
+
+    def test_formatting_only_title_change_is_administrative(self):
+        registration = self.registered_deal()
+        Registration.objects.filter(pk=registration.pk).update(
+            project_title="Printers for City Hall"
+        )
+        registration.refresh_from_db()
+        self.edit_deal(registration, project_title="PRINTERS  for city-hall")
+        registration.refresh_from_db()
+        self.assertFalse(registration.needs_review)
+
+    def test_quantity_change_keeps_the_unit_price_and_goes_to_review(self):
+        registration = self.registered_deal()
+        line_id = registration.items.get().pk
+        item = {
+            "product_id": self.product.pk,
+            "non_catalog_name": "",
+            "quantity": 7,
+            "requested_unit_price": "95.00",
+            "justification": "",
+        }
+        self.assertEqual(self.edit_deal(registration, items=[item]).status_code, 200)
+        registration.refresh_from_db()
+        line = registration.items.get()
+        self.assertEqual(line.pk, line_id)
+        self.assertEqual(line.quantity, 7)
+        self.assertEqual(str(line.list_unit_price_snapshot), "100.00")
+        self.assertEqual(line.price_basis, RegistrationItem.PriceBasis.ORIGINAL)
+        self.assertEqual(registration.status, Registration.Status.REVIEW_REQUIRED)
+        self.assertTrue(registration.needs_review)
+
+    def test_changed_product_is_repriced_on_that_line_only(self):
+        registration = self.registered_deal()
+        other = Product.objects.create(code="TEST-002", name="Other", category="Test category")
+        ProductPrice.objects.create(product=other, unit_price="70.00", reason="Test price")
+        kept = {
+            "product_id": self.product.pk,
+            "non_catalog_name": "",
+            "quantity": 1,
+            "requested_unit_price": "95.00",
+            "justification": "",
+        }
+        added = {**kept, "product_id": other.pk, "requested_unit_price": "60.00"}
+        self.assertEqual(self.edit_deal(registration, items=[kept, added]).status_code, 200)
+        lines = {line.product_id: line for line in registration.items.all()}
+        self.assertEqual(str(lines[self.product.pk].list_unit_price_snapshot), "100.00")
+        self.assertEqual(lines[self.product.pk].price_basis, RegistrationItem.PriceBasis.ORIGINAL)
+        self.assertEqual(str(lines[other.pk].list_unit_price_snapshot), "70.00")
+        self.assertEqual(lines[other.pk].price_basis, RegistrationItem.PriceBasis.PRODUCT_CHANGED)
+
+    def test_company_can_request_repricing_and_dbgi_reviews_it(self):
+        registration = self.registered_deal()
+        self.assertEqual(self.edit_deal(registration, request_repricing=True).status_code, 200)
+        registration.refresh_from_db()
+        item = registration.items.get()
+        self.assertEqual(str(item.list_unit_price_snapshot), "150.00")
+        self.assertEqual(item.price_basis, RegistrationItem.PriceBasis.COMPANY_REQUEST)
+        self.assertEqual(registration.status, Registration.Status.REVIEW_REQUIRED)
+
+    def test_end_user_change_goes_to_review_but_keeps_the_price(self):
+        registration = self.registered_deal()
+        other = EndUser.objects.create(
+            official_name="Other End-user",
+            city_municipality="Other City",
+            street_address="Other address",
+            status=EndUser.Status.VERIFIED,
+            created_by=self.admin,
+            verified_by=self.admin,
+        )
+        self.assertEqual(self.edit_deal(registration, end_user_id=other.pk).status_code, 200)
+        registration.refresh_from_db()
+        self.assertEqual(registration.status, Registration.Status.REVIEW_REQUIRED)
+        self.assertEqual(str(registration.items.get().list_unit_price_snapshot), "100.00")
+
+    def test_contact_fix_is_allowed_after_price_review_but_products_stay_locked(self):
+        registration = self.registered_deal()
+        registration.category_approvals.update(status=RegistrationCategoryApproval.Status.APPROVED)
+        self.assertEqual(self.edit_deal(registration, contact_person="New Name").status_code, 200)
+        item = {
+            "product_id": self.product.pk,
+            "non_catalog_name": "",
+            "quantity": 9,
+            "requested_unit_price": "95.00",
+            "justification": "",
+        }
+        locked = self.edit_deal(registration, items=[item])
+        self.assertEqual(locked.status_code, 409, locked.content)
+        self.assertEqual(locked.json()["code"], "commercial_review_locked")
+
+    def test_dbgi_repricing_needs_admin_and_a_reason_and_stops_at_price_review(self):
+        registration = self.registered_deal()
+        registration.refresh_from_db()
+        url = f"/api/v1/review/registrations/{registration.pk}/reprice"
+        body = json.dumps({"version": registration.version, "reason": "Scope was re-quoted."})
+        self.client.force_login(self.user_a)
+        denied = self.client.post(url, data=body, content_type="application/json")
+        self.assertEqual(denied.status_code, 403)
+        self.client.force_login(self.admin)
+        response = self.client.post(url, data=body, content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        item = registration.items.get()
+        self.assertEqual(str(item.list_unit_price_snapshot), "150.00")
+        self.assertEqual(item.price_basis, RegistrationItem.PriceBasis.DBGI_DECISION)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, title="List prices updated by DBGI"
+            ).exists()
+        )
+        registration.refresh_from_db()
+        registration.category_approvals.update(status=RegistrationCategoryApproval.Status.APPROVED)
+        locked = self.client.post(
+            url,
+            data=json.dumps({"version": registration.version, "reason": "Scope was re-quoted."}),
+            content_type="application/json",
+        )
+        self.assertEqual(locked.status_code, 409)

@@ -80,14 +80,23 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 
 - **Live:** partners can edit their registration at any time until it is withdrawn.
 - **Live:** editing a "Returned for changes" registration makes it "Resubmitted".
-- **Live:** editing a Registered registration makes it "Review required after edit". It keeps its original
-  submission time and rank.
-- **Live:** products and requested prices lock once DBGI starts the pricing review; DBGI must request changes first.
+- **Live:** a **material** edit to a Registered registration makes it "Review required after edit". It keeps its
+  original submission time and rank.
+- **Live:** products, quantities, and requested prices lock once DBGI starts the pricing review, and DBGI must
+  request changes first. Administrative corrections stay possible.
 - **Live:** evidence locks while the registration is under review and after a decision (approved, rejected, or
   withdrawn), so it cannot change after DBGI relied on it.
-- **Decided (B1):** small fixes are allowed freely; big changes go back to DBGI for review.
-- **Open (B1):** which fields count as a small fix and which as a big change. Suggested: contact details and
-  descriptions are small; end-user, products, quantities, and prices are big.
+- **Live (B1):** every edit is classified field by field, not by judgment:
+  - **Administrative** (no DBGI review, status and rank unchanged, recorded in the Activity): contact person,
+    designation, email, and number; competitor remarks; product justifications; and changes only in capitals,
+    punctuation, or spacing in the project title or attachment description.
+  - **Material** (DBGI review required, and the Activity lists what changed): End-user, project title, bid and
+    delivery dates, attachment description and link, competitor brand, item, or bid price, and products,
+    quantities, or requested prices, or a repricing request.
+- **Live:** saving a "Returned for changes" registration always returns it to DBGI, even for an administrative
+  correction.
+- **Open:** whether changing attachment files is administrative. Today it never changes prices or status, but it
+  flags the registration for DBGI to look at.
 
 ## 6. DBGI review and matching
 
@@ -167,9 +176,15 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live (A3):** list prices have a **history**. DBGI changes a price by adding a new record with its amount, start
   date, and reason (Django Admin, Products). A saved price can never be edited or deleted, and a price cannot start
   in the past; a future start date schedules the change.
-- **Live:** a deal keeps the list price captured when its products were last saved, linked to the exact price
-  record, so later price changes never alter it. Editing a deal before its pricing review saves its products again,
-  which captures the price in effect at that moment.
+- **Live:** each product line keeps the list price it captured, linked to the exact price record, and shows its
+  price basis and capture date. **An edit does not reprice a deal unless it changes what is priced:**
+  - Administrative corrections, and End-user, date, or attachment changes: keep the captured price.
+  - Quantity change: keep the captured unit price; the total is recalculated.
+  - Product added or changed: only that line captures the current price ("Repriced: product changed").
+  - The company ticks the repricing box when editing: every catalog line captures the current price, and DBGI
+    reviews it ("Repriced: requested by the company").
+  - DBGI uses **Apply current list prices**, with a reason ("Repriced: DBGI decision"). The company is notified.
+  - Repricing is not available once pricing review has started.
 - **Live:** non-catalog products can be requested but get **no price review**.
 - **Decided (C4):** DBGI adds a non-catalog product to the catalog first, then reviews its price. Not built yet.
 - **Live (C5 keeps this):** partners see list prices and their own approved prices, never other companies' prices.
@@ -216,9 +231,9 @@ All counts are calendar days, starting from the server's recorded time.
 
 ## 16. Still open
 
-| Code | Question                                                    |
-| ---- | ----------------------------------------------------------- |
-| B1   | Which fields count as a small fix and which as a big change |
+| Code | Question                                                        |
+| ---- | --------------------------------------------------------------- |
+| Open | Whether changing attachment files is administrative or material |
 
 ## 17. Keeping this file current
 

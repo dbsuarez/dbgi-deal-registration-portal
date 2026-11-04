@@ -64,6 +64,49 @@ CHANGE_LABELS = {
 }
 
 
+def material_changes(before, after):
+    """Labels of the changes that need DBGI review: anything that could affect matching, rank,
+    eligibility, or pricing. Contact details, remarks, and justifications are administrative, and so
+    are differences only in capitals, punctuation, or spacing."""
+    from collections import Counter
+
+    from .models import normalize_end_user_value as normalized
+
+    labels = [
+        CHANGE_LABELS[field]
+        for field in ("project_title", "evidence_description")
+        if normalized(before[field]) != normalized(after[field])
+    ]
+    labels += [
+        CHANGE_LABELS[field]
+        for field in ("bid_date", "delivery_date", "evidence_url")
+        if before[field] != after[field]
+    ]
+
+    def competitors(snapshot):
+        return Counter(
+            (item["brand"], item["item_name"], item["bid_price"])
+            for item in snapshot["competitor_items"]
+        )
+
+    def products(snapshot):
+        return Counter(
+            (
+                item["product"],
+                normalized(item["non_catalog_name"]),
+                item["quantity"],
+                item["requested_unit_price"],
+            )
+            for item in snapshot["items"]
+        )
+
+    if competitors(before) != competitors(after):
+        labels.append("Competitor items")
+    if products(before) != products(after):
+        labels.append("Requested products")
+    return labels
+
+
 def registration_change_summary(before, after):
     return [
         f"{change['label']}: {change['previous']} to {change['current']}"

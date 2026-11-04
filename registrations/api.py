@@ -17,7 +17,7 @@ from ninja.errors import AuthenticationError
 from ninja.errors import ValidationError as NinjaValidationError
 from ninja.security import django_auth
 
-from .audit import registration_change_details, registration_snapshot
+from .audit import material_changes, registration_change_details, registration_snapshot
 from .matching import generate_matching_suggestion
 from .models import (
     CompetitorBrand,
@@ -45,6 +45,7 @@ from .models import (
     normalize_end_user_value,
 )
 from .notifications import (
+    notify_company_users,
     notify_dbgi_renewal_requested,
     notify_dbgi_review_needed,
     notify_dbgi_withdrawal,
@@ -127,6 +128,12 @@ class RegistrationTestPresetOutput(Schema):
 
 class RegistrationUpdate(RegistrationInput):
     version: int
+    request_repricing: bool = False
+
+
+class RegistrationRepriceInput(Schema):
+    version: int
+    reason: str = Field(min_length=5, max_length=1000)
 
 
 class RegistrationFinalize(Schema):
@@ -205,6 +212,9 @@ class RegistrationItemOutput(RegistrationItemInput):
     display_name: str
     currency: str
     list_unit_price: Decimal
+    price_basis: str
+    price_basis_label: str
+    price_captured_at: datetime
     requested_discount_percent: Decimal | None
     requested_total: Decimal
     approved_unit_price: Decimal | None
@@ -296,6 +306,7 @@ class RegistrationDetail(RegistrationListItem):
     can_edit: bool
     can_withdraw: bool
     can_report_outcome: bool
+    can_reprice: bool
     outcome_reports: list[OutcomeReportOutput]
     competitor_items: list[CompetitorOutput]
     items: list[RegistrationItemOutput]
@@ -863,6 +874,10 @@ def _serialize_registration_detail(registration, user):
             and registration.status != Registration.Status.WITHDRAWN,
             "can_withdraw": not user.is_dbgi_admin
             and registration.status in Registration.WITHDRAWABLE_STATUSES,
+            "can_reprice": user.is_dbgi_admin
+            and registration.status
+            not in {Registration.Status.WITHDRAWN, Registration.Status.REJECTED}
+            and not _commercial_review_started(registration),
             "can_report_outcome": not user.is_dbgi_admin
             and _outcome_report_blocker(registration) is None,
             "outcome_reports": [
@@ -893,6 +908,9 @@ def _serialize_registration_detail(registration, user):
                     "requested_unit_price": item.requested_unit_price,
                     "currency": item.currency,
                     "list_unit_price": item.list_unit_price_snapshot,
+                    "price_basis": item.price_basis,
+                    "price_basis_label": item.get_price_basis_display(),
+                    "price_captured_at": item.price_captured_at,
                     "requested_discount_percent": item.requested_discount_percent,
                     "requested_total": item.requested_total,
                     "approved_unit_price": (
@@ -1369,12 +1387,49 @@ def _validate_input(payload):
     return details
 
 
-def _save_children(registration, payload):
-    registration.category_approvals.filter(
+def _commercial_review_started(registration):
+    return registration.category_approvals.exclude(
         status=RegistrationCategoryApproval.Status.PENDING
-    ).delete()
+    ).exists()
+
+
+def _item_key(product_id, non_catalog_name):
+    return (product_id, "" if product_id else normalize_end_user_value(non_catalog_name))
+
+
+def _requested_items_changed(registration, payload):
+    saved = Counter(
+        (
+            *_item_key(item.product_id, item.non_catalog_name),
+            item.quantity,
+            item.requested_unit_price,
+        )
+        for item in registration.items.all()
+    )
+    sent = Counter(
+        (
+            *_item_key(item.product_id, item.non_catalog_name),
+            item.quantity,
+            item.requested_unit_price,
+        )
+        for item in payload.items
+    )
+    return saved != sent
+
+
+def _capture_price(item, product, basis):
+    """Record the price in effect now; only new lines and explicit repricing do this."""
+    item.list_unit_price_snapshot = product.list_price
+    item.price_version_id = product.list_price_id
+    item.currency = product.currency
+    item.price_basis = basis
+    item.price_captured_at = timezone.now()
+
+
+def _save_children(registration, payload, *, is_edit=False, reprice=False):
+    """Save competitor and product lines. A line that stays keeps its captured price, so an edit is
+    never a repricing event unless it adds or changes a product, or repricing was asked for."""
     registration.competitor_items.all().delete()
-    registration.items.all().delete()
     competitor_rows = []
     for item in payload.competitor_items:
         brand = _resolve_competitor_brand(item.brand)
@@ -1392,37 +1447,62 @@ def _save_children(registration, payload):
     product_ids = {item.product_id for item in payload.items if item.product_id}
     products = {
         product.pk: product
-        for product in Product.objects.with_list_price().filter(pk__in=product_ids, is_active=True)
+        for product in Product.objects.with_list_price().filter(pk__in=product_ids)
     }
     if len(products) != len(product_ids):
         return False
-    saved_items = RegistrationItem.objects.bulk_create(
-        [
-            RegistrationItem(
+    remaining = defaultdict(list)
+    for existing in registration.items.all():
+        remaining[_item_key(existing.product_id, existing.non_catalog_name)].append(existing)
+    new_basis = (
+        RegistrationItem.PriceBasis.PRODUCT_CHANGED
+        if is_edit
+        else RegistrationItem.PriceBasis.ORIGINAL
+    )
+    for item in payload.items:
+        product = products.get(item.product_id)
+        matches = remaining[_item_key(item.product_id, item.non_catalog_name)]
+        if matches:
+            line = matches.pop()
+            line.non_catalog_name = item.non_catalog_name
+            line.quantity = item.quantity
+            line.requested_unit_price = item.requested_unit_price
+            line.justification = item.justification
+            if reprice and product:
+                _capture_price(line, product, RegistrationItem.PriceBasis.COMPANY_REQUEST)
+        else:
+            if product and not product.is_active:
+                return False
+            line = RegistrationItem(
                 registration=registration,
-                product=products.get(item.product_id),
+                product=product,
                 non_catalog_name=item.non_catalog_name,
                 quantity=item.quantity,
                 requested_unit_price=item.requested_unit_price,
-                currency=(products[item.product_id].currency if item.product_id else "PHP"),
-                list_unit_price_snapshot=(
-                    products[item.product_id].list_price if item.product_id else Decimal("0.00")
-                ),
-                price_version_id=(
-                    products[item.product_id].list_price_id if item.product_id else None
-                ),
                 justification=item.justification,
             )
-            for item in payload.items
-        ]
-    )
-    categories = sorted(
-        {item.product.category for item in saved_items if item.product_id and item.product}
-    )
+            if product:
+                _capture_price(line, product, new_basis)
+            else:
+                line.price_basis = new_basis
+        line.save()
+    for leftovers in remaining.values():
+        for line in leftovers:
+            line.delete()
+    categories = {
+        category
+        for category in registration.items.filter(product__isnull=False).values_list(
+            "product__category", flat=True
+        )
+    }
+    registration.category_approvals.filter(
+        status=RegistrationCategoryApproval.Status.PENDING
+    ).exclude(category__in=categories).delete()
+    existing_categories = set(registration.category_approvals.values_list("category", flat=True))
     RegistrationCategoryApproval.objects.bulk_create(
         [
             RegistrationCategoryApproval(registration=registration, category=category)
-            for category in categories
+            for category in sorted(categories - existing_categories)
         ]
     )
     return True
@@ -1536,9 +1616,9 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
             )
         if registration.status == Registration.Status.WITHDRAWN:
             return Status(409, WITHDRAWN_ERROR)
-        if registration.category_approvals.exclude(
-            status=RegistrationCategoryApproval.Status.PENDING
-        ).exists():
+        if _commercial_review_started(registration) and (
+            payload.request_repricing or _requested_items_changed(registration, payload)
+        ):
             return Status(
                 409,
                 {
@@ -1551,29 +1631,19 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
             )
         prior_snapshot = registration_snapshot(registration)
         end_user = _selected_end_user(request.user, payload.end_user_id)
+        end_user_changed = registration.end_user_id != end_user.pk
         for name, value in payload.model_dump(
-            exclude={"competitor_items", "items", "version", "end_user_id"}
+            exclude={"competitor_items", "items", "version", "end_user_id", "request_repricing"}
         ).items():
             setattr(registration, name, value)
         registration.end_user = end_user
         registration.end_user_name = end_user.official_name
         registration.end_user_address = end_user.full_address
         registration.version += 1
-        registration.needs_review = True
-        previous_status = registration.status
-        if registration.status == Registration.Status.CHANGES_REQUESTED:
-            registration.status = Registration.Status.RESUBMITTED
-        elif registration.status == Registration.Status.ELIGIBLE_MATCHED:
-            registration.status = Registration.Status.REVIEW_REQUIRED
         registration.save()
-        if registration.status != previous_status:
-            notify_dbgi_review_needed(
-                registration,
-                "corrections submitted"
-                if registration.status == Registration.Status.RESUBMITTED
-                else "edited after it was registered",
-            )
-        if not _save_children(registration, payload):
+        if not _save_children(
+            registration, payload, is_edit=True, reprice=payload.request_repricing
+        ):
             transaction.set_rollback(True)
             return Status(
                 400,
@@ -1582,15 +1652,49 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
                     "message": "One or more selected products are unavailable.",
                 },
             )
+        changes = material_changes(prior_snapshot, registration_snapshot(registration))
+        if end_user_changed:
+            changes.insert(0, "End-user")
+        if payload.request_repricing:
+            changes.append("Repricing requested")
+        previous_status = registration.status
+        if registration.status == Registration.Status.CHANGES_REQUESTED:
+            registration.status = Registration.Status.RESUBMITTED
+            registration.needs_review = True
+        elif changes:
+            registration.needs_review = True
+            if registration.status == Registration.Status.ELIGIBLE_MATCHED:
+                registration.status = Registration.Status.REVIEW_REQUIRED
+        registration.save()
+        if registration.status != previous_status:
+            notify_dbgi_review_needed(
+                registration,
+                "corrections submitted"
+                if registration.status == Registration.Status.RESUBMITTED
+                else "edited after it was registered",
+            )
+        if changes:
+            event_type = "Company edit"
+            details = f"Company changed: {', '.join(changes)}. DBGI review is required."
+        elif registration.status != previous_status:
+            event_type = "Company edit"
+            details = "Company saved the requested corrections. DBGI review is required."
+        else:
+            event_type = "Administrative correction"
+            details = (
+                "Company corrected administrative details. "
+                "The captured prices, place in line, and status are unchanged."
+            )
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
-            event_type="Company edit",
-            details="Company updated the registration; DBGI review is required.",
+            event_type=event_type,
+            details=details,
             snapshot=prior_snapshot,
             resulting_snapshot=registration_snapshot(registration),
         )
-        generate_matching_suggestion(registration)
+        if changes or registration.status != previous_status:
+            generate_matching_suggestion(registration)
     return _serialize_registration(registration)
 
 
@@ -1883,6 +1987,88 @@ def report_project_outcome(request, registration_id: int, payload: OutcomeReport
             snapshot=registration_snapshot(registration),
         )
         notify_outcome_reported(report)
+    return _detail_response(request, registration_id)
+
+
+@api.post(
+    "/review/registrations/{registration_id}/reprice",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def reprice_registration(request, registration_id: int, payload: RegistrationRepriceInput):
+    """DBGI explicitly applies the current list prices to a registration, with a reason."""
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update(of=("self",)), pk=registration_id
+        )
+        if registration.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This registration changed. Refresh before repricing.",
+                },
+            )
+        if registration.status in {Registration.Status.WITHDRAWN, Registration.Status.REJECTED}:
+            return Status(
+                400,
+                {
+                    "code": "invalid_transition",
+                    "message": "A withdrawn or rejected registration cannot be repriced.",
+                },
+            )
+        if _commercial_review_started(registration):
+            return Status(
+                409,
+                {
+                    "code": "commercial_review_locked",
+                    "message": "Prices cannot be recaptured after commercial review has started.",
+                },
+            )
+        prior_snapshot = registration_snapshot(registration)
+        items = list(registration.items.filter(product__isnull=False))
+        products = {
+            product.pk: product
+            for product in Product.objects.with_list_price().filter(
+                pk__in=[item.product_id for item in items]
+            )
+        }
+        for item in items:
+            _capture_price(
+                item, products[item.product_id], RegistrationItem.PriceBasis.DBGI_DECISION
+            )
+            item.save()
+        registration.version += 1
+        registration.save(update_fields=["version", "updated_at"])
+        reason = payload.reason.strip()
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="List prices updated by DBGI",
+            details=reason,
+            snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
+        )
+        notify_company_users(
+            registration=registration,
+            event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+            event_key=f"reprice:{registration.pk}:v{registration.version}",
+            title="List prices updated by DBGI",
+            message=(
+                f"DBGI applied the current list prices to {registration.reference}. "
+                "Open the registration to read the reason."
+            ),
+        )
     return _detail_response(request, registration_id)
 
 
