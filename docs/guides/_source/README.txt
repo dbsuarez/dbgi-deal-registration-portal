@@ -51,6 +51,7 @@ Sample end-user
   Schools Division Office. Update the text in the deck and Word guide, and retake the screenshots.
 
 Rules for the portal guide (it is shared with colleagues)
+  - Use plain English anyone can understand: short sentences and everyday words.
   - Use only demo or test accounts in screenshots.
   - Do not show other partner companies' names or data.
   - Do not name the author.
