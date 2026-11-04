@@ -55,3 +55,9 @@ Rules for the portal guide (it is shared with colleagues)
   - Use only demo or test accounts in screenshots.
   - Do not show other partner companies' names or data.
   - Do not name the author.
+
+Portal User Guide 2026-11 (slides and Word in one folder, no question slides)
+- Words: guide2_content.py, shared by both files. Plain English only.
+- Screenshots: reseed the demo database (guide_settings.py, guide_seed.py), then from frontend/ run
+  npx playwright test -c playwright.guide.config.ts. Pictures land in shots2.
+- Build: python crop_guide2.py, then python build_guide2.py. Check pictures land in portal-slides/guide2.
