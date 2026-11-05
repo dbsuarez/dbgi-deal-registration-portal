@@ -179,7 +179,7 @@ PAGES = [
             "for the project. Nobody can change it, and later edits do not change it."
         ),
         "pics": [("submitted-top", "Your new deal, with the status Submitted")],
-        "tip": "A partner that registers first gets rank 1 once DBGI confirms the deal.",
+        "tip": "A partner that registers first gets rank 1 once DBGI confirms the deal. Rank 1 gets the best price.",
     },
     # Part 3
     {
@@ -214,7 +214,6 @@ PAGES = [
                 "You changed a Registered deal",
                 "DBGI checks again. Your rank stays.",
             ],
-            ["Approved", "DBGI approved the deal", "Report the result"],
             ["Rejected", "DBGI said no. The reason is in Activity.", "This is final"],
             ["Withdrawn", "You took the deal back", "This is final"],
         ],
@@ -351,13 +350,14 @@ PAGES = [
         "part": 7,
         "title": "Approve the price",
         "role": "dbgi",
+        "intro": "Rank 1 gets the best price. Everyone after rank 1 gets the same price. The form shows the rank and other prices.",
         "steps": [
             "Set **Status** to Approved.",
             "Type your reason in **Rationale**. The partner can read it.",
             "**Valid until**: choose the end date. If you leave it blank, the price lasts 90 days.",
             "Under **Registration item approvals**, click **Add another**.",
             "Choose the product and type the approved price.",
-            "Click **Save**.",
+            "Click **Save**. A warning means the price breaks the rule. It still saves, so you can make an exception.",
         ],
         "pics": [
             ("price-form", "The top of the form: status, reason, and end date"),
@@ -419,6 +419,7 @@ PAGES = [
         "steps": [
             "Click **Rankings** in the top menu.",
             "**Rank** is your place on that project. The first to register gets rank 1.",
+            "Rank 1 gets the best price. Everyone after rank 1 gets the same price.",
             "You see only your own rank, not the other companies.",
         ],
         "pics": [("rank-partner", "The Rankings page")],
@@ -723,7 +724,7 @@ PAGES = [
         "title": "Five things to remember",
         "role": None,
         "bullets": [
-            "**Register early.** The first to register gets the first place.",
+            "**Register early.** The first to register gets rank 1, and rank 1 gets the best price.",
             "**A requested price is not an approved price.** Wait for DBGI.",
             "**Read Activity.** DBGI's reasons and instructions are there.",
             "**Do not upload private papers** or other companies' prices.",

@@ -32,7 +32,7 @@ CROPS = {
     "confirmed-top": ("confirmed-full", (*MAIN, 215)),
     "price-list": ("price-list", (0, 40, 1440, 460)),
     "price-form": ("price-form", (285, 60, 1440, 560)),
-    "price-items": ("price-form", (285, 880, 1440, 1200)),
+    "price-items": ("price-form", (285, 865, 1440, 1345)),
     "approved-top": ("approved-full", (*MAIN, 265)),
     "rank-partner": ("rank-partner", (0, 90, 1440, 500)),
     "withdrawn-top": ("withdrawn-full", (*MAIN, 215)),

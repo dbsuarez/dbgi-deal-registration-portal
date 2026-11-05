@@ -248,7 +248,7 @@ test("capture the guide screenshots", async ({ browser }) => {
     .first()
     .click();
   await settle(dbgi);
-  await dbgi.setViewportSize({ width: 1440, height: 1300 });
+  await dbgi.setViewportSize({ width: 1440, height: 1500 });
   await dbgi.locator("[name=status]").selectOption("approved");
   await dbgi.locator("[name=rationale]").fill("Within the allowed discount.");
   await dbgi.getByText(/Add another Registration item approval/).click();
