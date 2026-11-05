@@ -27,6 +27,7 @@ from devtools.models import RegistrationTestPreset
 from .admin import RegistrationAdmin
 from .audit import registration_change_summary
 from .deadlines import process_deadlines
+from .maintenance import clear_transactional_records, transactional_record_counts
 from .matching import generate_matching_suggestion
 from .models import (
     Company,
@@ -3469,3 +3470,36 @@ class RegistrationApiTests(TestCase):
 
     def rule_warnings(self, messages):
         return [text for text in messages if "should have" in text or "Decide the tie" in text]
+
+    def test_clearing_removes_newer_records_and_their_letters(self):
+        first, second = self.two_projects()
+        self.approve_price(first)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.user_a)
+            self.assertEqual(self.request_repeat(first).status_code, 201)
+            letter = RepeatOrder.objects.get().noa_file
+            self.assertTrue(letter.storage.exists(letter.name))
+            ProjectOutcomeReport.objects.create(
+                registration=first,
+                opportunity=first.opportunity_scope.opportunity,
+                outcome=ProjectOutcomeReport.Outcome.WON,
+                note="Test report",
+                reported_by=self.user_a,
+            )
+            RankingTieDecision.objects.create(
+                opportunity_scope=first.opportunity_scope,
+                submitted_at=first.original_submitted_at,
+                order=[first.pk],
+                reason="Test reason",
+                decided_by=self.admin,
+            )
+            self.client.force_login(self.admin)
+            self.assertEqual(self.merge(second, first).status_code, 200)
+            with self.captureOnCommitCallbacks(execute=True):
+                counts = clear_transactional_records()
+            self.assertEqual(counts["repeat_orders"], 1)
+            self.assertEqual(counts["project_changes"], 1)
+            self.assertFalse(letter.storage.exists(letter.name))
+        self.assertEqual(sum(transactional_record_counts().values()), 0)
+        self.assertTrue(User.objects.filter(pk=self.user_a.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
