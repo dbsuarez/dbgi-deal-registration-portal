@@ -22,7 +22,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from devtools.models import RegistrationTestPreset
+from devtools.models import PracticePair, RegistrationTestPreset
 
 from .admin import RegistrationAdmin
 from .audit import registration_change_summary
@@ -3133,7 +3133,9 @@ class RegistrationApiTests(TestCase):
                     recipient=self.admin, title="Repeat order requested"
                 ).exists()
             )
-            self.assertEqual(self.client.get(body["noa_url"]).status_code, 200)
+            letter = self.client.get(body["noa_url"])
+            self.assertEqual(letter.status_code, 200)
+            letter.close()
 
             self.client.force_login(self.user_b)
             self.assertEqual(self.client.get(body["noa_url"]).status_code, 404)
@@ -3141,7 +3143,9 @@ class RegistrationApiTests(TestCase):
             self.assertEqual(refused.status_code, 403)
 
             self.client.force_login(self.admin)
-            self.assertEqual(self.client.get(body["ntp_url"]).status_code, 200)
+            letter = self.client.get(body["ntp_url"])
+            self.assertEqual(letter.status_code, 200)
+            letter.close()
             decided = self.decide_repeat(body["id"])
             self.assertEqual(decided.status_code, 200, decided.content)
             self.assertEqual(decided.json()["status"], "accepted")
@@ -3529,3 +3533,21 @@ class RegistrationApiTests(TestCase):
                     {"username": self.admin.username, "next": next_url},
                 )
                 self.assertRedirects(response, next_url, fetch_redirect_response=False)
+
+    def test_debug_login_panel_shows_practice_pairs_side_by_side(self):
+        PracticePair.objects.create(
+            position=1,
+            end_user_name="Test office",
+            first_user=self.user_a,
+            second_user=self.user_b,
+        )
+        with override_settings(DEBUG=True):
+            response = self.client.get("/accounts/login/")
+        self.assertContains(response, "Pair 1: Test office")
+        self.assertContains(response, 'class="debug-pair"')
+        self.assertEqual(len(response.context["development_pairs"]), 1)
+        listed = response.context["development_company_users"]
+        self.assertNotIn(self.user_a, listed)
+        self.assertNotIn(self.user_b, listed)
+        with override_settings(DEBUG=False):
+            self.assertNotContains(self.client.get("/accounts/login/"), "Practice pairs")

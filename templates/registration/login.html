@@ -29,21 +29,29 @@
       <h2 id="debug-login-heading">Choose a test account</h2>
       <p class="muted">Password-free access is available only while Django debug mode is enabled.</p>
 
+      {% if development_pairs %}
+        <section class="debug-account-group" aria-labelledby="practice-pairs-heading">
+          <h3 id="practice-pairs-heading">Practice pairs</h3>
+          <div class="debug-account-list">
+            {% for pair in development_pairs %}
+              <div>
+                <p class="debug-pair-label">Pair {{ pair.position }}: {{ pair.end_user_name }}</p>
+                <div class="debug-pair">
+                  {% include "registration/_debug_company_account.html" with account=pair.first %}
+                  {% include "registration/_debug_company_account.html" with account=pair.second %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
       {% if development_company_users %}
         <section class="debug-account-group" aria-labelledby="company-accounts-heading">
           <h3 id="company-accounts-heading">Company users</h3>
           <div class="debug-account-list">
             {% for account in development_company_users %}
-              <form method="post" action="{% url 'development-login' %}">
-                {% csrf_token %}
-                <input type="hidden" name="username" value="{{ account.username }}">
-                <input type="hidden" name="next" value="{{ next }}">
-                <button class="debug-account" type="submit">
-                  <strong>{{ account.get_full_name|default:account.username }}</strong>
-                  <span>{{ account.company.name|default:"No company assigned" }} · {{ account.username }}</span>
-                  <span>Password: {{ account.debug_password|default:"unknown" }}</span>
-                </button>
-              </form>
+              {% include "registration/_debug_company_account.html" %}
             {% endfor %}
           </div>
         </section>

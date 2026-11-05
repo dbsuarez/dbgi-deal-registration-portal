@@ -11,6 +11,25 @@ class ScenarioLab(Company):
         verbose_name_plural = "scenario lab"
 
 
+class PracticePair(models.Model):
+    """Two company accounts shown side by side on the debug login page, for practice sessions."""
+
+    position = models.PositiveSmallIntegerField(default=1)
+    end_user_name = models.CharField("end-user to use", max_length=240)
+    first_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    second_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["position", "id"]  # noqa: RUF012 - Django Meta convention
+
+    def __str__(self):
+        return f"Pair {self.position}: {self.end_user_name}"
+
+
 class RegistrationTestPreset(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,

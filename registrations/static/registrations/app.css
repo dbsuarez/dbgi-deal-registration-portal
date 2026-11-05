@@ -69,6 +69,9 @@ h2 { margin-bottom: 1rem; font-size: 1.2rem; }
 .debug-account:focus-visible { outline: 3px solid #143f6840; outline-offset: 2px; }
 .debug-account { font-size: .9rem; }
 .debug-account span { color: var(--muted); font-size: .78rem; }
+.debug-pair-label { margin: 0 0 .25rem; color: var(--ink); font-size: .8rem; font-weight: 600; }
+.debug-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; }
+.debug-pair .debug-account { height: 100%; overflow-wrap: anywhere; }
 .debug-admin-account { flex-direction: row; align-items: center; justify-content: space-between; gap: .5rem; }
 .debug-admin-account:hover { border-color: #cbd9e7; background: var(--surface); }
 .debug-account-details { min-width: 0; display: flex; flex-direction: column; gap: .05rem; overflow-wrap: anywhere; }

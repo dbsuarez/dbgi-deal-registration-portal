@@ -12,6 +12,8 @@ from django.views.decorators.http import require_POST
 
 from registrations.models import User
 
+from .models import PracticePair
+
 logger = logging.getLogger(__name__)
 
 # Passwords are stored as one-way hashes, so only a known test password can be recognized and shown.
@@ -38,8 +40,21 @@ class DevelopmentLoginView(LoginView):
                 user.debug_password = (
                     KNOWN_TEST_PASSWORD if _uses_known_test_password(user.password) else ""
                 )
+            active = {user.pk: user for user in users}
+            pairs = [
+                {
+                    "position": pair.position,
+                    "end_user_name": pair.end_user_name,
+                    "first": active[pair.first_user_id],
+                    "second": active[pair.second_user_id],
+                }
+                for pair in PracticePair.objects.all()
+                if pair.first_user_id in active and pair.second_user_id in active
+            ]
+            paired = {pair[side].pk for pair in pairs for side in ("first", "second")}
+            context["development_pairs"] = pairs
             context["development_company_users"] = [
-                user for user in users if not user.is_dbgi_admin
+                user for user in users if not user.is_dbgi_admin and user.pk not in paired
             ]
             context["development_admin_users"] = [user for user in users if user.is_dbgi_admin]
         return context

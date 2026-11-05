@@ -1,0 +1,10 @@
+<form method="post" action="{% url 'development-login' %}">
+  {% csrf_token %}
+  <input type="hidden" name="username" value="{{ account.username }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="debug-account" type="submit">
+    <strong>{{ account.get_full_name|default:account.username }}</strong>
+    <span>{{ account.company.name|default:"No company assigned" }} · {{ account.username }}</span>
+    <span>Password: {{ account.debug_password|default:"unknown" }}</span>
+  </button>
+</form>

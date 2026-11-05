@@ -5,8 +5,13 @@ from django.http import Http404
 from django.template.response import TemplateResponse
 from unfold.admin import ModelAdmin
 
-from .models import ScenarioLab
+from .models import PracticePair, ScenarioLab
 from .scenarios import SCENARIOS, clear_transactional_records, load_scenario
+
+
+@admin.register(PracticePair)
+class PracticePairAdmin(ModelAdmin):
+    list_display = ("position", "end_user_name", "first_user", "second_user")
 
 
 @admin.register(ScenarioLab)
