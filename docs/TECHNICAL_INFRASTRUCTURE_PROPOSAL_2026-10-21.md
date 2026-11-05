@@ -12,8 +12,25 @@ Deploy the portal as a Docker Compose application on a dedicated Hostinger VPS. 
 
 Treat the current application as an internal beta until the launch gates in this proposal pass. Production approval requires DBGI decisions for lifecycle, pricing, attachments, retention, notification recipients, recovery objectives, and operational ownership.
 
-DBGI confirmed on 2026-11-05 that it has a Hostinger VPS available for this. Its size still needs checking against the
-staging load tests in the capacity section.
+**Update, 2026-11-05:** the Hostinger VPS DBGI has access to is shared with another person's services, and whoever has
+root there can read everything. So it is a **fake-data test server only**, and the real launch needs a separate server.
+
+Test server rules:
+
+- Address: `http://187.127.124.78:8081`, in `/opt/dbgi-portal`, using `docker-compose.test-server.yml`. Plain HTTP, so
+  no real data and no real passwords. `DJANGO_ALLOW_HTTP_COOKIES=true` exists only for this; a real launch must leave it
+  off.
+- It runs with `DJANGO_DEBUG=true` by DBGI's choice, so the login page lists every username and logs in with one click,
+  without a password. Treat every account and all data there as public. A real launch must keep debug off.
+- Do not touch the other person's services: his Pterodactyl panel, game servers, Traefik, or anything in `/docker`. No
+  OS reinstall, server-wide snapshot restore, or server-wide Docker cleanup. Port 80 is not available.
+- The server has 1 CPU and little free memory. Do not run heavy builds there: build the frontend elsewhere and copy
+  `frontend/dist`. Every container keeps its memory limit.
+- To update it: copy the changed files, then run
+  `DOCKER_BUILDKIT=0 nice -n 19 docker build --memory=512m --memory-swap=512m --cpu-quota=50000 -t dbgi-portal-web .`,
+  `docker compose -f docker-compose.test-server.yml up -d`, and
+  `docker compose -f docker-compose.test-server.yml exec web python manage.py migrate`.
+- The daily `process_deadlines` job is not scheduled here, so reminders do not run on the test server.
 
 ## 2. Architecture decision
 

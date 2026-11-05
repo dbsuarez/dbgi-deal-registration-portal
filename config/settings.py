@@ -422,8 +422,10 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "false").lower() == "true"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+# Only a fake-data test server on plain HTTP sets this. A real launch must keep secure cookies.
+ALLOW_HTTP_COOKIES = os.environ.get("DJANGO_ALLOW_HTTP_COOKIES", "false").lower() == "true"
+SESSION_COOKIE_SECURE = not DEBUG and not ALLOW_HTTP_COOKIES
+CSRF_COOKIE_SECURE = not DEBUG and not ALLOW_HTTP_COOKIES
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0"))
