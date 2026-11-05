@@ -1,6 +1,6 @@
 """Build "Practice Sheet" (.docx): hands-on steps for colleagues after the portal presentation.
 
-Plain English, roles and demo accounts only. Every step was run on the test server on 2026-11-05.
+Plain English, company accounts only. Three pairs ran these steps at once on the test server on 2026-11-05.
 Uses real Word check boxes and text boxes, so it can be filled in on screen.
 """
 
@@ -15,9 +15,9 @@ ADDRESS = "http://187.127.124.78:8081"
 
 STEPS = [
     (
-        "IT Avenue",
-        "Click **New registration**. Choose **City of Lucena Mayor's Office**. Add a competitor, then product "
-        "**M1820W**, quantity 20, price 9000. Describe your proof, tick the box, and click **Create registration**.",
+        "Your company",
+        "Click **New registration**. Choose **your pair's end-user**. Add a competitor, then product **M1820W**, "
+        "quantity 20, price 9000. Describe your proof, tick the box, and click **Create registration**.",
         "9 to 12",
     ),
     (
@@ -33,35 +33,35 @@ STEPS = [
         "25, 26",
     ),
     (
-        "IT Avenue",
+        "Your company",
         "Open your deal and find the approved price. Click **Rankings**. You should be **rank 1**.",
         "27, 30",
     ),
     (
-        "Lexmark",
-        "Register the same project: same office, same product. If it says **Registered**, the portal matched it. If it "
-        "says **Submitted**, ask DBGI to review it and choose **Link to an existing opportunity**.",
+        "Other company",
+        "Register the same project: same end-user, same product. It should say **Registered**, because the portal "
+        "matched it. If it says **Submitted**, review it as DBGI and choose **Link to an existing opportunity**.",
         "9 to 12, 24",
     ),
     (
         "DBGI",
-        "Approve Lexmark's price at **8000**, the same as rank 1. Read the warning. Then open it again and change the "
-        "price to **8500**.",
+        "Approve the other company's price at **8000**, the same as rank 1. Read the warning. Then open it again and "
+        "change the price to **8500**.",
         "26",
     ),
     (
-        "Lexmark",
+        "Other company",
         "Click **Rankings**. You should be **rank 2**, and you cannot see the other company.",
         "30",
     ),
     (
-        "IT Avenue, then DBGI",
+        "Your company, then DBGI",
         "On your deal, click **Request renewal** and send a reason. As DBGI, open the deal and click **Approve**. Check "
         "that the end date moved by 30 days.",
         "28, 29",
     ),
     (
-        "IT Avenue, then DBGI",
+        "Your company, then DBGI",
         "Click **Report project outcome**, choose **Won**, and send it. As DBGI, open the deal and confirm it.",
         "35, 36",
     ),
@@ -133,20 +133,24 @@ def build():
     )
     doc.h2("How to sign in")
     doc.para(
-        f"Open **{ADDRESS}**. You will see a list of accounts, not just the sign-in box in the slides."
+        f"Open **{ADDRESS}**. You will see a list of accounts, not just the sign-in box in the slides. Find **your "
+        "pair** at the top of the list. You play both companies in your pair, and DBGI too."
     )
     doc.table(
         [
-            ["To act as", "Click this in the list"],
-            ["IT Avenue", "Your own name"],
-            ["Lexmark", "Mark Lex (deals@lexmark.com)"],
-            ["DBGI", "DBGI Practice, then **Portal** or **Django admin**"],
+            ["Pair", "Your company", "Other company", "Your pair's end-user"],
+            ["1", "IT Avenue", "Lexmark", "City of Lucena Mayor's Office"],
+            ["2", "Fast Max", "Pinoy Hub", "Quezon City Government"],
+            ["3", "Techno Pro", "None Can Beat", "City Government of Davao"],
         ],
-        [120, TEXT_WIDTH - 120],
+        [34, 100, 100, TEXT_WIDTH - 234],
     )
     doc.para(
-        "Clicking a name signs you in. If a password is asked for, it is **testpass123**. To change accounts, click "
-        "**Log out**. It works best with a partner: one person acts as the company, the other as DBGI."
+        "Click a card to sign in as that company. For DBGI, find **DBGI Practice** and click **Portal** or **Django "
+        "admin**. If a password is asked for, it is **testpass123**. To change accounts, click **Log out**."
+    )
+    doc.good(
+        "**Stay with your pair's end-user,** and open only its deals. That keeps your test apart from the others."
     )
     doc.h2("Follow one deal")
     steps_table(doc)
