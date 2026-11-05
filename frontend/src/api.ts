@@ -12,6 +12,7 @@ export type Session = {
   phone_number: string;
   is_dbgi_admin: boolean;
   is_debug: boolean;
+  one_working_day_ends?: string;
   end_user_field_help_available: boolean;
   show_end_user_field_help: boolean;
   csrf_token: string;
@@ -266,6 +267,57 @@ export type RegistrationDetail = RegistrationListItem & {
   opportunity_scope_label: string | null;
   matching_suggestion: MatchingSuggestion | null;
   category_approvals: CategoryApproval[];
+  can_split?: boolean;
+  repeat_orders?: RepeatOrder[];
+  repeat_order_choices?: RepeatOrderChoice[];
+};
+
+export type RepeatOrder = {
+  id: number;
+  status: string;
+  status_label: string;
+  requested_by: string;
+  requested_at: string;
+  note: string;
+  noa_name: string;
+  noa_url: string;
+  ntp_name: string;
+  ntp_url: string;
+  lines: {
+    product_name: string;
+    quantity: number;
+    approved_unit_price: string;
+    line_total: string;
+  }[];
+  total: string;
+  can_decide: boolean;
+  decision_reason: string;
+  decided_by: string | null;
+  decided_at: string | null;
+};
+
+export type RepeatOrderChoice = {
+  item_id: number;
+  product_name: string;
+  approved_unit_price: string;
+  valid_until: string | null;
+};
+
+export type MergePreviewRow = {
+  registration_id: number;
+  reference: string;
+  company_name: string;
+  original_submitted_at: string;
+  current_project: string;
+  current_rank: number;
+};
+
+export type MergePreview = {
+  rows: MergePreviewRow[];
+  deals_moving: number;
+  decided_prices: number;
+  same_end_user: boolean;
+  target_project_status: string;
 };
 
 export type CategoryApproval = {
@@ -749,6 +801,94 @@ export function decidePriceRenewal(
 ) {
   return mutation<CategoryApproval>(
     `/api/v1/review/renewals/${renewalId}/decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function requestRepeatOrder(
+  registrationId: number,
+  payload: {
+    noa: File;
+    ntp: File;
+    lines: { item_id: number; quantity: number }[];
+    note: string;
+  },
+  csrfToken: string,
+) {
+  const data = new FormData();
+  data.append("noa", payload.noa);
+  data.append("ntp", payload.ntp);
+  data.append("lines", JSON.stringify(payload.lines));
+  data.append("letters_confirmed", "true");
+  data.append("note", payload.note);
+  return mutation<RepeatOrder>(
+    `/api/v1/registrations/${registrationId}/repeat-orders`,
+    "POST",
+    csrfToken,
+    data,
+  );
+}
+
+export function decideRepeatOrder(
+  repeatOrderId: number,
+  payload: { accept: boolean; reason: string },
+  csrfToken: string,
+) {
+  return mutation<RepeatOrder>(
+    `/api/v1/review/repeat-orders/${repeatOrderId}/decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function getMergePreview(
+  scopeId: number,
+  targetScopeId: number,
+  signal?: AbortSignal,
+) {
+  return request<MergePreview>(
+    `/api/v1/review/opportunity-scopes/${scopeId}/merge-preview?target_scope_id=${targetScopeId}`,
+    signal,
+  );
+}
+
+export function mergeProject(
+  scopeId: number,
+  payload: {
+    target_scope_id: number;
+    reason: string;
+    price_action: "keep" | "review";
+    order: number[];
+  },
+  csrfToken: string,
+) {
+  return mutation<{ id: number; decided_at: string }>(
+    `/api/v1/review/opportunity-scopes/${scopeId}/merge`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function splitRegistration(
+  registrationId: number,
+  payload: {
+    item_ids: number[];
+    target_scope_id: number | null;
+    new_lot_name: string;
+    reason: string;
+    price_action: "keep" | "review";
+  },
+  csrfToken: string,
+) {
+  return mutation<{ id: number; reference: string }>(
+    `/api/v1/review/registrations/${registrationId}/split`,
     "POST",
     csrfToken,
     JSON.stringify(payload),

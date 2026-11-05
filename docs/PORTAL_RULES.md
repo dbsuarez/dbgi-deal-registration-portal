@@ -1,6 +1,6 @@
 # DBGI Portal Rules and How It Works
 
-**As of:** 2026-10-30  
+**As of:** 2026-11-05  
 **Purpose:** the single reference for how the DBGI Project Registration Portal works and the business rules behind
 it. Write help pages, tutorials, guides, and walkthroughs from this file, and update it whenever a rule changes.
 
@@ -17,10 +17,10 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 
 ## 1. Who uses the portal
 
-| Role                   | Who                                                        | What they can do                                                                                                   |
-| ---------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Company user (partner) | Staff of a dealer company                                  | Register and edit their company's deals, withdraw them, report outcomes, see their own ranking and approved prices |
-| DBGI administrator     | DBGI staff (superusers, or staff with the DBGI admin role) | Review and match registrations, decide prices, verify end-users, confirm outcomes, run the operations dashboard    |
+| Role                   | Who                                                        | What they can do                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Company user (partner) | Staff of a dealer company                                  | Register and edit their company's deals, withdraw them, report outcomes, ask for repeat orders, see their own rank and prices    |
+| DBGI administrator     | DBGI staff (superusers, or staff with the DBGI admin role) | Review and match registrations, decide prices and repeat orders, merge and split, verify end-users, confirm outcomes, run the dashboard |
 
 - **Live:** each company sees only its own registrations, rankings, and prices. This is enforced by the server,
   not just hidden on screen.
@@ -36,7 +36,8 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
    rejects it.
 3. A confirmed registration is **Registered** and gets a **rank** among the companies on the same project.
 4. DBGI **decides the prices**, per product category, with a validity date.
-5. The partner can **renew** an approved price, **report the project outcome**, or **withdraw** the deal.
+5. The partner can **renew** an approved price, ask for a **repeat order**, **report the project outcome**, or
+   **withdraw** the deal.
 6. Notifications keep both sides informed at each step.
 
 ## 3. Registering a deal
@@ -107,13 +108,23 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 ## 6. DBGI review and matching
 
 - **Live:** DBGI's review steps are: start review, then confirm the match, request changes, or reject. Each
-  decision needs a written reason, which the partner can read in the Activity.
+  step needs a written reason. The partner can read the change instructions and the rejection reason in the
+  Activity. The reasons for starting a review and for confirming a match are for DBGI only; the partner just sees
+  that the match was confirmed.
 - **Live:** to confirm a match, DBGI links the registration to an existing project scope (the whole project or a
   specific lot) or creates a new project.
 - **Live:** the portal suggests matches and explains why (supporting and conflicting factors). It matches
   automatically only when it is safe; otherwise a person decides. A notice tells the partner when the system made
   the latest match.
-- **Decided (B3):** DBGI decides merges and splits case by case, with a written reason. Not built yet.
+- **Live (B3):** DBGI decides merges and splits case by case, with a written reason. Every merge and split is kept
+  permanently (Administration, Merges and splits). Companies read a plain notice; the reason is for DBGI only.
+  - **Merge:** on the Rankings page, **Merge** moves a project's open deals into another project, when DBGI learns they
+    are the same tender. A preview shows the new order, by original submission time, with each company once. DBGI can
+    change that order for this case. The old project closes. This cannot be undone.
+  - **Split:** on a deal linked to a project, **Split deal** moves some products to a new deal on another lot, or a new
+    lot, when one deal covers separate lots. The new deal has the same company and the original submission time. At
+    least one product stays. Repeat orders that are still waiting must be decided first.
+  - In both, DBGI chooses to keep decided prices or send them back for review. Original submission times never change.
 
 ## 7. Ranking
 
@@ -209,10 +220,17 @@ All counts are calendar days, starting from the server's recorded time.
 
 ## 12. Repeat orders
 
-- **Decided (D1), not built yet:** a repeat order can use the approved special price only for the **same end-user**,
-  with the agency's **NOA** (Notice of Award) and **NTP** (Notice to Proceed) stating it is a repeat order.
-  Otherwise DBGI declines it and the partner registers a new deal. Plain-language explanation:
+- **Live (D1):** a repeat order can use the approved special price only for the **same end-user**, with the agency's
+  **NOA** (Notice of Award) and **NTP** (Notice to Proceed) stating it is a repeat order. Otherwise DBGI declines it and
+  the partner registers a new deal. Plain-language explanation:
   [REPEAT_ORDERS_EXPLAINED.md](REPEAT_ORDERS_EXPLAINED.md).
+- **Live:** on the deal page, the partner uses **Request repeat order**: quantities, both letters, and a confirmation
+  that they are from the deal's end-user and say it is a repeat order. A person at DBGI reads the letters, because the
+  portal cannot read them. DBGI gets a notice and an email, then uses **Accept** or **Decline** with a reason, which the
+  partner can read.
+- **Live:** it needs a price that is still valid, on a deal DBGI confirmed. If the price has ended, it must be renewed
+  first. There is no limit on the number or quantity of repeat orders until the price ends. Each repeat order keeps the
+  price it asked for, even if the deal's price changes later.
 
 ## 13. Notifications
 
@@ -224,7 +242,7 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live (D2):** of those users, only the **person who submitted** the registration gets the email.
 - **Live (D2):** DBGI administrators get a portal notice **and an email** when something needs their action: a new
   registration, corrections submitted, an edit after the registration was confirmed, a project outcome report, a
-  60-day limit reached, or a price renewal request.
+  60-day limit reached, a price renewal request, or a repeat order request.
 - **Live:** a withdrawal only informs DBGI, so it is a portal notice without email.
 - **Live:** each email still needs its event type switched on in the notification settings. The DBGI action events
   start switched on; DBGI can turn any of them off.
@@ -235,8 +253,11 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live:** the portal uses Philippine time (Asia/Manila).
 - **Live:** dates are shown as YYYY-MM-DD, and times as YYYY-MM-DD HH:mm.
 - **Live:** validity periods and limits (30, 60, and 90 days) count calendar days.
-- **Decided (D4):** deadlines stated in working days count Monday to Friday, excluding Philippine public holidays,
-  with a 5:00 PM cutoff. Not built yet; no current feature uses working days.
+- **Live (D4):** working days count Monday to Friday, excluding Philippine public holidays, with a 5:00 PM cutoff. After
+  the cutoff, or on a day off, counting starts from the next working day. The only use today is the planning notice
+  when asking for a price renewal or a repeat order: "allow at least one working day, up to YYYY-MM-DD". It is not a
+  promise that DBGI will answer by then.
+- **Live:** DBGI must enter the public holidays in Administration, under Public holidays. The list starts empty.
 
 ## 15. Records and operations
 
@@ -249,7 +270,8 @@ All counts are calendar days, starting from the server's recorded time.
 ## 16. Waiting for confirmation from the head of pricing and business development
 
 **These rules are already working in the portal, but the head has not seen them.** They were supplied on 2026-11-04,
-after the head's follow-up. Ask about each one, then record the answer in
+after the head's follow-up. The form for this is "Portal Rules to Confirm" in `docs/guides/Decision Questions`. Ask
+about each one, then record the answer in
 [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.md) and change the portal if the answer differs.
 
 | Question to ask                                                                      | What the portal does now                                                                                                                                                                                                                                                               |
@@ -274,6 +296,16 @@ Also worth confirming, because these details were chosen while building his deci
 | Which events email DBGI reviewers?                                                                           | A new registration, corrections submitted, an edit after registration, an outcome report, a 60-day limit, and a price renewal request. Withdrawals are in the portal only. |
 | When DBGI decides a tie, should it set a final order, or only note the decision while the rank stays shared? | It sets a final order, so the companies get different ranks.                                                                                                               |
 | Can a typed-in product join a category whose prices are already decided?                                     | Not until DBGI requests changes on that category.                                                                                                                          |
+
+Also worth confirming, because these details were chosen while building repeat orders, merges, and splits:
+
+| Question to ask                                                  | What the portal does now                                                                                                  |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Can a partner request a repeat order after the price has ended?  | No. The price must be renewed first.                                                                                      |
+| Is there a limit on repeat orders?                               | No limit on the number or quantity until the price ends.                                                                  |
+| When two projects merge, who gets first place?                   | By original submission time, with each company once, unless DBGI changes the order for that case.                         |
+| What happens to decided prices in a merge or split?              | DBGI chooses each time: keep them, or send them back for review.                                                          |
+| When a deal is split, does the new deal keep its place in line?  | Yes. It keeps the same company and the original submission time.                                                          |
 
 ## 17. Keeping this file current
 

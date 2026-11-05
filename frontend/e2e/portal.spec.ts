@@ -1880,3 +1880,283 @@ test("partner requests a price renewal from the registration", async ({
   expect(sent).toEqual({ reason: "The bid moved." });
   await expect(page.getByText("Waiting for DBGI")).toBeVisible();
 });
+
+const decidedDeal = (overrides: Record<string, unknown>) => ({
+  id: 15,
+  reference: "DBGI-000015",
+  project_title: "Repeat project",
+  company_name: "North Dealer",
+  end_user_name: "Sample municipality",
+  end_user_address: "Test address",
+  bid_date: "2026-12-01",
+  delivery_date: "2027-01-15",
+  contact_person: "Test person",
+  contact_designation: "Buyer",
+  contact_email: "test@example.invalid",
+  contact_number: "0000000000",
+  evidence_description: "Public procurement notice",
+  evidence_url: "",
+  evidence_sharing_confirmed: true,
+  status: "eligible_matched",
+  status_label: "Registered",
+  project_status: "active",
+  project_status_label: "Active",
+  price_status: "approved",
+  price_status_label: "Approved",
+  needs_review: false,
+  created_at: "2026-11-01T02:00:00Z",
+  version: 3,
+  can_edit: true,
+  can_withdraw: true,
+  can_report_outcome: false,
+  outcome_reports: [],
+  competitor_items: [],
+  items: [
+    {
+      id: 41,
+      product_name: "Printer",
+      non_catalog_name: "",
+      quantity: 20,
+      requested_unit_price: "9000.00",
+    },
+    {
+      id: 42,
+      product_name: "Scanner",
+      non_catalog_name: "",
+      quantity: 2,
+      requested_unit_price: "400.00",
+    },
+  ],
+  attachments: [],
+  events: [],
+  opportunity_scope_id: 3,
+  opportunity_scope_label: "Repeat project | Whole opportunity",
+  category_approvals: [],
+  matching_suggestion: null,
+  repeat_orders: [],
+  repeat_order_choices: [],
+  can_split: false,
+  ...overrides,
+});
+
+const waitingRepeatOrder = {
+  id: 9,
+  status: "pending",
+  status_label: "Waiting for DBGI",
+  requested_by: "Test person",
+  requested_at: "2026-11-05T02:00:00Z",
+  note: "",
+  noa_name: "noa.pdf",
+  noa_url: "/attachments/repeat-orders/9/noa/download/",
+  ntp_name: "ntp.pdf",
+  ntp_url: "/attachments/repeat-orders/9/ntp/download/",
+  lines: [
+    {
+      product_name: "Printer",
+      quantity: 5,
+      approved_unit_price: "9000.00",
+      line_total: "45000.00",
+    },
+  ],
+  total: "45000.00",
+  can_decide: false,
+  decision_reason: "",
+  decided_by: null,
+  decided_at: null,
+};
+
+test("partner requests a repeat order with both letters", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: session }),
+  );
+  let current = decidedDeal({
+    repeat_order_choices: [
+      {
+        item_id: 41,
+        product_name: "Printer",
+        approved_unit_price: "9000.00",
+        valid_until: "2027-02-02",
+      },
+    ],
+  });
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({ json: current }),
+  );
+  let sent = "";
+  await page.route("**/api/v1/registrations/15/repeat-orders", (route) => {
+    sent = route.request().postData() ?? "";
+    current = decidedDeal({ repeat_orders: [waitingRepeatOrder] });
+    return route.fulfill({ status: 201, json: waitingRepeatOrder });
+  });
+
+  await page.goto("/registrations/15/");
+  await page.getByRole("button", { name: "Request repeat order" }).click();
+  const dialog = page.getByRole("dialog", { name: "Request a repeat order" });
+  const send = dialog.getByRole("button", { name: "Send request" });
+  await dialog.getByLabel("Quantity of Printer").fill("5");
+  await expect(send).toBeDisabled();
+  await dialog.getByLabel("Notice of Award file").setInputFiles({
+    name: "noa.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 noa"),
+  });
+  await dialog.getByLabel("Notice to Proceed file").setInputFiles({
+    name: "ntp.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 ntp"),
+  });
+  await expect(send).toBeDisabled();
+  await dialog.getByRole("checkbox").check();
+  await send.click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toContain('"quantity":5');
+  await expect(page.getByText("Waiting for DBGI")).toBeVisible();
+  await expect(page.getByText("45,000.00")).toBeVisible();
+});
+
+test("DBGI splits a deal and opens the new one", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
+  );
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({ json: decidedDeal({ can_split: true }) }),
+  );
+  await page.route("**/api/v1/registrations/16", (route) =>
+    route.fulfill({ json: decidedDeal({ id: 16, reference: "DBGI-000016" }) }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/review/registrations/15/split", (route) => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({
+      status: 201,
+      json: { id: 16, reference: "DBGI-000016" },
+    });
+  });
+
+  await page.goto("/registrations/15/");
+  await page.getByRole("button", { name: "Split deal" }).click();
+  const dialog = page.getByRole("dialog", { name: "Split this deal" });
+  const split = dialog.getByRole("button", { name: "Split deal" });
+  await dialog.getByRole("checkbox", { name: /Printer/ }).check();
+  await dialog.getByRole("checkbox", { name: /Scanner/ }).check();
+  await dialog.getByLabel("New lot name").fill("Lot 2");
+  await dialog.getByLabel(/Reason/).fill("The tender has two lots.");
+  await expect(split).toBeDisabled();
+  await dialog.getByRole("checkbox", { name: /Printer/ }).uncheck();
+  await split.click();
+
+  await expect(page).toHaveURL(/registrations\/16\/$/);
+  expect(sent).toMatchObject({
+    item_ids: [42],
+    new_lot_name: "Lot 2",
+    price_action: "keep",
+  });
+});
+
+test("DBGI merges a project using the preview", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
+  );
+  await page.route("**/api/v1/rankings*", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            opportunity_id: 1,
+            opportunity_title: "Printers",
+            end_user_name: "Office",
+            scope_id: 7,
+            scope_name: "Whole opportunity",
+            scope_type: "whole",
+            participant_count: 1,
+            entries: [
+              {
+                rank: 1,
+                is_tied: false,
+                tie_decided: false,
+                tie_reason: null,
+                registration_id: 21,
+                reference: "DBGI-000021",
+                company_name: "South Dealer",
+                project_title: "Printers",
+                original_submitted_at: "2026-11-02T02:00:00Z",
+              },
+            ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 25,
+      },
+    }),
+  );
+  await page.route("**/api/v1/review/opportunity-scopes", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 8,
+          opportunity_id: 2,
+          opportunity_title: "Same tender",
+          name: "Whole opportunity",
+          scope_type: "whole",
+          label: "Same tender | Whole opportunity",
+        },
+      ],
+    }),
+  );
+  await page.route("**/merge-preview*", (route) =>
+    route.fulfill({
+      json: {
+        rows: [
+          {
+            registration_id: 20,
+            reference: "DBGI-000020",
+            company_name: "North Dealer",
+            original_submitted_at: "2026-11-01T02:00:00Z",
+            current_project: "Same tender | Whole opportunity",
+            current_rank: 1,
+          },
+          {
+            registration_id: 21,
+            reference: "DBGI-000021",
+            company_name: "South Dealer",
+            original_submitted_at: "2026-11-02T02:00:00Z",
+            current_project: "Printers | Whole opportunity",
+            current_rank: 1,
+          },
+        ],
+        deals_moving: 1,
+        decided_prices: 0,
+        same_end_user: true,
+        target_project_status: "Upcoming",
+      },
+    }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/review/opportunity-scopes/7/merge", (route) => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({
+      json: { id: 1, decided_at: "2026-11-05T02:00:00Z" },
+    });
+  });
+
+  await page.goto("/rankings/");
+  await page.getByRole("button", { name: "Merge" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Merge this project into another",
+  });
+  await dialog.getByRole("combobox", { name: /Merge into/ }).click();
+  await page.getByRole("option", { name: /Same tender/ }).click();
+  await expect(dialog.getByText("1. North Dealer")).toBeVisible();
+  await dialog.getByRole("button", { name: "Move South Dealer up" }).click();
+  await expect(dialog.getByText("1. South Dealer")).toBeVisible();
+  await dialog.getByLabel(/Reason/).fill("They are the same tender.");
+  await dialog.getByRole("button", { name: "Merge projects" }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toMatchObject({ target_scope_id: 8, order: [21, 20] });
+});

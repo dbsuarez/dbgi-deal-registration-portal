@@ -44,11 +44,12 @@ If either is missing (a different agency, no letters, or letters that do not say
 
 ## What this means for the portal
 
-This will be built in the repeat-order milestone, after pricing:
+This is now built (2026-11-05). It is on the deal page, under Repeat orders:
 
 - A repeat-order request is linked to the original deal.
 - The partner must upload the NOA and NTP.
-- The portal checks that the end-user matches the original deal.
+- The partner confirms that both letters are from the original deal's end-user and say it is a repeat order.
+  A person at DBGI reads the letters to check this, because the portal cannot read them.
 - DBGI accepts or declines the request, and the decision and reason are recorded.
 
 This is stricter than the original plan, which said proof for repeat orders was not mandatory.

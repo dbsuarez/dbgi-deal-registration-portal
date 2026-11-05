@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import ClassVar
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from django.contrib.admin.models import LogEntry
 from django.contrib.admin.sites import AdminSite
@@ -45,6 +46,7 @@ from .models import (
     Product,
     ProductPrice,
     ProjectOutcomeReport,
+    PublicHoliday,
     RankingTieDecision,
     Registration,
     RegistrationAttachment,
@@ -54,8 +56,10 @@ from .models import (
     RegistrationItemApproval,
     RegistrationNotification,
     RegistrationReviewDecision,
+    RepeatOrder,
     User,
 )
+from .working_days import add_working_days
 
 
 class RegistrationApiTests(TestCase):
@@ -3048,3 +3052,329 @@ class RegistrationApiTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(refused.status_code, 409, refused.content)
+
+    def approve_price(self, registration, unit_price="9000.00", valid_days=30):
+        approval = registration.category_approvals.get()
+        RegistrationCategoryApproval.objects.filter(pk=approval.pk).update(
+            status=RegistrationCategoryApproval.Status.APPROVED,
+            valid_until=timezone.localdate() + timedelta(days=valid_days),
+        )
+        for item in registration.items.all():
+            RegistrationItemApproval.objects.create(
+                category_approval=approval, registration_item=item, approved_unit_price=unit_price
+            )
+        return approval
+
+    def priced_deal(self, company_user=None):
+        self.set_price("10000.00")
+        registration = self.register_deal()
+        if company_user:
+            Registration.objects.filter(pk=registration.pk).update(
+                company=company_user.company, submitted_by=company_user
+            )
+            registration.refresh_from_db()
+        return registration
+
+    def request_repeat(self, registration, *, confirmed=True, quantity=5, noa=None):
+        item = registration.items.first()
+        return self.client.post(
+            f"/api/v1/registrations/{registration.pk}/repeat-orders",
+            data={
+                "noa": noa or SimpleUploadedFile("noa.pdf", b"%PDF-1.4 notice of award"),
+                "ntp": SimpleUploadedFile("ntp.pdf", b"%PDF-1.4 notice to proceed"),
+                "lines": json.dumps([{"item_id": item.pk, "quantity": quantity}]),
+                "letters_confirmed": "true" if confirmed else "false",
+                "note": "Five more printers for the same office.",
+            },
+        )
+
+    def decide_repeat(self, repeat_order_id, accept=True):
+        return self.client.post(
+            f"/api/v1/review/repeat-orders/{repeat_order_id}/decision",
+            data=json.dumps({"accept": accept, "reason": "The letters say it is a repeat order."}),
+            content_type="application/json",
+        )
+
+    def test_repeat_order_needs_a_valid_approved_price_and_both_letters(self):
+        registration = self.priced_deal()
+        self.link_to_project(registration)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.user_a)
+            self.assertEqual(self.request_repeat(registration).status_code, 400)
+
+            approval = self.approve_price(registration)
+            detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+            self.assertEqual(len(detail["repeat_order_choices"]), 1)
+            self.assertEqual(self.request_repeat(registration, confirmed=False).status_code, 400)
+            wrong_file = SimpleUploadedFile("noa.exe", b"not a letter")
+            self.assertEqual(self.request_repeat(registration, noa=wrong_file).status_code, 400)
+            self.assertEqual(RepeatOrder.objects.count(), 0)
+
+            RegistrationCategoryApproval.objects.filter(pk=approval.pk).update(
+                valid_until=timezone.localdate() - timedelta(days=1)
+            )
+            self.assertEqual(self.request_repeat(registration).status_code, 400)
+
+    def test_repeat_order_is_decided_by_dbgi_and_keeps_its_price(self):
+        registration = self.priced_deal()
+        self.link_to_project(registration)
+        self.approve_price(registration)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.user_a)
+            created = self.request_repeat(registration)
+            self.assertEqual(created.status_code, 201, created.content)
+            body = created.json()
+            self.assertEqual(body["status_label"], "Waiting for DBGI")
+            self.assertEqual(Decimal(body["total"]), Decimal("45000.00"))
+            self.assertFalse(body["can_decide"])
+            self.assertTrue(
+                RegistrationNotification.objects.filter(
+                    recipient=self.admin, title="Repeat order requested"
+                ).exists()
+            )
+            self.assertEqual(self.client.get(body["noa_url"]).status_code, 200)
+
+            self.client.force_login(self.user_b)
+            self.assertEqual(self.client.get(body["noa_url"]).status_code, 404)
+            refused = self.decide_repeat(body["id"])
+            self.assertEqual(refused.status_code, 403)
+
+            self.client.force_login(self.admin)
+            self.assertEqual(self.client.get(body["ntp_url"]).status_code, 200)
+            decided = self.decide_repeat(body["id"])
+            self.assertEqual(decided.status_code, 200, decided.content)
+            self.assertEqual(decided.json()["status"], "accepted")
+            self.assertEqual(self.decide_repeat(body["id"]).status_code, 404)
+            self.assertTrue(
+                RegistrationNotification.objects.filter(
+                    recipient=self.user_a, title="Repeat order accepted"
+                ).exists()
+            )
+            RegistrationItemApproval.objects.filter(
+                registration_item__registration=registration
+            ).update(approved_unit_price="8000.00")
+            self.client.force_login(self.user_a)
+            detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+            self.assertEqual(Decimal(detail["repeat_orders"][0]["total"]), Decimal("45000.00"))
+
+    def test_repeat_order_cannot_be_accepted_after_the_price_ended_or_on_a_withdrawn_deal(self):
+        registration = self.priced_deal()
+        self.link_to_project(registration)
+        approval = self.approve_price(registration)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.user_a)
+            repeat_id = self.request_repeat(registration).json()["id"]
+            RegistrationCategoryApproval.objects.filter(pk=approval.pk).update(
+                valid_until=timezone.localdate() - timedelta(days=1)
+            )
+            self.client.force_login(self.admin)
+            ended = self.decide_repeat(repeat_id)
+            self.assertEqual(ended.status_code, 400)
+            self.assertEqual(ended.json()["code"], "price_not_active")
+            Registration.objects.filter(pk=registration.pk).update(
+                status=Registration.Status.WITHDRAWN
+            )
+            self.assertEqual(self.decide_repeat(repeat_id, accept=False).status_code, 409)
+
+    def two_projects(self):
+        first = self.priced_deal()
+        self.link_to_project(first)
+        second = self.register_deal()
+        Registration.objects.filter(pk=second.pk).update(
+            company=self.company_b, submitted_by=self.user_b
+        )
+        self.link_to_project(second)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        return first, second
+
+    def merge(self, source, target, **overrides):
+        body = {
+            "target_scope_id": target.opportunity_scope_id,
+            "reason": "DBGI learned these are the same tender.",
+            "price_action": "keep",
+            **overrides,
+        }
+        return self.client.post(
+            f"/api/v1/review/opportunity-scopes/{source.opportunity_scope_id}/merge",
+            data=json.dumps(body),
+            content_type="application/json",
+        )
+
+    def test_merge_keeps_submission_times_and_only_dbgi_reads_the_reason(self):
+        first, second = self.two_projects()
+        original_time = second.original_submitted_at
+        self.approve_price(first)
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.merge(second, first).status_code, 403)
+
+        self.client.force_login(self.admin)
+        preview = self.client.get(
+            f"/api/v1/review/opportunity-scopes/{second.opportunity_scope_id}/merge-preview"
+            f"?target_scope_id={first.opportunity_scope_id}"
+        ).json()
+        self.assertEqual([row["registration_id"] for row in preview["rows"]], [first.pk, second.pk])
+        self.assertEqual(preview["deals_moving"], 1)
+        source_scope = second.opportunity_scope
+        response = self.merge(second, first)
+        self.assertEqual(response.status_code, 200, response.content)
+
+        second.refresh_from_db()
+        source_scope.refresh_from_db()
+        self.assertEqual(second.opportunity_scope_id, first.opportunity_scope_id)
+        self.assertEqual(second.original_submitted_at, original_time)
+        self.assertFalse(source_scope.is_active)
+        self.assertFalse(source_scope.opportunity.is_active)
+        first.refresh_from_db()
+        self.assertEqual(first.category_approvals.get().status, "approved")
+
+        self.client.force_login(self.user_b)
+        detail = self.client.get(f"/api/v1/registrations/{second.pk}").json()
+        event = next(item for item in detail["events"] if item["event_type"] == "Project merged")
+        self.assertNotIn("same tender", event["details"])
+        self.assertIn("combined", event["details"])
+        rankings = self.client.get("/api/v1/rankings").json()["items"]
+        self.assertEqual(rankings[0]["entries"][0]["rank"], 2)
+        self.client.force_login(self.admin)
+        detail = self.client.get(f"/api/v1/registrations/{second.pk}").json()
+        event = next(item for item in detail["events"] if item["event_type"] == "Project merged")
+        self.assertIn("same tender", event["details"])
+
+    def test_merge_can_set_the_order_and_send_prices_back_for_review(self):
+        first, second = self.two_projects()
+        self.approve_price(second)
+        self.client.force_login(self.admin)
+        invalid = self.merge(second, first, order=[first.pk])
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(self.merge(second, second).status_code, 400)
+
+        response = self.merge(second, first, order=[second.pk, first.pk], price_action="review")
+        self.assertEqual(response.status_code, 200, response.content)
+        approval = second.category_approvals.get()
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+        self.assertFalse(approval.item_approvals.exists())
+        self.assertIsNone(approval.valid_until)
+        entries = self.client.get("/api/v1/rankings").json()["items"][0]["entries"]
+        ranks = {entry["registration_id"]: entry["rank"] for entry in entries}
+        self.assertEqual(ranks, {second.pk: 1, first.pk: 2})
+
+    def deal_with_two_products(self):
+        other = Product.objects.create(code="SPLIT-1", name="Split product", category="Scanners")
+        ProductPrice.objects.create(product=other, unit_price="500.00", reason="Test price")
+        registration = self.priced_deal()
+        RegistrationItem.objects.create(
+            registration=registration, product=other, quantity=2, requested_unit_price="400.00"
+        )
+        RegistrationCategoryApproval.objects.create(registration=registration, category="Scanners")
+        self.link_to_project(registration)
+        registration.refresh_from_db()
+        return registration, registration.items.get(product=other)
+
+    def split(self, registration, item, **overrides):
+        body = {
+            "item_ids": [item.pk],
+            "new_lot_name": "Lot 2",
+            "reason": "The tender has two separate lots.",
+            "price_action": "keep",
+            **overrides,
+        }
+        return self.client.post(
+            f"/api/v1/review/registrations/{registration.pk}/split",
+            data=json.dumps(body),
+            content_type="application/json",
+        )
+
+    def test_split_moves_products_to_a_new_deal_with_the_original_time(self):
+        registration, item = self.deal_with_two_products()
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.split(registration, item).status_code, 403)
+
+        self.client.force_login(self.admin)
+        detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+        self.assertTrue(detail["can_split"])
+        all_items = list(registration.items.values_list("pk", flat=True))
+        self.assertEqual(self.split(registration, item, item_ids=all_items).status_code, 400)
+        response = self.split(registration, item)
+        self.assertEqual(response.status_code, 201, response.content)
+
+        created = Registration.objects.get(pk=response.json()["id"])
+        self.assertEqual(created.original_submitted_at, registration.original_submitted_at)
+        self.assertEqual(created.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertEqual(created.company_id, registration.company_id)
+        self.assertEqual(created.opportunity_scope.name, "Lot 2")
+        self.assertEqual(created.opportunity_scope.scope_type, OpportunityScope.ScopeType.LOT)
+        self.assertEqual(list(created.items.values_list("pk", flat=True)), [item.pk])
+        self.assertEqual(created.category_approvals.get().category, "Scanners")
+        self.assertEqual(registration.category_approvals.count(), 1)
+        self.assertEqual(created.competitor_items.count(), registration.competitor_items.count())
+        self.assertEqual(self.split(registration, item).status_code, 400)
+        self.client.force_login(self.user_a)
+        new_detail = self.client.get(f"/api/v1/registrations/{created.pk}").json()
+        event = new_detail["events"][0]
+        self.assertNotIn("two separate lots", event["details"])
+
+    def test_split_shares_a_price_decision_between_both_deals_and_copies_files(self):
+        registration = self.priced_deal()
+        second_item = RegistrationItem.objects.create(
+            registration=registration,
+            product=self.product,
+            quantity=3,
+            requested_unit_price="8500.00",
+        )
+        self.link_to_project(registration)
+        self.approve_price(registration)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            attachment = RegistrationAttachment(
+                registration=registration,
+                original_name="support.pdf",
+                uploaded_by=self.user_a,
+            )
+            attachment.file.save("support.pdf", SimpleUploadedFile("s.pdf", b"%PDF-1.4 x"))
+            self.client.force_login(self.admin)
+            response = self.split(registration, second_item, new_lot_name="Lot B")
+            self.assertEqual(response.status_code, 201, response.content)
+            created = Registration.objects.get(pk=response.json()["id"])
+            copy = created.attachments.get()
+            self.assertNotEqual(copy.file.name, attachment.file.name)
+            attachment.delete()
+            self.assertTrue(copy.file.storage.exists(copy.file.name))
+        kept = registration.category_approvals.get()
+        moved = created.category_approvals.get()
+        self.assertEqual(moved.status, "approved")
+        self.assertEqual(moved.valid_until, kept.valid_until)
+        self.assertEqual(moved.item_approvals.get().registration_item_id, second_item.pk)
+        self.assertEqual(kept.item_approvals.count(), 1)
+
+    def test_split_waits_for_pending_repeat_orders(self):
+        registration, item = self.deal_with_two_products()
+        approval = registration.category_approvals.get(category=self.product.category)
+        RegistrationCategoryApproval.objects.filter(pk=approval.pk).update(
+            status=RegistrationCategoryApproval.Status.APPROVED,
+            valid_until=timezone.localdate() + timedelta(days=30),
+        )
+        first_item = registration.items.get(product=self.product)
+        RegistrationItemApproval.objects.create(
+            category_approval=approval,
+            registration_item=first_item,
+            approved_unit_price="9000.00",
+        )
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.user_a)
+            self.assertEqual(self.request_repeat(registration).status_code, 201)
+            self.client.force_login(self.admin)
+            response = self.split(registration, item)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "repeat_order_pending")
+
+    def test_working_days_skip_weekends_holidays_and_time_after_the_cutoff(self):
+        manila = ZoneInfo("Asia/Manila")
+        wednesday = datetime(2026, 11, 4, 10, 0, tzinfo=manila)
+        self.assertEqual(add_working_days(wednesday, 1), date(2026, 11, 5))
+        after_cutoff = datetime(2026, 11, 4, 17, 0, tzinfo=manila)
+        self.assertEqual(add_working_days(after_cutoff, 1), date(2026, 11, 6))
+        friday = datetime(2026, 11, 6, 10, 0, tzinfo=manila)
+        self.assertEqual(add_working_days(friday, 1), date(2026, 11, 9))
+        saturday = datetime(2026, 11, 7, 10, 0, tzinfo=manila)
+        self.assertEqual(add_working_days(saturday, 1), date(2026, 11, 10))
+        PublicHoliday.objects.create(date=date(2026, 11, 5), name="Test holiday")
+        self.assertEqual(add_working_days(wednesday, 1), date(2026, 11, 6))

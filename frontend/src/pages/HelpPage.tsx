@@ -61,6 +61,20 @@ type PracticeScenario = {
 
 const companyScenarios: PracticeScenario[] = [
   {
+    title: "Request a repeat order",
+    actor: "Company user",
+    before:
+      "Use this when the same End-user orders more of the same item without a new bidding, and your approved price is still valid.",
+    steps: [
+      "Get the End-user's Notice of Award (NOA) and Notice to Proceed (NTP). Both must say it is a repeat order.",
+      "Open the registration and select Request repeat order.",
+      "Type the quantity, add both letters, and confirm the statement.",
+      "Select Send request, and wait for DBGI's decision.",
+    ],
+    expected:
+      "The request shows Waiting for DBGI. DBGI's decision and reason appear under Repeat orders. If it is declined, you can register a new deal.",
+  },
+  {
     title: "Submit a new registration",
     actor: "Company user",
     before:
@@ -108,6 +122,33 @@ const companyScenarios: PracticeScenario[] = [
 ];
 
 const adminScenarios: PracticeScenario[] = [
+  {
+    title: "Decide a repeat order",
+    actor: "DBGI administrator",
+    before: "Use a registration with a repeat order waiting for DBGI.",
+    steps: [
+      "Open the registration and find Repeat orders.",
+      "Open the NOA and NTP letters.",
+      "Check that both are from the same End-user and say it is a repeat order.",
+      "Select Accept or Decline, and write your reason.",
+    ],
+    expected:
+      "The company is notified and can read your reason. If the approved price has ended, it must be renewed before you can accept.",
+  },
+  {
+    title: "Merge two projects or split a deal",
+    actor: "DBGI administrator",
+    before:
+      "Use this when two projects are the same tender, or one deal covers separate lots.",
+    steps: [
+      "To merge, open Rankings and select Merge on the project to close.",
+      "Choose the project to keep, and check the new ranking in the preview.",
+      "To split, open the registration and select Split deal, then choose the products and the lot.",
+      "Choose whether to keep decided prices or send them back for review, and write your reason.",
+    ],
+    expected:
+      "Original submission times stay the same. Companies get a notice, but only DBGI can read your reason. A merge cannot be undone.",
+  },
   {
     title: "Review and confirm a registration match",
     actor: "DBGI administrator",

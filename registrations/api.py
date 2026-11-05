@@ -1,3 +1,4 @@
+import json
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -12,7 +13,7 @@ from django.http import Http404
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Field, NinjaAPI, Schema, Status, UploadedFile
+from ninja import Field, Form, NinjaAPI, Schema, Status, UploadedFile
 from ninja.errors import AuthenticationError
 from ninja.errors import ValidationError as NinjaValidationError
 from ninja.security import django_auth
@@ -44,20 +45,34 @@ from .models import (
     RegistrationItemApproval,
     RegistrationNotification,
     RegistrationReviewDecision,
+    RepeatOrder,
+    RepeatOrderLine,
     normalize_end_user_value,
 )
 from .notifications import (
     notify_company_users,
     notify_dbgi_renewal_requested,
+    notify_dbgi_repeat_order_requested,
     notify_dbgi_review_needed,
     notify_dbgi_withdrawal,
     notify_outcome_decision,
     notify_outcome_reported,
     notify_price_decision,
     notify_registration_decision,
+    notify_repeat_order_decision,
     notify_submission,
 )
-from .ranking import latest_tie_decisions, rank_scope, ranked_registrations
+from .project_changes import (
+    PROJECT_CHANGE_EVENTS,
+    SPLITTABLE_STATUSES,
+    ProjectChangeError,
+    merge_preview,
+    merge_projects,
+    public_details,
+    split_deal,
+)
+from .ranking import latest_rank_orders, latest_tie_decisions, rank_scope, ranked_registrations
+from .working_days import add_working_days
 
 api = NinjaAPI(
     title="DBGI Project Registration API",
@@ -311,7 +326,90 @@ class MatchingSuggestionOutput(Schema):
     created_at: datetime
 
 
+class RepeatOrderLineOutput(Schema):
+    product_name: str
+    quantity: int
+    approved_unit_price: Decimal
+    line_total: Decimal
+
+
+class RepeatOrderOutput(Schema):
+    id: int
+    status: str
+    status_label: str
+    requested_by: str
+    requested_at: datetime
+    note: str
+    noa_name: str
+    noa_url: str
+    ntp_name: str
+    ntp_url: str
+    lines: list[RepeatOrderLineOutput]
+    total: Decimal
+    can_decide: bool
+    decision_reason: str
+    decided_by: str | None
+    decided_at: datetime | None
+
+
+class RepeatOrderChoice(Schema):
+    item_id: int
+    product_name: str
+    approved_unit_price: Decimal
+    valid_until: date | None
+
+
+class RepeatOrderDecisionInput(Schema):
+    accept: bool
+    reason: str = Field(min_length=5, max_length=2000)
+
+
+class MergePreviewRow(Schema):
+    registration_id: int
+    reference: str
+    company_name: str
+    original_submitted_at: datetime
+    current_project: str
+    current_rank: int
+
+
+class MergePreviewOutput(Schema):
+    rows: list[MergePreviewRow]
+    deals_moving: int
+    decided_prices: int
+    same_end_user: bool
+    target_project_status: str
+
+
+class MergeInput(Schema):
+    target_scope_id: int
+    reason: str = Field(min_length=5, max_length=2000)
+    price_action: Literal["keep", "review"]
+    order: list[int] = Field(default_factory=list)
+
+
+class SplitInput(Schema):
+    item_ids: list[int] = Field(min_length=1)
+    target_scope_id: int | None = None
+    new_lot_name: str = Field(default="", max_length=180)
+    reason: str = Field(min_length=5, max_length=2000)
+    price_action: Literal["keep", "review"]
+
+
+class SplitOutput(Schema):
+    id: int
+    reference: str
+
+
+class ProjectChangeOutput(Schema):
+    id: int
+    decided_at: datetime
+
+
 class RegistrationDetail(RegistrationListItem):
+    can_split: bool
+    repeat_orders: list[RepeatOrderOutput]
+    repeat_order_choices: list[RepeatOrderChoice]
     end_user_address: str
     bid_date: date
     delivery_date: date
@@ -412,6 +510,7 @@ class SessionResponse(Schema):
     phone_number: str
     is_dbgi_admin: bool
     is_debug: bool
+    one_working_day_ends: date
     end_user_field_help_available: bool
     show_end_user_field_help: bool
     csrf_token: str
@@ -544,6 +643,7 @@ def session(request):
         "phone_number": request.user.phone_number,
         "is_dbgi_admin": request.user.is_dbgi_admin,
         "is_debug": settings.DEBUG,
+        "one_working_day_ends": add_working_days(timezone.now(), 1),
         "end_user_field_help_available": help_available,
         "show_end_user_field_help": help_available and request.user.show_end_user_field_help,
         "csrf_token": get_token(request),
@@ -787,6 +887,8 @@ def _serialize_registration_event(event, *, include_internal_details):
         "Confirm eligible match",
     }:
         details = "DBGI confirmed this registration's opportunity match."
+    if not include_internal_details and event.event_type in PROJECT_CHANGE_EVENTS:
+        details = public_details(details)
     return {
         "id": event.pk,
         "event_type": event.event_type,
@@ -806,6 +908,80 @@ OPEN_PROJECT_STATUSES = {
     Opportunity.ProjectStatus.ON_HOLD,
 }
 OUTCOME_REPORTABLE_STATUSES = {Registration.Status.ELIGIBLE_MATCHED, Registration.Status.APPROVED}
+
+
+ACTIVE_PRICE_STATUSES = {
+    RegistrationCategoryApproval.Status.APPROVED,
+    RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+}
+
+
+def _item_label(item):
+    return item.product.name if item.product_id else item.non_catalog_name
+
+
+def _has_active_price(item):
+    price = getattr(item, "price_approval", None)
+    return (
+        price is not None
+        and price.approved_unit_price is not None
+        and price.category_approval.effective_status in ACTIVE_PRICE_STATUSES
+    )
+
+
+def _repeat_order_choices(registration):
+    """Products a repeat order can use: decided, valid, on a deal DBGI confirmed (decision D1)."""
+    if registration.status not in OUTCOME_REPORTABLE_STATUSES:
+        return []
+    items = registration.items.select_related("product", "price_approval__category_approval")
+    return [
+        {
+            "item_id": item.pk,
+            "product_name": _item_label(item),
+            "approved_unit_price": item.price_approval.approved_unit_price,
+            "valid_until": item.price_approval.category_approval.valid_until,
+        }
+        for item in items
+        if _has_active_price(item)
+    ]
+
+
+def _serialize_repeat_order(repeat_order, user):
+    lines = [
+        {
+            "product_name": _item_label(line.registration_item),
+            "quantity": line.quantity,
+            "approved_unit_price": line.approved_unit_price,
+            "line_total": line.quantity * line.approved_unit_price,
+        }
+        for line in repeat_order.lines.select_related("registration_item__product")
+    ]
+    return {
+        "id": repeat_order.pk,
+        "status": repeat_order.status,
+        "status_label": repeat_order.get_status_display(),
+        "requested_by": (
+            repeat_order.requested_by.get_full_name() or repeat_order.requested_by.username
+        ),
+        "requested_at": repeat_order.requested_at,
+        "note": repeat_order.note,
+        "noa_name": repeat_order.noa_name,
+        "noa_url": f"/attachments/repeat-orders/{repeat_order.pk}/noa/download/",
+        "ntp_name": repeat_order.ntp_name,
+        "ntp_url": f"/attachments/repeat-orders/{repeat_order.pk}/ntp/download/",
+        "lines": lines,
+        "total": sum((line["line_total"] for line in lines), Decimal("0.00")),
+        "can_decide": user.is_dbgi_admin
+        and repeat_order.status == RepeatOrder.Status.PENDING
+        and repeat_order.registration.status != Registration.Status.WITHDRAWN,
+        "decision_reason": repeat_order.decision_reason,
+        "decided_by": (
+            (repeat_order.decided_by.get_full_name() or repeat_order.decided_by.username)
+            if repeat_order.decided_by_id
+            else None
+        ),
+        "decided_at": repeat_order.decided_at,
+    }
 
 
 def _outcome_report_blocker(registration):
@@ -905,6 +1081,20 @@ def _serialize_registration_detail(registration, user):
             and not _commercial_review_started(registration),
             "can_report_outcome": not user.is_dbgi_admin
             and _outcome_report_blocker(registration) is None,
+            "can_split": user.is_dbgi_admin
+            and registration.status in SPLITTABLE_STATUSES
+            and registration.opportunity_scope_id is not None
+            and registration.items.count() > 1
+            and not registration.repeat_orders.filter(status=RepeatOrder.Status.PENDING).exists(),
+            "repeat_orders": [
+                _serialize_repeat_order(repeat_order, user)
+                for repeat_order in registration.repeat_orders.select_related(
+                    "requested_by", "decided_by", "registration"
+                )
+            ],
+            "repeat_order_choices": (
+                [] if user.is_dbgi_admin else _repeat_order_choices(registration)
+            ),
             "outcome_reports": [
                 _serialize_outcome_report(report)
                 for report in registration.outcome_reports.select_related(
@@ -1793,12 +1983,13 @@ def list_rankings(request, page: int = 1, page_size: int = 25, search: str = "")
 
     registrations_by_scope = ranked_registrations(scope_ids)
     decisions = latest_tie_decisions(scope_ids)
+    rank_orders = latest_rank_orders(scope_ids)
 
     items = []
     for scope in page_scopes:
         ranked = registrations_by_scope[scope.pk]
         entries = []
-        for ranked_entry in rank_scope(scope.pk, ranked, decisions):
+        for ranked_entry in rank_scope(scope.pk, ranked, decisions, rank_orders.get(scope.pk)):
             registration = ranked_entry.registration
             if company_id is None or registration.company_id == company_id:
                 entries.append(
@@ -1874,7 +2065,8 @@ def decide_ranking_tie(request, scope_id: int, payload: TieDecisionInput):
             decided_by=request.user,
         )
         decisions = latest_tie_decisions([scope_id])
-        for entry in rank_scope(scope_id, ranked, decisions):
+        rank_order = latest_rank_orders([scope_id]).get(scope_id)
+        for entry in rank_scope(scope_id, ranked, decisions, rank_order):
             registration = entry.registration
             if registration.pk not in tied_ids:
                 continue
@@ -1897,6 +2089,245 @@ def decide_ranking_tie(request, scope_id: int, payload: TieDecisionInput):
                 ),
             )
     return {"id": decision.pk, "decided_at": decision.decided_at}
+
+
+ADMIN_REQUIRED = {"code": "admin_required", "message": "DBGI administrator access is required."}
+
+
+@api.get(
+    "/review/opportunity-scopes/{scope_id}/merge-preview",
+    auth=django_auth,
+    response={200: MergePreviewOutput, 400: ErrorResponse, 403: ErrorResponse},
+)
+def preview_project_merge(request, scope_id: int, target_scope_id: int):
+    if not _require_admin(request):
+        return Status(403, ADMIN_REQUIRED)
+    try:
+        return merge_preview(scope_id, target_scope_id)
+    except ProjectChangeError as exc:
+        return Status(400, {"code": exc.code, "message": exc.message})
+
+
+@api.post(
+    "/review/opportunity-scopes/{scope_id}/merge",
+    auth=django_auth,
+    response={200: ProjectChangeOutput, 400: ErrorResponse, 403: ErrorResponse},
+)
+def merge_project(request, scope_id: int, payload: MergeInput):
+    """DBGI combines two projects, case by case, with a written reason (decision B3)."""
+    if not _require_admin(request):
+        return Status(403, ADMIN_REQUIRED)
+    try:
+        change = merge_projects(
+            source_id=scope_id,
+            target_id=payload.target_scope_id,
+            actor=request.user,
+            reason=payload.reason.strip(),
+            price_action=payload.price_action,
+            order=payload.order,
+        )
+    except ProjectChangeError as exc:
+        return Status(400, {"code": exc.code, "message": exc.message})
+    return {"id": change.pk, "decided_at": change.decided_at}
+
+
+@api.post(
+    "/review/registrations/{registration_id}/split",
+    auth=django_auth,
+    response={201: SplitOutput, 400: ErrorResponse, 403: ErrorResponse, 404: ErrorResponse},
+)
+def split_registration(request, registration_id: int, payload: SplitInput):
+    """DBGI moves some products of a deal to a new deal on another lot (decision B3)."""
+    if not _require_admin(request):
+        return Status(403, ADMIN_REQUIRED)
+    get_object_or_404(Registration, pk=registration_id)
+    try:
+        new_registration = split_deal(
+            registration_id=registration_id,
+            item_ids=payload.item_ids,
+            target_scope_id=payload.target_scope_id,
+            new_lot_name=payload.new_lot_name,
+            actor=request.user,
+            reason=payload.reason.strip(),
+            price_action=payload.price_action,
+        )
+    except ProjectChangeError as exc:
+        return Status(400, {"code": exc.code, "message": exc.message})
+    return Status(201, {"id": new_registration.pk, "reference": new_registration.reference})
+
+
+def _parse_repeat_order_lines(raw_lines):
+    """[(item_id, quantity)], or None when the form's lines are not usable."""
+    try:
+        parsed = json.loads(raw_lines)
+        lines = [(int(line["item_id"]), int(line["quantity"])) for line in parsed]
+    except (TypeError, ValueError, KeyError):
+        return None
+    if not lines or any(quantity < 1 for _, quantity in lines):
+        return None
+    if len({item_id for item_id, _ in lines}) != len(lines):
+        return None
+    return lines
+
+
+@api.post(
+    "/registrations/{registration_id}/repeat-orders",
+    auth=django_auth,
+    response={
+        201: RepeatOrderOutput,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def request_repeat_order(
+    request,
+    registration_id: int,
+    noa: UploadedFile,
+    ntp: UploadedFile,
+    lines: Form[str],
+    letters_confirmed: Form[bool],
+    note: Form[str] = "",
+):
+    """A partner asks to use the approved price again, with the NOA and NTP (decision D1)."""
+    company_id = _company_id(request.user)
+    if company_id in (None, False):
+        return Status(
+            403,
+            {"code": "company_access_required", "message": "A company account is required."},
+        )
+    with transaction.atomic():
+        registration = get_object_or_404(
+            Registration.objects.select_for_update().select_related("company"),
+            pk=registration_id,
+            company_id=company_id,
+        )
+        if registration.status == Registration.Status.WITHDRAWN:
+            return Status(409, WITHDRAWN_ERROR)
+        choices = {choice["item_id"]: choice for choice in _repeat_order_choices(registration)}
+        parsed = _parse_repeat_order_lines(lines)
+        if parsed is None or any(item_id not in choices for item_id, _ in parsed):
+            return Status(
+                400,
+                {
+                    "code": "invalid_repeat_order",
+                    "message": "Choose a quantity for products with a valid approved price.",
+                },
+            )
+        if not letters_confirmed:
+            return Status(
+                400,
+                {
+                    "code": "letters_not_confirmed",
+                    "message": (
+                        "Confirm that both letters are from this end-user and say it is a "
+                        "repeat order."
+                    ),
+                },
+            )
+        repeat_order = RepeatOrder(
+            registration=registration,
+            requested_by=request.user,
+            noa_file=noa,
+            noa_name=noa.name.replace("\\", "/").rsplit("/", 1)[-1],
+            ntp_file=ntp,
+            ntp_name=ntp.name.replace("\\", "/").rsplit("/", 1)[-1],
+            note=note.strip(),
+        )
+        try:
+            repeat_order.full_clean()
+        except DjangoValidationError as exc:
+            return Status(
+                400,
+                {
+                    "code": "invalid_attachment",
+                    "message": "The letters could not be uploaded.",
+                    "details": [
+                        {"field": field, "message": message}
+                        for field, messages in exc.message_dict.items()
+                        for message in messages
+                    ],
+                },
+            )
+        repeat_order.save()
+        RepeatOrderLine.objects.bulk_create(
+            [
+                RepeatOrderLine(
+                    repeat_order=repeat_order,
+                    registration_item_id=item_id,
+                    quantity=quantity,
+                    approved_unit_price=choices[item_id]["approved_unit_price"],
+                )
+                for item_id, quantity in parsed
+            ]
+        )
+        summary = ", ".join(
+            f"{choices[item_id]['product_name']} x {quantity}" for item_id, quantity in parsed
+        )
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Repeat order requested",
+            details=f"Repeat order requested: {summary}.",
+            snapshot=registration_snapshot(registration),
+        )
+        notify_dbgi_repeat_order_requested(repeat_order)
+    return Status(201, _serialize_repeat_order(repeat_order, request.user))
+
+
+@api.post(
+    "/review/repeat-orders/{repeat_order_id}/decision",
+    auth=django_auth,
+    response={
+        200: RepeatOrderOutput,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def decide_repeat_order(request, repeat_order_id: int, payload: RepeatOrderDecisionInput):
+    if not _require_admin(request):
+        return Status(403, ADMIN_REQUIRED)
+    with transaction.atomic():
+        repeat_order = get_object_or_404(
+            RepeatOrder.objects.select_for_update(of=("self",)).select_related("registration"),
+            pk=repeat_order_id,
+            status=RepeatOrder.Status.PENDING,
+        )
+        registration = repeat_order.registration
+        if registration.status == Registration.Status.WITHDRAWN:
+            return Status(409, WITHDRAWN_ERROR)
+        if payload.accept and not all(
+            _has_active_price(line.registration_item)
+            for line in repeat_order.lines.select_related(
+                "registration_item__price_approval__category_approval"
+            )
+        ):
+            return Status(
+                400,
+                {
+                    "code": "price_not_active",
+                    "message": "The approved price has ended. It must be renewed before accepting.",
+                },
+            )
+        repeat_order.status = (
+            RepeatOrder.Status.ACCEPTED if payload.accept else RepeatOrder.Status.DECLINED
+        )
+        repeat_order.decision_reason = payload.reason.strip()
+        repeat_order.decided_by = request.user
+        repeat_order.decided_at = timezone.now()
+        repeat_order.save()
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type=f"Repeat order {repeat_order.get_status_display().lower()}",
+            details=repeat_order.decision_reason,
+            snapshot=registration_snapshot(registration),
+        )
+        notify_repeat_order_decision(repeat_order)
+    return _serialize_repeat_order(repeat_order, request.user)
 
 
 @api.get(

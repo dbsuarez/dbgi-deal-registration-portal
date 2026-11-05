@@ -173,6 +173,36 @@ def notify_dbgi_renewal_requested(approval, renewal):
     )
 
 
+def notify_dbgi_repeat_order_requested(repeat_order):
+    registration = repeat_order.registration
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REPEAT_ORDER_REQUESTED,
+        event_key=f"repeat-order:{repeat_order.pk}:requested",
+        title="Repeat order requested",
+        message=(
+            f"{registration.company.name} asked to use the approved price again for "
+            f"{registration.reference}. Open the registration to check the letters and decide."
+        ),
+        email=True,
+    )
+
+
+def notify_repeat_order_decision(repeat_order):
+    registration = repeat_order.registration
+    accepted = repeat_order.status == repeat_order.Status.ACCEPTED
+    notify_company_users(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.PRICE_DECISION,
+        event_key=f"repeat-order:{repeat_order.pk}:decided",
+        title="Repeat order accepted" if accepted else "Repeat order declined",
+        message=(
+            f"DBGI decided your repeat order for {registration.reference}. "
+            "Open the registration to read the reason."
+        ),
+    )
+
+
 def notify_dbgi_withdrawal(registration, reason):
     notify_dbgi_admins(
         registration=registration,

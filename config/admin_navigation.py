@@ -29,6 +29,18 @@ def can_view_price_renewals(request):
     return request.user.has_perm("registrations.view_priceapprovalrenewal")
 
 
+def can_view_repeat_orders(request):
+    return request.user.has_perm("registrations.view_repeatorder")
+
+
+def can_view_project_changes(request):
+    return request.user.has_perm("registrations.view_projectchange")
+
+
+def can_view_public_holidays(request):
+    return request.user.has_perm("registrations.view_publicholiday")
+
+
 def can_view_registration_events(request):
     return request.user.has_perm("registrations.view_registrationevent")
 

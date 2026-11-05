@@ -65,7 +65,7 @@ The application is a working internal beta with these foundations implemented:
 - Controlled End-user classification selectors with fixed government branches and administrator-reviewed Organization type and Sector catalogs.
 - Local checks covering Django, Ruff, Vitest, Playwright, TypeScript builds, migrations, and deployment configuration.
 
-The application is not yet production-ready. Opportunity merge and split, complete reorder processing, reporting, operational automation, and several policies remain incomplete.
+The application is not yet production-ready. Reporting, operational automation, and the reorder exceptions listed in Milestone 3 remain incomplete.
 
 ## 3. Delivery principles
 
@@ -130,8 +130,8 @@ The application is not yet production-ready. Opportunity merge and split, comple
 ### Engineering scope
 
 1. [x] Add company withdrawal with a required reason (decided 2026-10-30: instant and final, no DBGI confirmation or restore; DBGI administrators get an in-portal notice).
-2. Add administrator merge and split workflows with impact previews and mandatory rationale.
-3. Recalculate or preserve affected ranks according to the approved policy.
+2. [x] Add administrator merge and split workflows with a merge preview and mandatory rationale (decided 2026-10-30: case by case; built 2026-11-05).
+3. [x] Preserve original submission times, with an order DBGI can set for a merge case.
 4. [x] Add field-level change summaries for material edits and administrator decisions.
 5. Improve the DBGI review queue with saved filters for matching, edited records, withdrawals, and merge or split review.
 6. Add contextual help that clearly distinguishes project, registration, ranking, and pricing states.
@@ -183,6 +183,8 @@ The application is not yet production-ready. Opportunity merge and split, comple
 - Mixed-category status rollups are deterministic and tested.
 
 ## 8. Milestone 3: Deliver reorder verification
+
+**Built 2026-11-05, following decision D1:** a partner asks to use an approved price again with the NOA and NTP; DBGI accepts or declines with a reason; each request keeps the price it asked for. The head's decision replaced the larger plan below, so the items below stay unbuilt unless DBGI asks for them. Proof is now required, unlike the older plan.
 
 ### Scope
 
@@ -274,7 +276,9 @@ Continue with **Workflow Closure**:
 3. [x] Partner-reported project outcomes (Won, Lost, Cancelled) that DBGI confirms or declines with a note (B4, 2026-10-30).
 4. [x] Emails only to the submitter, plus DBGI emails for events that need their action (D2, 2026-10-30).
 5. [x] 60-day limits with a 7-day reminder for unconfirmed registrations and projects on hold, processed by the daily `process_deadlines` job (B6, B7, 2026-10-30). The job must be scheduled on the server (see the infrastructure proposal, section 8).
-6. Add case-by-case merge and split tools with a written DBGI reason (B3).
+6. [x] Add case-by-case merge and split tools with a written DBGI reason (B3, 2026-11-05).
+7. [x] Add repeat orders with the NOA and NTP as proof (D1, 2026-11-05).
+8. [x] Count working days, with a DBGI-maintained public holiday list (D4, 2026-11-05).
 
 While those decisions are pending, policy-independent work can proceed:
 

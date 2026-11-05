@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from itertools import groupby
 
-from .models import RankingTieDecision, Registration
+from .models import ProjectChange, RankingTieDecision, Registration
 
 
 @dataclass
@@ -43,12 +43,26 @@ def latest_tie_decisions(scope_ids):
     return {(item.opportunity_scope_id, item.submitted_at): item for item in decisions}
 
 
-def rank_scope(scope_id, registrations, decisions):
+def latest_rank_orders(scope_ids):
+    """The order DBGI set when it last merged a project into each scope, if any (decision B3)."""
+    merges = ProjectChange.objects.filter(
+        kind=ProjectChange.Kind.MERGE, target_scope_id__in=scope_ids
+    ).order_by("decided_at", "id")
+    return {merge.target_scope_id: merge.rank_order for merge in merges}
+
+
+def rank_scope(scope_id, registrations, decisions, rank_order=None):
     """Rank one scope. Tied registrations share a rank until a decision orders all of them; if a
-    company joins the tie later, the tie reopens. Companies that left no longer matter."""
-    entries = []
-    position = 1
-    for submitted_at, group in groupby(registrations, key=lambda item: item.original_submitted_at):
+    company joins the tie later, the tie reopens. Companies that left no longer matter. An order
+    DBGI set in a merge comes first; anyone confirmed later follows by submission time."""
+    placed = {registration_id: index for index, registration_id in enumerate(rank_order or [])}
+    listed = sorted(
+        (item for item in registrations if item.pk in placed), key=lambda item: placed[item.pk]
+    )
+    entries = [RankedEntry(item, index + 1, False) for index, item in enumerate(listed)]
+    position = len(entries) + 1
+    remaining = [item for item in registrations if item.pk not in placed]
+    for submitted_at, group in groupby(remaining, key=lambda item: item.original_submitted_at):
         group = list(group)
         decision = decisions.get((scope_id, submitted_at)) if len(group) > 1 else None
         if decision and {item.pk for item in group} <= set(decision.order):

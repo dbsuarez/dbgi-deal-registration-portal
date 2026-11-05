@@ -1,6 +1,6 @@
 # DBGI Project Registration Portal: Current Capabilities
 
-**As of:** 2026-11-04  
+**As of:** 2026-11-05  
 **Status:** Working internal beta, not yet production-ready  
 **Source:** Current baseline in [PRODUCT_ROADMAP_2026-10-21.md](PRODUCT_ROADMAP_2026-10-21.md)
 
@@ -16,6 +16,8 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 - **Tracking:** a registration list with search, quick and advanced filters, and pagination. Status badges explain themselves on hover or keyboard focus, and ranking views show only what the company is allowed to see.
 - **Report the project outcome:** once DBGI links a registration to a project, report it as Won, Lost, or Cancelled with a short note. DBGI confirms or declines it.
 - **Correct details freely:** contact corrections need no DBGI review and never change a captured price. Changes to the End-user, products, quantities, prices, dates, or attachment details go to DBGI review.
+- **Renew a price:** ask DBGI for 30 more days on an approved price, from the deal page.
+- **Repeat orders:** ask to use an approved price again, with the buyer's Notice of Award and Notice to Proceed. DBGI accepts or declines with a reason.
 - **Withdraw:** withdraw a registration with a short reason. Withdrawal is final: the registration leaves the ranking and can no longer change, and DBGI is notified.
 - **Notifications and help:** in-portal notifications for everyone in the company, with email only to the person who submitted, and a Help page with step-by-step beginner walkthroughs.
 
@@ -28,6 +30,9 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 - **60-day limits:** registrations not confirmed within 60 days, and registrations on projects on hold for 60 days, come back to the review queue; companies get a reminder 7 days before. This runs through a daily job that must be scheduled on the server.
 - **Outcome reports:** confirm or decline a company's Won, Lost, or Cancelled report from the registration page; confirming sets the project status for every linked registration.
 - **Commercial approvals:** approve pricing by product category with item-level approved prices, an expiry date, and 30-day renewals. Project status, registration status, and pricing approval are tracked separately.
+- **Merges and splits:** merge two projects that are the same tender, with a preview of the new ranking, or split a deal that covers separate lots. Each needs a written reason, and DBGI chooses to keep decided prices or send them back for review. Original submission times never change.
+- **Repeat orders:** read the partner's NOA and NTP, then accept or decline.
+- **Public holidays:** keep the list used to count working days.
 - **End-user verification:** review company-proposed End-users and maintain the Organization type and Sector lists.
 - **Operations dashboard (Django Admin):** work queues for pending review, pricing, End-user verification, failed emails, and approvals nearing expiry.
 - **Notifications:** per-event email templates with previews, delivery tracking, and retries. Email is sent from the DBGI support mailbox over MXroute.
@@ -46,9 +51,6 @@ The portal covers the core loop end to end: a partner company registers a deal, 
 
 | Capability                                     | Roadmap milestone | Waiting on                         |
 | ---------------------------------------------- | ----------------- | ---------------------------------- |
-| Opportunity merge and split                    | 1                 | Product-owner merge and split rule |
-| Full renewal processing                        | 2                 | Finance and pricing decisions      |
-| Reorder verification                           | 3                 | Milestone 2                        |
 | Role-specific dashboard counts and exports     | 4                 | None (can start now)               |
 | Production deployment, monitoring, and backups | 5                 | Earlier milestones                 |
 

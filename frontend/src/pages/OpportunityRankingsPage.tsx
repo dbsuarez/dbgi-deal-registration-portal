@@ -34,6 +34,7 @@ import {
   type RankingEntry,
 } from "../api";
 import { useSession } from "../session";
+import MergeProjectDialog from "./MergeProjectDialog";
 
 type RankingRow = RankingEntry & {
   id: string;
@@ -81,6 +82,10 @@ export default function OpportunityRankingsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [explanationOpen, setExplanationOpen] = useState(false);
+  const [mergeSource, setMergeSource] = useState<{
+    scope_id: number;
+    label: string;
+  } | null>(null);
   const explanationCloseRef = useRef<HTMLButtonElement>(null);
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
@@ -233,6 +238,25 @@ export default function OpportunityRankingsPage() {
       },
       ...(session.is_dbgi_admin
         ? [
+            {
+              field: "merge_action",
+              headerName: "Project",
+              minWidth: 110,
+              sortable: false,
+              renderCell: ({ row }: { row: RankingRow }) => (
+                <Button
+                  size="small"
+                  onClick={() =>
+                    setMergeSource({
+                      scope_id: row.scope_id,
+                      label: `${row.opportunity_title} | ${row.scope_name}`,
+                    })
+                  }
+                >
+                  Merge
+                </Button>
+              ),
+            },
             {
               field: "tie_action",
               headerName: "Tie",
@@ -411,6 +435,16 @@ export default function OpportunityRankingsPage() {
         </DialogActions>
       </Dialog>
 
+      <MergeProjectDialog
+        source={mergeSource}
+        csrfToken={session.csrf_token}
+        onClose={() => setMergeSource(null)}
+        onMerged={() => {
+          setMergeSource(null);
+          setRefreshKey((value) => value + 1);
+        }}
+      />
+
       <Dialog
         open={explanationOpen}
         onClose={() => setExplanationOpen(false)}
@@ -434,7 +468,8 @@ export default function OpportunityRankingsPage() {
           </Typography>
           <Typography>
             Registrations with the exact same timestamp share a rank and are
-            marked as tied until DBGI decides their order.
+            marked as tied until DBGI decides their order. If DBGI merges two
+            projects, it can also set the order for that case.
           </Typography>
         </DialogContent>
         <DialogActions>

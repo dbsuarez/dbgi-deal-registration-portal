@@ -31,6 +31,8 @@ from .models import (
     PriceApprovalRenewal,
     Product,
     ProductPrice,
+    ProjectChange,
+    PublicHoliday,
     RankingTieDecision,
     Registration,
     RegistrationAttachment,
@@ -40,6 +42,8 @@ from .models import (
     RegistrationItemApproval,
     RegistrationNotification,
     RegistrationReviewDecision,
+    RepeatOrder,
+    RepeatOrderLine,
     User,
 )
 from .notifications import (
@@ -47,7 +51,12 @@ from .notifications import (
     notify_price_decision,
     retry_notification_email,
 )
-from .ranking import latest_tie_decisions, rank_scope, ranked_registrations
+from .ranking import (
+    latest_rank_orders,
+    latest_tie_decisions,
+    rank_scope,
+    ranked_registrations,
+)
 
 
 @admin.register(Company)
@@ -609,12 +618,19 @@ class OpportunityRankingAdmin(ModelAdmin):
     @admin.display(description="Rank", ordering="calculated_rank")
     def calculated_rank_display(self, obj):
         scope_id = obj.opportunity_scope_id
-        if not RankingTieDecision.objects.filter(
-            opportunity_scope_id=scope_id, submitted_at=obj.original_submitted_at
-        ).exists():
+        rank_order = latest_rank_orders([scope_id]).get(scope_id)
+        if (
+            not rank_order
+            and not RankingTieDecision.objects.filter(
+                opportunity_scope_id=scope_id, submitted_at=obj.original_submitted_at
+            ).exists()
+        ):
             return obj.calculated_rank
         entries = rank_scope(
-            scope_id, ranked_registrations([scope_id])[scope_id], latest_tie_decisions([scope_id])
+            scope_id,
+            ranked_registrations([scope_id])[scope_id],
+            latest_tie_decisions([scope_id]),
+            rank_order,
         )
         return next(entry.rank for entry in entries if entry.registration.pk == obj.pk)
 
@@ -946,3 +962,61 @@ admin.site.unregister(Group)
 @admin.register(Group)
 class GroupAdmin(BaseGroupAdmin, ModelAdmin):
     pass
+
+
+class ReadOnlyAdmin(ModelAdmin):
+    """A permanent record: DBGI can read it here, and the portal's screens create it."""
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ProjectChange)
+class ProjectChangeAdmin(ReadOnlyAdmin):
+    list_display = (
+        "kind",
+        "source_scope",
+        "target_scope",
+        "price_action",
+        "decided_by",
+        "decided_at",
+    )
+    list_filter = ("kind", "price_action")
+    search_fields = (
+        "reason",
+        "source_scope__opportunity__title",
+        "target_scope__opportunity__title",
+    )
+
+
+class RepeatOrderLineInline(TabularInline):
+    model = RepeatOrderLine
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RepeatOrder)
+class RepeatOrderAdmin(ReadOnlyAdmin):
+    list_display = ("registration", "status", "requested_by", "requested_at", "decided_by")
+    list_filter = ("status",)
+    search_fields = ("registration__project_title", "registration__company__name")
+    exclude = ("noa_file", "ntp_file")
+    inlines = (RepeatOrderLineInline,)
+
+
+@admin.register(PublicHoliday)
+class PublicHolidayAdmin(ModelAdmin):
+    list_display = ("date", "name")
+    search_fields = ("name",)

@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 
-from .models import RegistrationAttachment
+from .models import RegistrationAttachment, RepeatOrder
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,33 @@ def registration_attachment(request, attachment_id):
         attachment.file.open("rb"),
         as_attachment=True,
         filename=attachment.original_name,
+        content_type="application/octet-stream",
+    )
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@login_required
+def repeat_order_letter(request, repeat_order_id, letter):
+    repeat_order = get_object_or_404(
+        RepeatOrder.objects.select_related("registration"), pk=repeat_order_id
+    )
+    if letter not in {"noa", "ntp"}:
+        raise Http404
+    if not _can_access_registration(request.user, repeat_order.registration.company_id):
+        raise Http404
+    stored, name = (
+        (repeat_order.noa_file, repeat_order.noa_name)
+        if letter == "noa"
+        else (repeat_order.ntp_file, repeat_order.ntp_name)
+    )
+    if not stored.storage.exists(stored.name):
+        logger.error("Repeat order letter is missing", extra={"repeat_order_id": repeat_order.pk})
+        raise Http404("The letter is unavailable.")
+    response = FileResponse(
+        stored.open("rb"),
+        as_attachment=True,
+        filename=name,
         content_type="application/octet-stream",
     )
     response["Cache-Control"] = "private, no-store"

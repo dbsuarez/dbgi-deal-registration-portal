@@ -144,7 +144,7 @@ The task must run with the same environment variables as the portal (database an
 
 ## 9. Backup, recovery, and retention
 
-DBGI IT and management must approve recovery point and recovery time objectives. Until approved, do not promise a recovery window.
+DBGI decided the targets on 2026-10-30 (D3): keep records for 5 years, back up daily, and recover within one working day. They must be set up and tested on the production server before anyone relies on them.
 
 The production plan must include:
 

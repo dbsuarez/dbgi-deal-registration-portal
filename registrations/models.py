@@ -1034,6 +1034,7 @@ class RegistrationNotification(models.Model):
         DEADLINE_REACHED = "deadline_reached", "60-day deadline reached"
         REVIEW_NEEDED = "review_needed", "Registration needs review"
         RENEWAL_REQUESTED = "renewal_requested", "Price renewal requested"
+        REPEAT_ORDER_REQUESTED = "repeat_order_requested", "Repeat order requested"
 
     class EmailStatus(models.TextChoices):
         NOT_REQUESTED = "not_requested", "Not requested"
@@ -1207,3 +1208,141 @@ def delete_registration_attachment_file(sender, instance, **kwargs):
         storage = instance.file.storage
         file_name = instance.file.name
         transaction.on_commit(lambda: storage.delete(file_name))
+
+
+class ProjectChange(models.Model):
+    """DBGI's merge or split, kept permanently. The reason is DBGI-only (decision B3)."""
+
+    class Kind(models.TextChoices):
+        MERGE = "merge", "Projects merged"
+        SPLIT = "split", "Deal split"
+
+    class PriceAction(models.TextChoices):
+        KEEP = "keep", "Keep decided prices"
+        REVIEW = "review", "Send decided prices back for review"
+
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    source_scope = models.ForeignKey(
+        OpportunityScope, on_delete=models.PROTECT, related_name="changes_from"
+    )
+    target_scope = models.ForeignKey(
+        OpportunityScope, on_delete=models.PROTECT, related_name="changes_to"
+    )
+    source_registration = models.ForeignKey(
+        Registration,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="split_changes",
+    )
+    new_registration = models.ForeignKey(
+        Registration,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="created_by_split",
+    )
+    reason = models.TextField()
+    price_action = models.CharField(max_length=10, choices=PriceAction.choices)
+    # Set only when DBGI changed the merged order; empty means submission times decide it.
+    rank_order = models.JSONField(default=list, blank=True)
+    previous_ranks = models.JSONField(default=list, blank=True)
+    decided_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="project_changes")
+    decided_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-decided_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("A saved project change cannot change.")
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.source_scope} to {self.target_scope}"
+
+
+class RepeatOrder(models.Model):
+    """A request to use an approved special price again. It needs the same end-user, and the
+    agency's NOA and NTP stating that it is a repeat order (decision D1)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Waiting for DBGI"
+        ACCEPTED = "accepted", "Accepted"
+        DECLINED = "declined", "Declined"
+
+    registration = models.ForeignKey(
+        Registration, on_delete=models.PROTECT, related_name="repeat_orders"
+    )
+    requested_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="repeat_orders")
+    noa_file = models.FileField(
+        "Notice of Award",
+        upload_to=registration_upload_path,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=("pdf", "png", "jpg", "jpeg", "docx", "xlsx")
+            ),
+            validate_attachment_size,
+            validate_attachment_content,
+        ],
+    )
+    noa_name = models.CharField(max_length=255)
+    ntp_file = models.FileField(
+        "Notice to Proceed",
+        upload_to=registration_upload_path,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=("pdf", "png", "jpg", "jpeg", "docx", "xlsx")
+            ),
+            validate_attachment_size,
+            validate_attachment_content,
+        ],
+    )
+    ntp_name = models.CharField(max_length=255)
+    note = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="repeat_order_decisions",
+    )
+    decision_reason = models.TextField(blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at", "-id"]
+
+    def __str__(self):
+        return f"{self.registration.reference}: repeat order {self.pk}"
+
+
+class RepeatOrderLine(models.Model):
+    repeat_order = models.ForeignKey(RepeatOrder, on_delete=models.CASCADE, related_name="lines")
+    registration_item = models.ForeignKey(
+        RegistrationItem, on_delete=models.PROTECT, related_name="repeat_order_lines"
+    )
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    # The price when the partner asked. A later price decision does not change it.
+    approved_unit_price = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.registration_item} x {self.quantity}"
+
+
+class PublicHoliday(models.Model):
+    """Philippine public holidays, skipped when counting working days (decision D4)."""
+
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=120)
+
+    class Meta:
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.date:%Y-%m-%d} {self.name}"

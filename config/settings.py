@@ -130,6 +130,18 @@ UNFOLD = {
                         "permission": "config.admin_navigation.can_view_price_renewals",
                     },
                     {
+                        "title": "Repeat orders",
+                        "icon": "replay",
+                        "link": reverse_lazy("admin:registrations_repeatorder_changelist"),
+                        "permission": "config.admin_navigation.can_view_repeat_orders",
+                    },
+                    {
+                        "title": "Merges and splits",
+                        "icon": "call_merge",
+                        "link": reverse_lazy("admin:registrations_projectchange_changelist"),
+                        "permission": "config.admin_navigation.can_view_project_changes",
+                    },
+                    {
                         "title": "Registration events",
                         "icon": "history",
                         "link": reverse_lazy("admin:registrations_registrationevent_changelist"),
@@ -168,6 +180,12 @@ UNFOLD = {
                         "icon": "business",
                         "link": reverse_lazy("admin:registrations_company_changelist"),
                         "permission": "config.admin_navigation.can_view_companies",
+                    },
+                    {
+                        "title": "Public holidays",
+                        "icon": "event_busy",
+                        "link": reverse_lazy("admin:registrations_publicholiday_changelist"),
+                        "permission": "config.admin_navigation.can_view_public_holidays",
                     },
                     {
                         "title": "Products",

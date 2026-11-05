@@ -64,6 +64,8 @@ import {
 import { useSession } from "../session";
 import { getStatusColor, getStatusExplanation } from "../status";
 import { companyNextStep } from "./registrationReview";
+import RepeatOrdersSection from "./RepeatOrdersSection";
+import SplitDealDialog from "./SplitDealDialog";
 
 const moneyCell = {
   textAlign: "right" as const,
@@ -142,6 +144,7 @@ export default function RegistrationDetailPage() {
   const [renewalReason, setRenewalReason] = useState("");
   const [renewing, setRenewing] = useState(false);
   const [renewalError, setRenewalError] = useState("");
+  const [splitOpen, setSplitOpen] = useState(false);
   const [repriceOpen, setRepriceOpen] = useState(false);
   const [repriceReason, setRepriceReason] = useState("");
   const [repricing, setRepricing] = useState(false);
@@ -526,6 +529,11 @@ export default function RegistrationDetailPage() {
               }}
             >
               Apply current list prices
+            </Button>
+          )}
+          {registration.can_split && (
+            <Button variant="outlined" onClick={() => setSplitOpen(true)}>
+              Split deal
             </Button>
           )}
           {registration.can_report_outcome && (
@@ -1139,6 +1147,14 @@ export default function RegistrationDetailPage() {
         </Typography>
       </Paper>
 
+      <RepeatOrdersSection
+        registration={registration}
+        isDbgiAdmin={session.is_dbgi_admin}
+        csrfToken={session.csrf_token}
+        oneWorkingDayEnds={session.one_working_day_ends}
+        onChange={setRegistration}
+      />
+
       {(registration.outcome_reports ?? []).length > 0 && (
         <Paper sx={{ mt: 3, p: 2 }}>
           <Typography variant="h2" gutterBottom>
@@ -1465,7 +1481,7 @@ export default function RegistrationDetailPage() {
               ? "The current end date stays the same."
               : "An approved renewal adds 30 days to the price."}
             {renewal?.action === "request" &&
-              " Please allow at least one working day for DBGI to review your request."}
+              ` Please allow at least one working day for DBGI to review your request${session.one_working_day_ends ? `, up to ${session.one_working_day_ends}` : ""}.`}
           </Typography>
           {renewalError && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -1500,6 +1516,12 @@ export default function RegistrationDetailPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      <SplitDealDialog
+        open={splitOpen}
+        registration={registration}
+        csrfToken={session.csrf_token}
+        onClose={() => setSplitOpen(false)}
+      />
       <Dialog
         open={repriceOpen}
         onClose={() => !repricing && setRepriceOpen(false)}
