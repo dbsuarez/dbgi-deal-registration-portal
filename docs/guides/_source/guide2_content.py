@@ -27,7 +27,8 @@ PARTS = {
     11: "Report the result",
     12: "Time limits",
     13: "Other DBGI tasks",
-    14: "Quick help",
+    14: "Repeat orders",
+    15: "Quick help",
 }
 
 PAGES = [
@@ -269,7 +270,7 @@ PAGES = [
         ],
         "widths": [2, 3],
         "pics": [("options-card", "The four decisions")],
-        "tip": "The partner can read your written reason in Activity. Keep it clear and polite.",
+        "tip": "The partner can read your change instructions or rejection reason in Activity. Other reasons stay inside DBGI.",
     },
     # Part 5
     {
@@ -622,9 +623,103 @@ PAGES = [
         "pics": [("rank-dbgi", "DBGI sees every company"), ("tie", "Setting the order")],
         "tip": "Companies see only their new rank, not your reason.",
     },
+    {
+        "part": 13,
+        "title": "Merge two projects",
+        "role": "dbgi",
+        "intro": "Use this when you learn that two projects are the same tender.",
+        "steps": [
+            "Click **Rankings**, then **Merge** on the project to close.",
+            "In **Merge into**, choose the project to keep.",
+            "Check the new ranking. The earliest deal comes first.",
+            "Choose what happens to decided prices.",
+            "Type your reason, then click **Merge projects**.",
+        ],
+        "pics": [("merge-dialog", "The new ranking before you merge")],
+        "warn": "This cannot be undone. Companies get a message, but only DBGI can read your reason.",
+    },
+    {
+        "part": 13,
+        "title": "Split a deal",
+        "role": "dbgi",
+        "intro": "Use this when one deal covers separate lots.",
+        "steps": [
+            "Open the deal and click **Split deal**.",
+            "Tick the products to move. At least one must stay.",
+            "Type a new lot name, or choose an existing lot.",
+            "Choose what happens to decided prices.",
+            "Type your reason, then click **Split deal**.",
+        ],
+        "pics": [("split-dialog", "Moving a product to a new lot")],
+        "tip": "The new deal keeps the same company and the original submission time.",
+    },
+    {
+        "part": 13,
+        "title": "Keep the public holiday list",
+        "role": "dbgi",
+        "intro": "The portal needs this list to count working days.",
+        "steps": [
+            "Click **Administration**, then **Public holidays**.",
+            "Click the add button.",
+            "Type the date and the name of the holiday.",
+            "Click **Save**.",
+        ],
+        "tip": "A working day is Monday to Friday, without public holidays. After 5:00 PM, counting starts on the next working day.",
+    },
     # Part 14
     {
         "part": 14,
+        "title": "What is a repeat order?",
+        "role": "both",
+        "intro": "The same buyer orders more of the same item, without a new bidding.",
+        "table": [
+            ["The rule", "What it means"],
+            ["Same end-user", "The order must come from the same office as the original deal"],
+            [
+                "Notice of Award (NOA)",
+                "The buyer's letter saying you won. It must say repeat order.",
+            ],
+            [
+                "Notice to Proceed (NTP)",
+                "The buyer's letter saying go ahead. It must say repeat order.",
+            ],
+            ["A valid approved price", "If the price has ended, renew it first"],
+        ],
+        "widths": [2, 3],
+        "tip": "If any of these is missing, DBGI declines it. You can register a new deal instead.",
+    },
+    {
+        "part": 14,
+        "title": "Ask for a repeat order",
+        "role": "partner",
+        "steps": [
+            "Open the deal and click **Request repeat order**.",
+            "Type the quantity for each product.",
+            "Add both letters, the NOA and the NTP.",
+            "Tick the box to confirm what the letters say.",
+            "Click **Send request**.",
+        ],
+        "pics": [("repeat-request", "Asking for a repeat order")],
+        "tip": "Please give DBGI at least one working day.",
+    },
+    {
+        "part": 14,
+        "title": "DBGI decides the repeat order",
+        "role": "dbgi",
+        "steps": [
+            "Open the deal and find **Repeat orders**.",
+            "Click **NOA** and **NTP** to read the letters.",
+            "Click **Accept** or **Decline**, then type your reason.",
+        ],
+        "pics": [
+            ("repeat-decide", "Accepting the repeat order"),
+            ("repeat-section", "What the partner sees afterward"),
+        ],
+        "tip": "The partner gets a message and can read your reason.",
+    },
+    # Part 15
+    {
+        "part": 15,
         "title": "Five things to remember",
         "role": None,
         "bullets": [
@@ -636,7 +731,7 @@ PAGES = [
         ],
     },
     {
-        "part": 14,
+        "part": 15,
         "title": "I want to...",
         "role": None,
         "table": [
@@ -647,13 +742,14 @@ PAGES = [
             ["See my approved price", "Open the deal, then Commercial approvals"],
             ["Make my price last longer", "Commercial approvals, then Request renewal"],
             ["See my place on a project", "Rankings"],
+            ["Use my approved price again", "Open the deal, then Request repeat order"],
             ["Tell DBGI I won or lost", "Open the deal, then Report project outcome"],
             ["Stop a deal", "Open the deal, then Withdraw registration"],
         ],
         "widths": [2, 3],
     },
     {
-        "part": 14,
+        "part": 15,
         "title": "Word list",
         "role": None,
         "table": [
@@ -669,6 +765,8 @@ PAGES = [
             ["Commercial approvals", "DBGI's price decisions"],
             ["Rationale", "The reason for a decision"],
             ["Renewal", "Asking DBGI to make a price last longer"],
+            ["Repeat order", "The same buyer orders more, without a new bidding"],
+            ["NOA and NTP", "The buyer's letters: Notice of Award, Notice to Proceed"],
         ],
         "widths": [2, 3],
     },

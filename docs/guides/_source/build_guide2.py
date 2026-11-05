@@ -225,12 +225,12 @@ def build_deck():
     s.text([56, 42, 840, 48], "What this guide covers", size=26, bold=True, color=NAVY)
     numbered = [(n, name) for n, name in PARTS.items() if n]
     for i, (n, name) in enumerate(numbered):
-        col, row = i // 7, i % 7
-        x, top = 60 + col * 430, 108 + row * 56
+        col, row = i // 8, i % 8
+        x, top = 60 + col * 430, 104 + row * 50
         s.box(
             [x, top, 40, 40],
             str(n),
-            fill=TEAL if n < 14 else NAVY,
+            fill=TEAL if n < 15 else NAVY,
             size=15,
             color=WHITE,
             bold=True,

@@ -43,7 +43,8 @@ CROPS = {
 COPIES = (
     "competitor product sub-next sub-products sub-approvals sub-activity review-card options-card changes-card "
     "ret-next ret-activity confirm-card app-approvals app-products ren-approvals after-approvals out-partner "
-    "out-dbgi renewal-request renewal-decide withdraw outcome catalog reprice tie"
+    "out-dbgi renewal-request renewal-decide withdraw outcome catalog reprice tie "
+    "repeat-request repeat-decide repeat-section merge-dialog split-dialog"
 ).split()
 
 for name, (source, box) in CROPS.items():
