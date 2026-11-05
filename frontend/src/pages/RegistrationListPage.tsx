@@ -506,7 +506,6 @@ export default function RegistrationListPage() {
           <MenuItem value="review_required">
             Review required after edit
           </MenuItem>
-          <MenuItem value="approved">Approved</MenuItem>
           <MenuItem value="rejected">Rejected</MenuItem>
           <MenuItem value="withdrawn">Withdrawn</MenuItem>
         </TextField>

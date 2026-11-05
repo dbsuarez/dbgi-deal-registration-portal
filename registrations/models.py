@@ -458,7 +458,6 @@ class Registration(models.Model):
         RESUBMITTED = "resubmitted", "Resubmitted"
         ELIGIBLE_MATCHED = "eligible_matched", "Registered"
         REVIEW_REQUIRED = "review_required", "Review required after edit"
-        APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
         WITHDRAWN = "withdrawn", "Withdrawn"
 
@@ -509,9 +508,7 @@ class Registration(models.Model):
 
     # Evidence is frozen once a reviewer has it or a decision exists, so an
     # upload or delete can never change what a decision was based on.
-    EVIDENCE_LOCKED_STATUSES = frozenset(
-        {Status.UNDER_REVIEW, Status.APPROVED, Status.REJECTED, Status.WITHDRAWN}
-    )
+    EVIDENCE_LOCKED_STATUSES = frozenset({Status.UNDER_REVIEW, Status.REJECTED, Status.WITHDRAWN})
     # A partner can withdraw at any point before a final outcome; withdrawal is final.
     WITHDRAWABLE_STATUSES = frozenset(set(Status) - {Status.REJECTED, Status.WITHDRAWN})
 

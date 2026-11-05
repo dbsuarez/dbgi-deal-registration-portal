@@ -12,6 +12,9 @@ Deploy the portal as a Docker Compose application on a dedicated Hostinger VPS. 
 
 Treat the current application as an internal beta until the launch gates in this proposal pass. Production approval requires DBGI decisions for lifecycle, pricing, attachments, retention, notification recipients, recovery objectives, and operational ownership.
 
+DBGI confirmed on 2026-11-05 that it has a Hostinger VPS available for this. Its size still needs checking against the
+staging load tests in the capacity section.
+
 ## 2. Architecture decision
 
 ### Proposed production topology

@@ -286,7 +286,6 @@ def notify_admin_status_change(registration, previous_status):
     labels = {
         registration.Status.CHANGES_REQUESTED: "Returned for changes",
         registration.Status.ELIGIBLE_MATCHED: "Registration confirmed",
-        registration.Status.APPROVED: "Registration approved",
         registration.Status.REJECTED: "Registration rejected",
     }
     title = labels.get(registration.status)

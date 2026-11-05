@@ -69,11 +69,12 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 | Resubmitted                | The partner saved the corrections                            | DBGI reviews again                     |
 | Registered                 | DBGI confirmed it belongs to a project; it is ranked         | Pricing, outcome report, or withdrawal |
 | Review required after edit | The partner edited a Registered deal                         | DBGI reviews again; the rank is kept   |
-| Approved                   | DBGI approved the registration                               | Outcome report or withdrawal           |
 | Rejected                   | DBGI rejected it; the reason is in the Activity              | Final                                  |
 | Withdrawn                  | The partner withdrew it                                      | Final                                  |
 
 - **Live:** a registration shows three separate badges: registration status, project status, and pricing status.
+- **Live (2026-11-05):** a deal stays Registered after its price is approved, and its Pricing label shows the approval.
+  The old registration status "Approved" was removed, because nothing used it and it took deals out of the ranking.
 - **Live (A4):** the status DBGI uses to send a registration back is called "Returned for changes" (it was
   "Changes requested"). The pricing status "Changes requested" keeps its name.
 
@@ -85,7 +86,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   original submission time and rank.
 - **Live:** products, quantities, and requested prices lock once DBGI starts the pricing review, and DBGI must
   request changes first. Administrative corrections stay possible.
-- **Live:** evidence locks while the registration is under review and after a decision (approved, rejected, or
+- **Live:** evidence locks while the registration is under review and after a final decision (rejected or
   withdrawn), so it cannot change after DBGI relied on it.
 - **Live (B1):** every edit is classified field by field, not by judgment:
   - **Administrative** (no DBGI review, status and rank unchanged, recorded in the Activity): contact person,
@@ -131,6 +132,10 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 - **Live:** companies on the same project scope are ranked by their **first eligible submission time**, recorded by
   the server. Only Registered registrations are ranked, and each company counts once per scope.
 - **Live:** a vague first claim cannot gain an earlier place later by adding details.
+- **Live (common rule, 2026-11-05):** rank 1 gets the best price, and every other company on the project gets the same
+  price as each other. DBGI still types each price by hand. The price form (Administration, Price approvals) shows the
+  deal's rank and the other approved prices for the project. When DBGI saves a price that breaks this rule, the portal
+  shows a warning but still saves it, so DBGI can decide an exception. If rank 1 is tied, it asks DBGI to decide the tie.
 - **Live:** a partner sees only its own rank; DBGI sees the full ranking.
 - **Live (B5):** exact ties (the same submission time) share a rank and show as tied until DBGI decides. On the
   Rankings page, DBGI uses **Decide tie** to set the order, with a reason. Later places do not move: a tie for 1st
@@ -257,7 +262,10 @@ All counts are calendar days, starting from the server's recorded time.
   the cutoff, or on a day off, counting starts from the next working day. The only use today is the planning notice
   when asking for a price renewal or a repeat order: "allow at least one working day, up to YYYY-MM-DD". It is not a
   promise that DBGI will answer by then.
-- **Live:** DBGI must enter the public holidays in Administration, under Public holidays. The list starts empty.
+- **Live:** the portal comes with the nationwide holidays through 2027: regular holidays and special non-working
+  days, from Proclamation No. 1006 (2026) and No. 1427 (2027). DBGI adds local holidays, Eid'l Fitr and Eid'l Adha
+  (proclaimed separately each year), any extra declared holidays, and each new year's list in Administration, under
+  Public holidays.
 
 ## 15. Records and operations
 

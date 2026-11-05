@@ -907,7 +907,7 @@ OPEN_PROJECT_STATUSES = {
     Opportunity.ProjectStatus.ACTIVE,
     Opportunity.ProjectStatus.ON_HOLD,
 }
-OUTCOME_REPORTABLE_STATUSES = {Registration.Status.ELIGIBLE_MATCHED, Registration.Status.APPROVED}
+OUTCOME_REPORTABLE_STATUSES = {Registration.Status.ELIGIBLE_MATCHED}
 
 
 ACTIVE_PRICE_STATUSES = {

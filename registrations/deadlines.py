@@ -33,7 +33,7 @@ UNCONFIRMED_STATUSES = {
     Registration.Status.CHANGES_REQUESTED,
     Registration.Status.RESUBMITTED,
 }
-LINKED_STATUSES = {Registration.Status.ELIGIBLE_MATCHED, Registration.Status.APPROVED}
+LINKED_STATUSES = {Registration.Status.ELIGIBLE_MATCHED}
 
 
 @dataclass

@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
@@ -8,7 +8,7 @@ from django.db.models import F, OuterRef, Subquery, Window
 from django.db.models.functions import Rank
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
@@ -51,6 +51,7 @@ from .notifications import (
     notify_price_decision,
     retry_notification_email,
 )
+from .price_rules import price_warnings, project_price_rows, rank_text
 from .ranking import (
     latest_rank_orders,
     latest_tie_decisions,
@@ -872,8 +873,34 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
     list_filter = ("status", "category", "valid_until")
     search_fields = ("registration__project_title", "registration__company__name", "category")
     # save_model records the saving administrator and time, so these are not editable.
-    readonly_fields = ("reviewed_by", "reviewed_at", "version", "created_at", "updated_at")
+    readonly_fields = (
+        "reviewed_by",
+        "reviewed_at",
+        "version",
+        "created_at",
+        "updated_at",
+        "project_rank",
+        "project_prices",
+    )
     inlines = (RegistrationItemApprovalInline,)
+
+    @admin.display(description="Rank on this project")
+    def project_rank(self, obj):
+        return rank_text(obj.registration) if obj and obj.pk else "-"
+
+    @admin.display(description="Approved prices on this project")
+    def project_prices(self, obj):
+        rows = project_price_rows(obj.registration) if obj and obj.pk else []
+        if not rows:
+            return "None yet"
+        return format_html_join(
+            "",
+            "<div>Rank {}: {} ({}), {}: {}</div>",
+            (
+                (row["rank"], row["company"], row["reference"], row["product"], row["price"])
+                for row in rows
+            ),
+        )
 
     def has_change_permission(self, request, obj=None):
         if obj and obj.registration.status == Registration.Status.WITHDRAWN:
@@ -916,6 +943,8 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
             snapshot=request.commercial_prior_snapshot,
         )
         notify_price_decision(form.instance)
+        for warning in price_warnings(form.instance):
+            messages.warning(request, warning)
 
 
 @admin.register(PriceApprovalRenewal)

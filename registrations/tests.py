@@ -3378,3 +3378,94 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(add_working_days(saturday, 1), date(2026, 11, 10))
         PublicHoliday.objects.create(date=date(2026, 11, 5), name="Test holiday")
         self.assertEqual(add_working_days(wednesday, 1), date(2026, 11, 6))
+
+    def test_nationwide_holidays_are_already_counted(self):
+        manila = ZoneInfo("Asia/Manila")
+        before_christmas = datetime(2026, 12, 23, 10, 0, tzinfo=manila)
+        self.assertEqual(add_working_days(before_christmas, 1), date(2026, 12, 28))
+        self.assertTrue(PublicHoliday.objects.filter(date=date(2027, 3, 26)).exists())
+
+    def ranked_deals(self):
+        """Three companies on one project, ranked 1, 2, and 3."""
+        self.set_price("10000.00")
+        company_c = Company.objects.create(name="East Dealer")
+        user_c = User.objects.create_user(
+            "dealer-c", password="example-password", company=company_c
+        )
+        deals = [self.register_deal(), self.register_deal(), self.register_deal()]
+        for deal, user in zip(deals[1:], (self.user_b, user_c)):
+            Registration.objects.filter(pk=deal.pk).update(company=user.company, submitted_by=user)
+        self.link_to_project(*deals)
+        for deal in deals:
+            deal.refresh_from_db()
+        return deals
+
+    def approve_with_warnings(self, deal, price):
+        approval = deal.category_approvals.get()
+        item = deal.items.get()
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk]),
+            {
+                "registration": deal.pk,
+                "category": approval.category,
+                "status": RegistrationCategoryApproval.Status.APPROVED,
+                "rationale": "Within the allowed discount.",
+                "valid_until": "",
+                "item_approvals-TOTAL_FORMS": "1",
+                "item_approvals-INITIAL_FORMS": "0",
+                "item_approvals-MIN_NUM_FORMS": "0",
+                "item_approvals-MAX_NUM_FORMS": "1000",
+                "item_approvals-0-registration_item": item.pk,
+                "item_approvals-0-approved_unit_price": price,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(RegistrationItemApproval.objects.filter(registration_item=item).exists())
+        return [str(message) for message in response.context["messages"]]
+
+    def test_price_form_shows_the_rank_and_the_project_prices(self):
+        first, second, _ = self.ranked_deals()
+        self.approve_price(first, unit_price="8000.00")
+        self.client.force_login(self.admin)
+        url = reverse(
+            "admin:registrations_registrationcategoryapproval_change",
+            args=[second.category_approvals.get().pk],
+        )
+        response = self.client.get(url)
+        self.assertContains(response, "Rank on this project")
+        self.assertContains(response, "Rank 1: North Dealer")
+        self.assertContains(response, "8,000.00")
+
+    def test_following_the_price_rule_gives_no_warning(self):
+        first, second, third = self.ranked_deals()
+        self.assertFalse(self.rule_warnings(self.approve_with_warnings(first, "8000.00")))
+        self.assertFalse(self.rule_warnings(self.approve_with_warnings(second, "9000.00")))
+        self.assertFalse(self.rule_warnings(self.approve_with_warnings(third, "9000.00")))
+
+    def test_breaking_the_price_rule_warns_but_still_saves(self):
+        first, second, third = self.ranked_deals()
+        self.approve_with_warnings(first, "8000.00")
+        same_as_first = self.rule_warnings(self.approve_with_warnings(second, "8000.00"))
+        self.assertTrue(any("Rank 1 should have the best price" in text for text in same_as_first))
+        different = self.rule_warnings(self.approve_with_warnings(third, "9000.00"))
+        self.assertTrue(any("should have the same price" in text for text in different))
+
+    def test_rank_1_is_warned_when_decided_last_with_a_worse_price(self):
+        first, second, _ = self.ranked_deals()
+        self.approve_with_warnings(second, "9000.00")
+        warnings = self.rule_warnings(self.approve_with_warnings(first, "9500.00"))
+        self.assertTrue(any("Rank 1 should have the best price" in text for text in warnings))
+
+    def test_tied_first_place_asks_dbgi_to_decide_the_tie(self):
+        first, second, _ = self.ranked_deals()
+        Registration.objects.filter(pk=second.pk).update(
+            original_submitted_at=first.original_submitted_at
+        )
+        self.approve_with_warnings(first, "8000.00")
+        warnings = self.rule_warnings(self.approve_with_warnings(second, "8000.00"))
+        self.assertTrue(any("Decide the tie first" in text for text in warnings))
+
+    def rule_warnings(self, messages):
+        return [text for text in messages if "should have" in text or "Decide the tie" in text]

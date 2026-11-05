@@ -34,7 +34,6 @@ SPLITTABLE_STATUSES = frozenset(
     {
         Registration.Status.ELIGIBLE_MATCHED,
         Registration.Status.REVIEW_REQUIRED,
-        Registration.Status.APPROVED,
     }
 )
 

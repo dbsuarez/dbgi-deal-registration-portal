@@ -10,7 +10,6 @@ const STATUS_COLORS: Record<StatusKind, Record<string, ChipProps["color"]>> = {
     resubmitted: "info",
     eligible_matched: "success",
     review_required: "warning",
-    approved: "success",
     rejected: "error",
     withdrawn: "default",
   },
@@ -50,7 +49,6 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
       "DBGI confirmed that this registration belongs to a specific project opportunity.",
     review_required:
       "This registration changed after matching and must be reviewed again by DBGI.",
-    approved: "DBGI approved this registration.",
     rejected:
       "DBGI rejected this registration. Open the decision to read the reason.",
     withdrawn:
