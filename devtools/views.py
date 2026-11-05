@@ -1,7 +1,9 @@
 import logging
+from functools import lru_cache
 
 from django.conf import settings
 from django.contrib.auth import login
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.views import LoginView
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
@@ -11,6 +13,14 @@ from django.views.decorators.http import require_POST
 from registrations.models import User
 
 logger = logging.getLogger(__name__)
+
+# Passwords are stored as one-way hashes, so only a known test password can be recognized and shown.
+KNOWN_TEST_PASSWORD = "testpass123"
+
+
+@lru_cache(maxsize=256)
+def _uses_known_test_password(encoded_password):
+    return check_password(KNOWN_TEST_PASSWORD, encoded_password)
 
 
 class DevelopmentLoginView(LoginView):
@@ -24,6 +34,10 @@ class DevelopmentLoginView(LoginView):
                 .select_related("company")
                 .order_by("company__name", "username")
             )
+            for user in users:
+                user.debug_password = (
+                    KNOWN_TEST_PASSWORD if _uses_known_test_password(user.password) else ""
+                )
             context["development_company_users"] = [
                 user for user in users if not user.is_dbgi_admin
             ]

@@ -41,6 +41,7 @@
                 <button class="debug-account" type="submit">
                   <strong>{{ account.get_full_name|default:account.username }}</strong>
                   <span>{{ account.company.name|default:"No company assigned" }} · {{ account.username }}</span>
+                  <span>Password: {{ account.debug_password|default:"unknown" }}</span>
                 </button>
               </form>
             {% endfor %}
@@ -53,15 +54,27 @@
           <h3 id="admin-accounts-heading">DBGI administrators</h3>
           <div class="debug-account-list">
             {% for account in development_admin_users %}
-              <form method="post" action="{% url 'development-login' %}">
-                {% csrf_token %}
-                <input type="hidden" name="username" value="{{ account.username }}">
-                <input type="hidden" name="next" value="{% if next %}{{ next }}{% else %}/admin/{% endif %}">
-                <button class="debug-account" type="submit">
+              <div class="debug-account debug-admin-account">
+                <div class="debug-account-details">
                   <strong>{{ account.get_full_name|default:account.username }}</strong>
-                  <span>Open Django administration · {{ account.username }}</span>
-                </button>
-              </form>
+                  <span>{{ account.username }}</span>
+                  <span>Password: {{ account.debug_password|default:"unknown" }}</span>
+                </div>
+                <div class="debug-account-actions">
+                  <form method="post" action="{% url 'development-login' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="username" value="{{ account.username }}">
+                    <input type="hidden" name="next" value="/">
+                    <button class="button secondary" type="submit" aria-label="Open the portal as {{ account.username }}">Portal</button>
+                  </form>
+                  <form method="post" action="{% url 'development-login' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="username" value="{{ account.username }}">
+                    <input type="hidden" name="next" value="/admin/">
+                    <button class="button secondary" type="submit" aria-label="Open Django admin as {{ account.username }}">Django admin</button>
+                  </form>
+                </div>
+              </div>
             {% endfor %}
           </div>
         </section>

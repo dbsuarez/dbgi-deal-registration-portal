@@ -62,12 +62,18 @@ h2 { margin-bottom: 1rem; font-size: 1.2rem; }
 .debug-login h2 { margin-bottom: .35rem; }
 .debug-account-group { margin-top: 1.25rem; }
 .debug-account-group h3 { margin: 0 0 .55rem; font-size: .8rem; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
-.debug-account-list { display: grid; gap: .55rem; }
+.debug-account-list { display: grid; gap: .4rem; }
 .debug-account-list form { margin: 0; }
-.debug-account { width: 100%; display: flex; flex-direction: column; gap: .15rem; padding: .75rem .85rem; border: 1px solid #cbd9e7; border-radius: 7px; color: var(--ink); background: var(--surface); text-align: left; font: inherit; cursor: pointer; }
+.debug-account { width: 100%; display: flex; flex-direction: column; gap: .05rem; padding: .45rem .7rem; border: 1px solid #cbd9e7; border-radius: 7px; color: var(--ink); background: var(--surface); text-align: left; font: inherit; cursor: pointer; }
 .debug-account:hover { border-color: var(--brand); background: #f9fcff; }
 .debug-account:focus-visible { outline: 3px solid #143f6840; outline-offset: 2px; }
-.debug-account span { color: var(--muted); font-size: .82rem; }
+.debug-account { font-size: .9rem; }
+.debug-account span { color: var(--muted); font-size: .78rem; }
+.debug-admin-account { flex-direction: row; align-items: center; justify-content: space-between; gap: .5rem; }
+.debug-admin-account:hover { border-color: #cbd9e7; background: var(--surface); }
+.debug-account-details { min-width: 0; display: flex; flex-direction: column; gap: .05rem; overflow-wrap: anywhere; }
+.debug-account-actions { flex-shrink: 0; display: flex; gap: .3rem; }
+.debug-account-actions .button { min-height: 28px; padding: .15rem .5rem; font-size: .75rem; white-space: nowrap; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .field { min-width: 0; display: flex; flex-direction: column; gap: .35rem; }
 .field label { font-size: .9rem; font-weight: 700; }

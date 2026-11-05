@@ -3503,3 +3503,29 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(sum(transactional_record_counts().values()), 0)
         self.assertTrue(User.objects.filter(pk=self.user_a.pk).exists())
         self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_debug_login_panel_shows_only_the_known_test_password(self):
+        self.user_b.set_password("testpass123")
+        self.user_b.save()
+        with override_settings(DEBUG=True):
+            body = self.client.get("/accounts/login/").content.decode()
+        self.assertEqual(body.count("Password: testpass123"), 1)
+        self.assertIn("Password: unknown", body)
+        self.assertNotIn("example-password", body)
+        with override_settings(DEBUG=False):
+            body = self.client.get("/accounts/login/").content.decode()
+        self.assertNotIn("Password: ", body)
+
+    def test_debug_login_panel_lets_an_admin_choose_portal_or_django_admin(self):
+        with override_settings(DEBUG=True):
+            body = self.client.get("/accounts/login/").content.decode()
+            self.assertIn(f'aria-label="Open the portal as {self.admin.username}"', body)
+            self.assertIn(f'aria-label="Open Django admin as {self.admin.username}"', body)
+            self.assertNotIn(f'aria-label="Open the portal as {self.user_a.username}"', body)
+            for next_url in ("/", "/admin/"):
+                self.client.logout()
+                response = self.client.post(
+                    "/accounts/debug-login/",
+                    {"username": self.admin.username, "next": next_url},
+                )
+                self.assertRedirects(response, next_url, fetch_redirect_response=False)
