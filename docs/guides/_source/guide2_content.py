@@ -353,7 +353,7 @@ PAGES = [
         "intro": "Rank 1 gets the best price. Everyone after rank 1 gets the same price. The form shows the rank and other prices.",
         "steps": [
             "Set **Status** to Approved.",
-            "Type your reason in **Rationale**. The partner can read it.",
+            "Type your reason in **Reason**. The partner can read it.",
             "**Valid until**: choose the end date. If you leave it blank, the price lasts 90 days.",
             "Under **Registration item approvals**, click **Add another**.",
             "Choose the product and type the approved price.",
@@ -764,7 +764,6 @@ PAGES = [
             ["Requested unit price", "The price you ask for, for one piece"],
             ["Approved unit price", "The price DBGI agreed to, for one piece"],
             ["Commercial approvals", "DBGI's price decisions"],
-            ["Rationale", "The reason for a decision"],
             ["Renewal", "Asking DBGI to make a price last longer"],
             ["Repeat order", "The same buyer orders more, without a new bidding"],
             ["NOA and NTP", "The buyer's letters: Notice of Award, Notice to Proceed"],
