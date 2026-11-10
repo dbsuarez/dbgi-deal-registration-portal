@@ -1,5 +1,89 @@
 {% extends "admin/base_site.html" %} {% block content %}
 <div class="danger-zone">
+  {% if snapshots_available %}
+  <section class="danger-panel danger-preserved">
+    <h1>Snapshots and backups</h1>
+    <p>
+      A snapshot saves all portal data: users and passwords, companies,
+      products, prices, End-users, deals, settings, and uploaded files. Take one
+      before a practice session. Restoring it afterwards puts everything back
+      exactly as it was, and removes what was added since. This is available
+      only in debug mode.
+    </p>
+    <p>
+      A snapshot stays on this server. Click <strong>Download</strong> to keep a
+      backup file on your computer. To bring a backup file back, upload it
+      below, then restore it from the list.
+    </p>
+    <form method="post" class="danger-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="snapshot" />
+      <label for="id_snapshot_label">Note (optional):</label>
+      <input id="id_snapshot_label" type="text" name="label" maxlength="120" placeholder="Before the practice session" />
+      <button type="submit">Take snapshot</button>
+    </form>
+    <form method="post" enctype="multipart/form-data" class="danger-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="upload" />
+      <label for="id_backup_file">Upload a backup file (.zip):</label>
+      <input id="id_backup_file" type="file" name="backup" accept=".zip" />
+      <button type="submit">Upload backup</button>
+    </form>
+    {% if snapshots %}
+    <table class="snapshot-table">
+      <thead>
+        <tr>
+          <th>Taken</th>
+          <th>Note</th>
+          <th class="numeric">Deals</th>
+          <th class="numeric">Users</th>
+          <th>Restore</th>
+          <th>Backup file</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for snapshot in snapshots %}
+        <tr>
+          <td>{{ snapshot.taken_at }}</td>
+          <td>{{ snapshot.label|default:"-" }}</td>
+          <td class="numeric">{{ snapshot.deals }}</td>
+          <td class="numeric">{{ snapshot.users }}</td>
+          <td>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="restore" />
+              <input type="hidden" name="snapshot" value="{{ snapshot.name }}" />
+              <input type="text" name="restore_confirmation" autocomplete="off" placeholder="Type {{ restore_phrase }}" aria-label="Type {{ restore_phrase }} to restore the snapshot from {{ snapshot.taken_at }}" />
+              <button type="submit">Restore</button>
+            </form>
+          </td>
+          <td>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="download" />
+              <input type="hidden" name="snapshot" value="{{ snapshot.name }}" />
+              <button type="submit" aria-label="Download the snapshot from {{ snapshot.taken_at }}">Download</button>
+            </form>
+          </td>
+          <td>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete_snapshot" />
+              <input type="hidden" name="snapshot" value="{{ snapshot.name }}" />
+              <button type="submit" aria-label="Delete the snapshot from {{ snapshot.taken_at }}">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No snapshots yet.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <section class="danger-panel">
     <h1>Delete all transactional data</h1>
     <p>
@@ -61,6 +145,7 @@
     <label for="id_confirmation">
       Type <strong>{{ confirmation_phrase }}</strong> to confirm:
     </label>
+    <input type="hidden" name="action" value="clear" />
     <input
       id="id_confirmation"
       type="text"

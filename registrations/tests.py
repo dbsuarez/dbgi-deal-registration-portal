@@ -1,7 +1,9 @@
 import json
+import zipfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from io import StringIO
+from io import BytesIO, StringIO
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import ClassVar
@@ -60,6 +62,7 @@ from .models import (
     RepeatOrder,
     User,
 )
+from .snapshots import SnapshotError, import_backup, list_snapshots, restore_snapshot
 from .working_days import add_working_days
 
 
@@ -3551,3 +3554,139 @@ class RegistrationApiTests(TestCase):
         self.assertNotIn(self.user_b, listed)
         with override_settings(DEBUG=False):
             self.assertNotContains(self.client.get("/accounts/login/"), "Practice pairs")
+
+    def danger_post(self, data):
+        return self.client.post(reverse("admin:danger-zone"), data, follow=True)
+
+    def test_snapshot_restores_data_files_and_users_exactly(self):
+        superuser = User.objects.create_superuser("snapshot-admin", password="example-password")
+        with (
+            TemporaryDirectory() as media_root,
+            override_settings(MEDIA_ROOT=media_root, DEBUG=True),
+        ):
+            original = RegistrationAttachment(
+                registration=self.registration_a,
+                original_name="support.pdf",
+                uploaded_by=self.user_a,
+            )
+            original.file.save("support.pdf", SimpleUploadedFile("s.pdf", b"%PDF-1.4 x"))
+            stored_name = original.file.name
+            deals_before = Registration.objects.count()
+            self.client.force_login(superuser)
+            self.danger_post({"action": "snapshot", "label": "Before practice"})
+            snapshot = list_snapshots()[0]
+            self.assertEqual(snapshot["label"], "Before practice")
+            self.assertEqual(snapshot["deals"], deals_before)
+
+            Registration.objects.filter(pk=self.registration_b.pk).update(project_title="Changed")
+            original.delete()
+            User.objects.create_user("added-during-practice", password="example-password")
+            self.product.prices.create(unit_price="1.00", reason="Practice change")
+
+            refused = self.danger_post(
+                {"action": "restore", "snapshot": snapshot["name"], "restore_confirmation": "no"}
+            )
+            self.assertContains(refused, "exactly to restore")
+            self.assertTrue(Registration.objects.filter(project_title="Changed").exists())
+
+            with self.captureOnCommitCallbacks(execute=True):
+                self.danger_post(
+                    {
+                        "action": "restore",
+                        "snapshot": snapshot["name"],
+                        "restore_confirmation": "RESTORE SNAPSHOT",
+                    }
+                )
+            self.assertEqual(Registration.objects.count(), deals_before)
+            self.assertFalse(Registration.objects.filter(project_title="Changed").exists())
+            self.assertFalse(User.objects.filter(username="added-during-practice").exists())
+            self.assertFalse(self.product.prices.filter(reason="Practice change").exists())
+            restored = RegistrationAttachment.objects.get(original_name="support.pdf")
+            self.assertTrue(restored.file.storage.exists(stored_name))
+            self.assertTrue(
+                User.objects.get(username="snapshot-admin").check_password("example-password")
+            )
+
+            self.danger_post({"action": "delete_snapshot", "snapshot": snapshot["name"]})
+            self.assertEqual(list_snapshots(), [])
+
+    def test_snapshots_are_only_for_debug_mode_and_superusers(self):
+        superuser = User.objects.create_superuser("snapshot-admin", password="example-password")
+        with (
+            TemporaryDirectory() as media_root,
+            override_settings(MEDIA_ROOT=media_root, DEBUG=False),
+        ):
+            self.client.force_login(superuser)
+            page = self.client.get(reverse("admin:danger-zone"))
+            self.assertNotContains(page, "Take snapshot")
+            refused = self.client.post(reverse("admin:danger-zone"), {"action": "snapshot"})
+            self.assertEqual(refused.status_code, 404)
+            self.assertEqual(list_snapshots(), [])
+        with override_settings(DEBUG=True):
+            self.client.force_login(self.admin)
+            if not self.admin.is_superuser:
+                self.assertEqual(self.client.get(reverse("admin:danger-zone")).status_code, 404)
+            with self.assertRaises(SnapshotError):
+                restore_snapshot("../../etc")
+
+    def test_downloaded_backup_can_be_uploaded_and_restored(self):
+        superuser = User.objects.create_superuser("backup-admin", password="example-password")
+        with (
+            TemporaryDirectory() as media_root,
+            override_settings(MEDIA_ROOT=media_root, DEBUG=True),
+        ):
+            self.client.force_login(superuser)
+            self.danger_post({"action": "snapshot", "label": "Before practice"})
+            name = list_snapshots()[0]["name"]
+            download = self.client.post(
+                reverse("admin:danger-zone"), {"action": "download", "snapshot": name}
+            )
+            self.assertEqual(download.status_code, 200)
+            backup = b"".join(download.streaming_content)
+            with zipfile.ZipFile(BytesIO(backup)) as archive:
+                self.assertIn("data.json", archive.namelist())
+            self.danger_post({"action": "delete_snapshot", "snapshot": name})
+            User.objects.create_user("added-later", password="example-password")
+
+            uploaded = self.danger_post(
+                {"action": "upload", "backup": SimpleUploadedFile("backup.zip", backup)}
+            )
+            self.assertContains(uploaded, "ready to restore")
+            restored_from = list_snapshots()[0]
+            self.assertIn("(uploaded)", restored_from["label"])
+            with self.captureOnCommitCallbacks(execute=True):
+                self.danger_post(
+                    {
+                        "action": "restore",
+                        "snapshot": restored_from["name"],
+                        "restore_confirmation": "RESTORE SNAPSHOT",
+                    }
+                )
+            self.assertFalse(User.objects.filter(username="added-later").exists())
+
+    def test_upload_refuses_files_that_are_not_portal_backups(self):
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            with self.assertRaises(SnapshotError):
+                import_backup(BytesIO(b"not a zip"))
+            bad = BytesIO()
+            with zipfile.ZipFile(bad, "w") as archive:
+                archive.writestr("data.json", "[]")
+                archive.writestr("meta.json", '{"taken_at": "2026-11-10 10:00"}')
+                archive.writestr("../escaped.txt", "x")
+            bad.seek(0)
+            with self.assertRaises(SnapshotError):
+                import_backup(bad)
+            self.assertEqual(list_snapshots(), [])
+
+    def test_backup_and_restore_commands_round_trip(self):
+        with TemporaryDirectory() as media_root, TemporaryDirectory() as out:
+            with override_settings(MEDIA_ROOT=media_root):
+                call_command("backup_portal", output=out, stdout=StringIO())
+                [backup] = list(Path(out).glob("dbgi-portal-backup-*.zip"))
+                self.assertEqual(list_snapshots(), [])
+                User.objects.create_user("added-after-backup", password="example-password")
+                with self.assertRaises(CommandError):
+                    call_command("restore_portal", str(backup), stdout=StringIO())
+                with self.captureOnCommitCallbacks(execute=True):
+                    call_command("restore_portal", str(backup), yes=True, stdout=StringIO())
+                self.assertFalse(User.objects.filter(username="added-after-backup").exists())

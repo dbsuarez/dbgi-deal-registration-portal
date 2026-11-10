@@ -166,6 +166,12 @@ The task must run with the same environment variables as the portal (database an
 
 DBGI decided the targets on 2026-10-30 (D3): keep records for 5 years, back up daily, and recover within one working day. They must be set up and tested on the production server before anyone relies on them.
 
+**Built 2026-11-10:** `python manage.py backup_portal --output <folder>` saves all portal data and uploaded files as one
+backup file, and `python manage.py restore_portal <file> --yes` puts it back. Run the backup daily and copy each file off
+the server, because a backup kept on the same server is lost with it. On test servers in debug mode, the Danger Zone also
+offers snapshots, which can be downloaded as the same backup file or uploaded again. A database-level backup, such as
+`pg_dump`, is still worth adding on the real server.
+
 The production plan must include:
 
 - Automated encrypted PostgreSQL backups.

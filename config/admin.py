@@ -1,12 +1,14 @@
 import json
 from datetime import timedelta
+from io import BytesIO
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.admin.models import DELETION, LogEntry
+from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
-from django.http import Http404
+from django.http import FileResponse, Http404
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
@@ -39,9 +41,73 @@ class DBGIAdminSite(UnfoldAdminSite):
             transactional_record_counts,
         )
         from registrations.models import Registration
+        from registrations.snapshots import (
+            SnapshotError,
+            delete_snapshot,
+            export_snapshot,
+            import_backup,
+            list_snapshots,
+            restore_snapshot,
+            snapshots_available,
+            take_snapshot,
+        )
 
         confirmation_phrase = "DELETE ALL TRANSACTIONAL DATA"
-        if request.method == "POST":
+        restore_phrase = "RESTORE SNAPSHOT"
+        action = request.POST.get("action", "clear") if request.method == "POST" else ""
+        if action in {"snapshot", "restore", "delete_snapshot", "download", "upload"}:
+            if not snapshots_available():
+                raise Http404
+            name = request.POST.get("snapshot", "")
+            if action == "download":
+                try:
+                    backup = BytesIO()
+                    export_snapshot(name, backup)
+                except SnapshotError as error:
+                    raise Http404 from error
+                backup.seek(0)
+                return FileResponse(
+                    backup, as_attachment=True, filename=f"dbgi-portal-backup-{name}.zip"
+                )
+            try:
+                if action == "upload":
+                    uploaded = request.FILES.get("backup")
+                    if uploaded is None:
+                        raise SnapshotError("Choose a backup file to upload.")
+                    added = import_backup(uploaded)
+                    log = (ADDITION, f"Uploaded backup as snapshot {added}", {"name": added})
+                    messages.success(
+                        request, "Backup uploaded. It is now in the list, ready to restore."
+                    )
+                elif action == "snapshot":
+                    taken = take_snapshot(request.POST.get("label", ""))
+                    log = (ADDITION, f"Snapshot {taken['name']}", taken)
+                    messages.success(request, f"Snapshot taken: {taken['taken_at']}.")
+                elif action == "delete_snapshot":
+                    delete_snapshot(name)
+                    log = None
+                    messages.success(request, "Snapshot deleted.")
+                elif request.POST.get("restore_confirmation", "").strip() != restore_phrase:
+                    log = None
+                    messages.error(request, f"Type {restore_phrase} exactly to restore.")
+                else:
+                    restored = restore_snapshot(name)
+                    log = (CHANGE, f"Restored snapshot {name}", restored)
+                    messages.success(request, f"Restored the snapshot from {restored['taken_at']}.")
+            except SnapshotError as error:
+                log = None
+                messages.error(request, str(error))
+            # After a restore the signed-in user may not exist any more, so log only if they do.
+            if log and get_user_model().objects.filter(pk=request.user.pk).exists():
+                LogEntry.objects.log_action(
+                    user_id=request.user.pk,
+                    content_type_id=ContentType.objects.get_for_model(Registration).pk,
+                    object_id=None,
+                    object_repr=log[1],
+                    action_flag=log[0],
+                    change_message=json.dumps(log[2]),
+                )
+        elif request.method == "POST":
             confirmation = request.POST.get("confirmation", "").strip()
             acknowledged = request.POST.get("acknowledge") == "on"
             if not acknowledged:
@@ -68,7 +134,10 @@ class DBGIAdminSite(UnfoldAdminSite):
             "title": "Danger Zone",
             "subtitle": "Irreversible superuser operations",
             "confirmation_phrase": confirmation_phrase,
+            "restore_phrase": restore_phrase,
             "counts": transactional_record_counts(),
+            "snapshots_available": snapshots_available(),
+            "snapshots": list_snapshots() if snapshots_available() else [],
         }
         request.current_app = self.name
         return TemplateResponse(request, "admin/danger_zone.html", context)

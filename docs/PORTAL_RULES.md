@@ -272,6 +272,9 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live:** every change is recorded in the registration's Activity: who, when, what changed, and why.
 - **Live:** DBGI's operations dashboard has queues for review, pricing, end-user verification, failed emails, and
   prices nearing expiry.
+- **Live (2026-11-10):** a superuser can take a snapshot of all portal data on a test server (debug mode only), restore
+  it later, and download it as a backup file or upload one. On any server, the `backup_portal` and `restore_portal`
+  commands do the same from the command line.
 - **Decided (D3):** keep records for 5 years, back up daily, and recover within one working day. To be set up with
   the production server.
 
