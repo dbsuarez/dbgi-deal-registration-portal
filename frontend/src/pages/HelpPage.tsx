@@ -578,9 +578,9 @@ export default function HelpPage() {
                 Enter prices only for the items covered by the approval.
                 Requested prices remain proposals.
               </NumberedStep>
-              <NumberedStep number={4} title="Set validity and rationale">
-                Record when the terms expire and why the decision was made. The
-                company notification excludes detailed sensitive pricing.
+              <NumberedStep number={4} title="Set the end date and reason">
+                Record when the price ends and why you decided it. The company
+                notification excludes detailed sensitive pricing.
               </NumberedStep>
             </List>
           </GuideSection>

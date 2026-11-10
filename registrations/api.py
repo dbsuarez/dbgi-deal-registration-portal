@@ -264,6 +264,7 @@ class CategoryApprovalOutput(Schema):
     can_request_renewal: bool
     pending_renewal_id: int | None
     pending_renewal_reason: str | None
+    last_renewal: str | None
 
 
 class CategoryApprovalDecisionInput(Schema):
@@ -1193,6 +1194,22 @@ def _serialize_matching_suggestion(suggestion):
     }
 
 
+def _last_renewal_text(approval):
+    """The latest decided renewal and DBGI's reason, which the company can read."""
+    renewal = (
+        approval.renewals.exclude(status=PriceApprovalRenewal.Status.PENDING)
+        .order_by("-decided_at", "-id")
+        .first()
+    )
+    if renewal is None:
+        return None
+    if renewal.status == PriceApprovalRenewal.Status.APPROVED:
+        outcome = f"Renewed to {renewal.new_valid_until:%Y-%m-%d}"
+    else:
+        outcome = "Renewal declined"
+    return f"{outcome}: {renewal.decision_reason}" if renewal.decision_reason else outcome
+
+
 def _serialize_category_approval(approval):
     withdrawn = approval.registration.status == Registration.Status.WITHDRAWN
     pending = (
@@ -1210,6 +1227,7 @@ def _serialize_category_approval(approval):
         },
         "pending_renewal_id": pending.pk if pending else None,
         "pending_renewal_reason": pending.reason if pending else None,
+        "last_renewal": _last_renewal_text(approval),
         "id": approval.pk,
         "category": approval.category,
         "status": approval.effective_status,

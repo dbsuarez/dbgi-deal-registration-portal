@@ -679,7 +679,7 @@ class RegistrationReviewDecision(models.Model):
         related_name="review_decisions",
     )
     decision = models.CharField(max_length=30, choices=Decision.choices)
-    rationale = models.TextField()
+    rationale = models.TextField("reason")
     actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name="review_decisions")
     registration_version = models.PositiveIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -870,7 +870,7 @@ class RegistrationCategoryApproval(models.Model):
     )
     category = models.CharField(max_length=120)
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.PENDING)
-    rationale = models.TextField(blank=True)
+    rationale = models.TextField("reason", blank=True)
     reviewed_by = models.ForeignKey(
         User, on_delete=models.PROTECT, null=True, blank=True, related_name="category_approvals"
     )

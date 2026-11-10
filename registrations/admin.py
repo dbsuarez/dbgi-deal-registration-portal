@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -421,8 +422,8 @@ class OpportunityAdmin(ModelAdmin):
                     actor=request.user,
                     event_type="Project status changed",
                     details=(
-                        f"Project status changed from {previous_status} to "
-                        f"{obj.get_project_status_display()} through Django administration."
+                        f"DBGI changed the project status from {previous_status} to "
+                        f"{obj.get_project_status_display()}."
                     ),
                     snapshot=registration_snapshot(registration),
                 )
@@ -860,8 +861,25 @@ class RegistrationItemApprovalInline(TabularInline):
         return field
 
 
+class RegistrationCategoryApprovalForm(forms.ModelForm):
+    class Meta:
+        model = RegistrationCategoryApproval
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        decided = cleaned.get("status") != RegistrationCategoryApproval.Status.PENDING
+        # The same rule as the portal's own price decision: the company reads this reason.
+        if decided and len((cleaned.get("rationale") or "").strip()) < 5:
+            self.add_error(
+                "rationale", "Write the reason, at least 5 characters. The company can read it."
+            )
+        return cleaned
+
+
 @admin.register(RegistrationCategoryApproval)
 class RegistrationCategoryApprovalAdmin(ModelAdmin):
+    form = RegistrationCategoryApprovalForm
     list_display = (
         "registration",
         "category",
@@ -937,9 +955,9 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
             actor=request.user,
             event_type="Commercial decision",
             details=(
-                f"{form.instance.category} pricing was marked "
-                f"{form.instance.get_status_display()} through Django administration."
-            ),
+                f"DBGI marked the {form.instance.category} price "
+                f"{form.instance.get_status_display()}. {form.instance.rationale}"
+            ).strip(),
             snapshot=request.commercial_prior_snapshot,
         )
         notify_price_decision(form.instance)

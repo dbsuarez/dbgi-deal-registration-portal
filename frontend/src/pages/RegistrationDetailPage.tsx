@@ -1028,6 +1028,11 @@ export default function RegistrationDetailPage() {
                         Request renewal
                       </Button>
                     ) : null}
+                    {approval.last_renewal && (
+                      <Typography variant="body2" color="text.secondary">
+                        {approval.last_renewal}
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

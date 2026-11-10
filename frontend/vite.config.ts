@@ -6,6 +6,9 @@ function formatBuildTime(value: Date) {
   return `${value.getFullYear()}-${part(value.getMonth() + 1)}-${part(value.getDate())} ${part(value.getHours())}:${part(value.getMinutes())}`;
 }
 
+// The guide screenshots use their own backend port, so a running local backend is left alone.
+const backend = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
@@ -16,12 +19,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:8000",
-      "/accounts": "http://127.0.0.1:8000",
-      "/admin": "http://127.0.0.1:8000",
-      "/attachments": "http://127.0.0.1:8000",
-      "/health": "http://127.0.0.1:8000",
-      "/static": "http://127.0.0.1:8000",
+      "/api": backend,
+      "/accounts": backend,
+      "/admin": backend,
+      "/attachments": backend,
+      "/health": backend,
+      "/static": backend,
     },
   },
 });

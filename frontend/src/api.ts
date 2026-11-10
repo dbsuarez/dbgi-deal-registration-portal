@@ -333,6 +333,7 @@ export type CategoryApproval = {
   can_request_renewal?: boolean;
   pending_renewal_id?: number | null;
   pending_renewal_reason?: string | null;
+  last_renewal?: string | null;
 };
 
 export type RegistrationPayload = {

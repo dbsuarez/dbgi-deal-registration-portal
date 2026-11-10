@@ -3690,3 +3690,73 @@ class RegistrationApiTests(TestCase):
                 with self.captureOnCommitCallbacks(execute=True):
                     call_command("restore_portal", str(backup), yes=True, stdout=StringIO())
                 self.assertFalse(User.objects.filter(username="added-after-backup").exists())
+
+    def test_admin_price_decision_note_is_plain_for_partners(self):
+        self.set_price("100.00")
+        approval = self.register_deal().category_approvals.get()
+        self.client.force_login(self.admin)
+        self.approve_in_admin(approval)
+        event = RegistrationEvent.objects.filter(event_type="Commercial decision").latest("id")
+        self.assertNotIn("Django", event.details)
+        self.assertEqual(
+            event.details,
+            f"DBGI marked the {approval.category} price Approved. Within the allowed discount.",
+        )
+        form = self.client.get(
+            reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk])
+        )
+        self.assertContains(form, "Reason")
+        self.assertNotContains(form, "Rationale")
+
+    def test_admin_price_decision_needs_a_reason(self):
+        self.set_price("100.00")
+        approval = self.register_deal().category_approvals.get()
+        self.client.force_login(self.admin)
+        url = reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk])
+        response = self.client.post(
+            url,
+            {
+                "registration": approval.registration_id,
+                "category": approval.category,
+                "status": RegistrationCategoryApproval.Status.APPROVED,
+                "rationale": "",
+                "valid_until": "",
+                "item_approvals-TOTAL_FORMS": "0",
+                "item_approvals-INITIAL_FORMS": "0",
+                "item_approvals-MIN_NUM_FORMS": "0",
+                "item_approvals-MAX_NUM_FORMS": "1000",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Write the reason")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+
+    def test_commercial_approvals_show_the_latest_renewal_decision(self):
+        self.set_price("100.00")
+        registration = self.register_deal()
+        approval = registration.category_approvals.get()
+        RegistrationCategoryApproval.objects.filter(pk=approval.pk).update(
+            status=RegistrationCategoryApproval.Status.APPROVED,
+            rationale="Within the allowed discount.",
+            valid_until=timezone.localdate() + timedelta(days=10),
+        )
+        renewal_id = self.client.post(
+            f"/api/v1/category-approvals/{approval.pk}/renewals",
+            data=json.dumps({"reason": "The bid moved to next month."}),
+            content_type="application/json",
+        ).json()["pending_renewal_id"]
+        self.client.force_login(self.admin)
+        self.client.post(
+            f"/api/v1/review/renewals/{renewal_id}/decision",
+            data=json.dumps({"approve": True, "reason": "The new bid date is confirmed."}),
+            content_type="application/json",
+        )
+        self.client.force_login(self.user_a)
+        shown = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+        row = shown["category_approvals"][0]
+        self.assertEqual(row["rationale"], "Within the allowed discount.")
+        new_end = timezone.localdate() + timedelta(days=40)
+        self.assertEqual(
+            row["last_renewal"], f"Renewed to {new_end:%Y-%m-%d}: The new bid date is confirmed."
+        )

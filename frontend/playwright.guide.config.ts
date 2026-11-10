@@ -25,14 +25,18 @@ export default defineConfig({
   webServer: [
     {
       command:
-        ".venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8000 --noreload",
+        ".venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8010 --noreload",
       cwd: "..",
       env: guideEnv,
-      url: "http://127.0.0.1:8000/health/",
+      url: "http://127.0.0.1:8010/health/",
       reuseExistingServer: false,
     },
     {
       command: "npm run dev -- --host 127.0.0.1 --port 4173",
+      env: { ...process.env, BACKEND_URL: "http://127.0.0.1:8010" } as Record<
+        string,
+        string
+      >,
       url: "http://127.0.0.1:4173",
       reuseExistingServer: false,
     },
