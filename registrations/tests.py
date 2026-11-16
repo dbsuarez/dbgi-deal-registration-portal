@@ -3876,3 +3876,76 @@ class RegistrationApiTests(TestCase):
         self.assertFalse(
             NotificationEventSetting.objects.get(event_type="renewal_requested").email_enabled
         )
+
+    def test_dbgi_decides_a_price_on_the_deal_page_with_rank_context(self):
+        first, second, _ = self.ranked_deals()
+        self.approve_price(first, unit_price="8000.00")
+        approval = second.category_approvals.get()
+        item = second.items.get()
+        self.client.force_login(self.user_b)
+        partner_view = self.client.get(f"/api/v1/registrations/{second.pk}").json()
+        row = partner_view["category_approvals"][0]
+        self.assertFalse(row["can_decide"])
+        self.assertIsNone(row["rank_text"])
+        self.assertEqual(row["project_prices"], [])
+
+        self.client.force_login(self.admin)
+        row = self.client.get(f"/api/v1/registrations/{second.pk}").json()["category_approvals"][0]
+        self.assertTrue(row["can_decide"])
+        self.assertEqual(row["item_ids"], [item.pk])
+        self.assertEqual(row["rank_text"], "2")
+        self.assertEqual(row["project_prices"][0]["price"], "8,000.00")
+        decided = self.client.post(
+            f"/api/v1/review/category-approvals/{approval.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": approval.version,
+                    "status": "approved",
+                    "rationale": "Same as rank 1 for testing.",
+                    "approved_prices": {str(item.pk): "8000.00"},
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(decided.status_code, 200, decided.content)
+        body = decided.json()
+        self.assertTrue(
+            any("Rank 1 should have the best price" in w for w in body["price_warnings"])
+        )
+        self.assertEqual(body["valid_until"], str(timezone.localdate() + timedelta(days=90)))
+        event = second.events.filter(event_type="Commercial decision").latest("id")
+        self.assertTrue(event.details.startswith("DBGI marked the"))
+        missing_reason = self.client.post(
+            f"/api/v1/review/category-approvals/{approval.pk}/decision",
+            data=json.dumps({"version": body["version"], "status": "approved", "rationale": ""}),
+            content_type="application/json",
+        )
+        self.assertEqual(missing_reason.status_code, 422)
+
+    def test_deal_page_lets_dbgi_change_the_project_status(self):
+        opportunity = self.link_to_project(self.registration_a)
+        self.client.force_login(self.user_a)
+        detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertFalse(detail["can_change_project_status"])
+        self.client.force_login(self.admin)
+        detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertTrue(detail["can_change_project_status"])
+        self.assertEqual(detail["opportunity_id"], opportunity.pk)
+        self.assertEqual(detail["hold_limit_days"], 60)
+        changed = self.client.post(
+            f"/api/v1/review/opportunities/{opportunity.pk}/project-status",
+            data=json.dumps({"status": "on_hold", "reason": "The bidding was postponed."}),
+            content_type="application/json",
+        )
+        self.assertEqual(changed.status_code, 200, changed.content)
+        opportunity.refresh_from_db()
+        self.assertEqual(opportunity.project_status, "on_hold")
+        self.assertIsNotNone(opportunity.on_hold_since)
+
+    def test_dates_show_as_year_month_day(self):
+        from django.utils import formats
+
+        moment = datetime(2026, 11, 4, 14, 5, tzinfo=ZoneInfo("Asia/Manila"))
+        self.assertEqual(formats.date_format(moment.date()), "2026-11-04")
+        self.assertEqual(formats.date_format(moment, "DATETIME_FORMAT"), "2026-11-04 14:05")
+        self.assertEqual(formats.date_format(moment.date(), "SHORT_DATE_FORMAT"), "2026-11-04")

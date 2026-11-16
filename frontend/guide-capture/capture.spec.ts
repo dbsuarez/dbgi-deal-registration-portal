@@ -237,31 +237,21 @@ test("capture the guide screenshots", async ({ browser }) => {
     fullPage: true,
   });
 
-  // Part 7: approve the price
-  await dbgi.goto(
-    `/admin/registrations/registrationcategoryapproval/?q=${encodeURIComponent("Mayor's")}`,
-  );
+  // Part 7: approve the price on the deal page
+  await dbgi.goto(dealUrl);
   await settle(dbgi);
-  await shot(dbgi, "price-list");
-  await dbgi
-    .locator("#result_list tbody tr a, table tbody tr a")
-    .first()
-    .click();
+  await clip(dbgi, section(dbgi, "Commercial approvals"), "price-open");
+  await dbgi.getByRole("button", { name: "Decide price" }).first().click();
+  const decide = dbgi.getByRole("dialog");
+  for (const input of await decide.getByLabel(/Approved price for/).all())
+    await input.fill("9000");
+  await decide.getByLabel(/Reason/).fill("Within the allowed discount.");
+  await dialog(dbgi, "price-decide");
+  await decide.getByRole("button", { name: "Save decision" }).click();
+  const close = decide.getByRole("button", { name: "Close" });
+  if (await close.isVisible().catch(() => false)) await close.click();
+  await expect(decide).toBeHidden();
   await settle(dbgi);
-  await dbgi.setViewportSize({ width: 1440, height: 1500 });
-  await dbgi.locator("[name=status]").selectOption("approved");
-  await dbgi.locator("[name=rationale]").fill("Within the allowed discount.");
-  await dbgi.getByText(/Add another Registration item approval/).click();
-  await dbgi
-    .locator('[name="item_approvals-0-registration_item"]')
-    .selectOption({ index: 1 });
-  await dbgi
-    .locator('[name="item_approvals-0-approved_unit_price"]')
-    .fill("9000");
-  await shot(dbgi, "price-form");
-  await dbgi.locator("[name=_save]").first().click();
-  await settle(dbgi);
-  await dbgi.setViewportSize({ width: 1440, height: 900 });
 
   // Part 8: see the result, renew, rank
   await partner.goto(dealUrl);
@@ -370,14 +360,15 @@ test("capture the guide screenshots", async ({ browser }) => {
   // Part 12: time limits
   await partner.goto("/notifications/");
   await shot(partner, "notifications");
-  await dbgi.goto(
-    `/admin/registrations/opportunity/?q=${encodeURIComponent("Mayor's")}`,
-  );
+  await dbgi.goto(dealUrl);
   await settle(dbgi);
-  await dbgi.locator("table tbody tr a").first().click();
-  await settle(dbgi);
-  await dbgi.setViewportSize({ width: 1440, height: 1100 });
-  await shot(dbgi, "project-status");
+  await dbgi.getByRole("button", { name: "Change project status" }).click();
+  const statusBox = dbgi.getByRole("dialog");
+  await statusBox.getByRole("combobox", { name: /Project status/ }).click();
+  await dbgi.getByRole("option", { name: "On hold" }).click();
+  await statusBox.getByLabel(/Reason/).fill("The bidding was postponed.");
+  await dialog(dbgi, "project-status");
+  await statusBox.getByRole("button", { name: "Cancel" }).click();
 
   // Part 13: DBGI tasks
   await dbgi.goto("/admin/registrations/product/?q=M1820W");

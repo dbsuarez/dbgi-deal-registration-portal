@@ -272,6 +272,9 @@ export type RegistrationDetail = RegistrationListItem & {
   repeat_orders?: RepeatOrder[];
   repeat_order_choices?: RepeatOrderChoice[];
   repeat_order_valid_days?: number;
+  opportunity_id?: number | null;
+  can_change_project_status?: boolean;
+  hold_limit_days?: number;
 };
 
 export type RepeatOrder = {
@@ -337,6 +340,17 @@ export type CategoryApproval = {
   pending_renewal_id?: number | null;
   pending_renewal_reason?: string | null;
   last_renewal?: string | null;
+  item_ids?: number[];
+  can_decide?: boolean;
+  rank_text?: string | null;
+  project_prices?: {
+    rank: string;
+    company: string;
+    reference: string;
+    product: string;
+    price: string;
+  }[];
+  price_warnings?: string[];
 };
 
 export type RegistrationPayload = {
@@ -777,6 +791,40 @@ export function decideRankingTie(
 ) {
   return mutation<{ id: number; decided_at: string }>(
     `/api/v1/review/opportunity-scopes/${scopeId}/tie-decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function decideCategoryPrice(
+  approvalId: number,
+  payload: {
+    version: number;
+    status: string;
+    rationale: string;
+    valid_until: string | null;
+    approved_prices: Record<string, string>;
+  },
+  csrfToken: string,
+) {
+  return mutation<CategoryApproval>(
+    `/api/v1/review/category-approvals/${approvalId}/decision`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
+export function changeProjectStatus(
+  opportunityId: number,
+  payload: { status: string; reason: string },
+  csrfToken: string,
+) {
+  return mutation<unknown>(
+    `/api/v1/review/opportunities/${opportunityId}/project-status`,
     "POST",
     csrfToken,
     JSON.stringify(payload),

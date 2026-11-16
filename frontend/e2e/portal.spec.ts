@@ -2203,3 +2203,135 @@ test("DBGI orders a tie when Portal settings allow it", async ({ page }) => {
   await expect(page.getByText("1 (tie decided)")).toBeVisible();
   await expect(page.getByText("2 (tie decided)")).toBeVisible();
 });
+
+test("DBGI decides a price on the deal page and sees the rank warning", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
+  );
+  const approval = {
+    id: 9,
+    category: "Laser Printers",
+    status: "pending",
+    status_label: "Pending",
+    rationale: "",
+    reviewed_by: null,
+    reviewed_at: null,
+    valid_until: null,
+    version: 1,
+    can_request_renewal: false,
+    pending_renewal_id: null,
+    pending_renewal_reason: null,
+    last_renewal: null,
+    item_ids: [41],
+    can_decide: true,
+    rank_text: "2",
+    project_prices: [
+      {
+        rank: "1",
+        company: "North Dealer",
+        reference: "DBGI-000010",
+        product: "Printer",
+        price: "8,000.00",
+      },
+    ],
+  };
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({
+      json: decidedDeal({
+        category_approvals: [approval],
+        items: [
+          {
+            id: 41,
+            product_name: "Printer",
+            display_name: "Printer",
+            non_catalog_name: "",
+            quantity: 20,
+            requested_unit_price: "9000.00",
+            list_unit_price: "10000.00",
+            approved_unit_price: null,
+          },
+        ],
+      }),
+    }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route(
+    "**/api/v1/review/category-approvals/9/decision",
+    (route) => {
+      sent = route.request().postDataJSON();
+      return route.fulfill({
+        json: {
+          ...approval,
+          status: "approved",
+          price_warnings: ["Rank 1 should have the best price. Printer: ..."],
+        },
+      });
+    },
+  );
+
+  await page.goto("/registrations/15/");
+  await page.getByRole("button", { name: "Decide price" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Decide the Laser Printers price",
+  });
+  await expect(dialog.getByText("Rank on this project:")).toBeVisible();
+  await expect(dialog.getByText(/North Dealer/)).toBeVisible();
+  const save = dialog.getByRole("button", { name: "Save decision" });
+  await dialog.getByLabel("Approved price for Printer").fill("8000");
+  await expect(save).toBeDisabled();
+  await dialog.getByLabel(/Reason/).fill("Same as rank 1 for testing.");
+  await save.click();
+
+  await expect(dialog.getByText("The price decision is saved.")).toBeVisible();
+  await expect(
+    dialog.getByText(/Rank 1 should have the best price/),
+  ).toBeVisible();
+  expect(sent).toMatchObject({
+    status: "approved",
+    rationale: "Same as rank 1 for testing.",
+    valid_until: null,
+    approved_prices: { "41": "8000" },
+  });
+});
+
+test("DBGI puts a project on hold from the deal page", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
+  );
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({
+      json: decidedDeal({
+        opportunity_id: 6,
+        can_change_project_status: true,
+        hold_limit_days: 60,
+      }),
+    }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route(
+    "**/api/v1/review/opportunities/6/project-status",
+    (route) => {
+      sent = route.request().postDataJSON();
+      return route.fulfill({ json: {} });
+    },
+  );
+
+  await page.goto("/registrations/15/");
+  await page.getByRole("button", { name: "Change project status" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Change the project status",
+  });
+  await expect(dialog.getByText(/keep their place for 60 days/)).toBeVisible();
+  await dialog.getByRole("combobox", { name: /Project status/ }).click();
+  await page.getByRole("option", { name: "On hold" }).click();
+  await dialog.getByLabel(/Reason/).fill("The bidding was postponed.");
+  await dialog.getByRole("button", { name: "Change status" }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toEqual({
+    status: "on_hold",
+    reason: "The bidding was postponed.",
+  });
+});

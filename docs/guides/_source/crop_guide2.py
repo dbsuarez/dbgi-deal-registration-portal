@@ -30,13 +30,9 @@ CROPS = {
     "edit-top": ("edit-full", (*MAIN, 310)),
     "edit-save": ("edit-full", (130, 1195, 1310, 1700)),
     "confirmed-top": ("confirmed-full", (*MAIN, 215)),
-    "price-list": ("price-list", (0, 40, 1440, 460)),
-    "price-form": ("price-form", (285, 60, 1440, 560)),
-    "price-items": ("price-form", (285, 865, 1440, 1345)),
     "approved-top": ("approved-full", (*MAIN, 265)),
     "rank-partner": ("rank-partner", (0, 90, 1440, 500)),
     "withdrawn-top": ("withdrawn-full", (*MAIN, 215)),
-    "project-status": ("project-status", (285, 40, 1440, 625)),
     "price-add": ("price-add", (285, 40, 1440, 760)),
     "rank-dbgi": ("rank-dbgi", (0, 90, 1440, 420)),
     "portal-settings": ("portal-settings", (285, 40, 1440, 1200)),
@@ -45,7 +41,7 @@ COPIES = (
     "competitor product sub-next sub-products sub-approvals sub-activity review-card options-card changes-card "
     "ret-next ret-activity confirm-card app-approvals app-products ren-approvals after-approvals out-partner "
     "out-dbgi renewal-request renewal-decide withdraw outcome catalog reprice "
-    "repeat-request repeat-decide repeat-section merge-dialog split-dialog"
+    "repeat-request repeat-decide repeat-section merge-dialog split-dialog price-open price-decide project-status"
 ).split()
 
 for name, (source, box) in CROPS.items():

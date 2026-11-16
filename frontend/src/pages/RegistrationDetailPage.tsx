@@ -64,6 +64,8 @@ import {
 import { useSession } from "../session";
 import { getStatusColor, getStatusExplanation } from "../status";
 import { companyNextStep } from "./registrationReview";
+import PriceDecisionDialog from "./PriceDecisionDialog";
+import ProjectStatusDialog from "./ProjectStatusDialog";
 import RepeatOrdersSection from "./RepeatOrdersSection";
 import SplitDealDialog from "./SplitDealDialog";
 
@@ -145,6 +147,10 @@ export default function RegistrationDetailPage() {
   const [renewing, setRenewing] = useState(false);
   const [renewalError, setRenewalError] = useState("");
   const [splitOpen, setSplitOpen] = useState(false);
+  const [priceDecision, setPriceDecision] = useState<CategoryApproval | null>(
+    null,
+  );
+  const [projectStatusOpen, setProjectStatusOpen] = useState(false);
   const [repriceOpen, setRepriceOpen] = useState(false);
   const [repriceReason, setRepriceReason] = useState("");
   const [repricing, setRepricing] = useState(false);
@@ -529,6 +535,14 @@ export default function RegistrationDetailPage() {
               }}
             >
               Apply current list prices
+            </Button>
+          )}
+          {registration.can_change_project_status && (
+            <Button
+              variant="outlined"
+              onClick={() => setProjectStatusOpen(true)}
+            >
+              Change project status
             </Button>
           )}
           {registration.can_split && (
@@ -989,6 +1003,16 @@ export default function RegistrationDetailPage() {
                       variant="filled"
                       color={getStatusColor("price", approval.status)}
                     />
+                    {approval.can_decide && (
+                      <Box>
+                        <Button
+                          size="small"
+                          onClick={() => setPriceDecision(approval)}
+                        >
+                          Decide price
+                        </Button>
+                      </Box>
+                    )}
                   </TableCell>
                   <TableCell>{approval.valid_until ?? "Not set"}</TableCell>
                   <TableCell>
@@ -1521,6 +1545,21 @@ export default function RegistrationDetailPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      <PriceDecisionDialog
+        key={priceDecision?.id ?? "closed"}
+        approval={priceDecision}
+        registration={registration}
+        csrfToken={session.csrf_token}
+        onClose={() => setPriceDecision(null)}
+        onSaved={setRegistration}
+      />
+      <ProjectStatusDialog
+        open={projectStatusOpen}
+        registration={registration}
+        csrfToken={session.csrf_token}
+        onClose={() => setProjectStatusOpen(false)}
+        onSaved={setRegistration}
+      />
       <SplitDealDialog
         open={splitOpen}
         registration={registration}

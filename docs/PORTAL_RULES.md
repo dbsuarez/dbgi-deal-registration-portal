@@ -133,8 +133,8 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   the server. Only Registered registrations are ranked, and each company counts once per scope.
 - **Live:** a vague first claim cannot gain an earlier place later by adding details.
 - **Live (common rule, 2026-11-05):** rank 1 gets the best price, and every other company on the project gets the same
-  price as each other. DBGI still types each price by hand. The price form (Administration, Price approvals) shows the
-  deal's rank and the other approved prices for the project. When DBGI saves a price that breaks this rule, the portal
+  price as each other. DBGI still types each price by hand, in the **Decide price** box on the deal page (Commercial approvals).
+  The box shows the deal's rank and the other approved prices for the project. When DBGI saves a price that breaks this rule, the portal
   shows a warning but still saves it, so DBGI can decide an exception. Tied companies at rank 1 all count as rank 1:
   they get the same best price.
 - **Live:** a partner sees only its own rank; DBGI sees the full ranking.
@@ -148,7 +148,8 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 
 ## 8. Projects and outcomes
 
-- **Live:** a project's status is Upcoming, Active, Won, Lost, Cancelled, or On hold.
+- **Live:** a project's status is Upcoming, Active, Won, Lost, Cancelled, or On hold. DBGI changes it with
+  **Change project status** at the top of any deal on the project; a reason is required and saved on each deal.
 - **Live:** DBGI administrators can set the project status with a reason; it is recorded on every linked
   registration.
 - **Live (B4):** on a registration DBGI linked to a project that is still Upcoming, Active, or On hold, the partner

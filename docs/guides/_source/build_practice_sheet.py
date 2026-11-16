@@ -28,8 +28,8 @@ STEPS = [
     ),
     (
         "DBGI",
-        "Click **Administration**, then **Price approvals**, and open the deal. Set Status to **Approved** and type a "
-        "reason. Click **Add another**, choose the product, type **8000**, and click **Save**.",
+        "Open the deal. Under **Commercial approvals**, click **Decide price**. Leave Decision on **Approved**, "
+        "type **8000** as the approved price, type a reason, and click **Save decision**.",
         "25, 26",
     ),
     (

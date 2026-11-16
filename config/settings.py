@@ -361,6 +361,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
+# All dates show as YYYY-MM-DD and times as YYYY-MM-DD HH:mm (config/formats/en/formats.py).
+FORMAT_MODULE_PATH = ["config.formats"]
 
 TIME_ZONE = "Asia/Manila"
 

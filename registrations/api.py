@@ -62,6 +62,7 @@ from .notifications import (
     notify_repeat_order_decision,
     notify_submission,
 )
+from .price_rules import price_warnings, project_price_rows, rank_text
 from .project_changes import (
     PROJECT_CHANGE_EVENTS,
     SPLITTABLE_STATUSES,
@@ -265,6 +266,11 @@ class CategoryApprovalOutput(Schema):
     pending_renewal_id: int | None
     pending_renewal_reason: str | None
     last_renewal: str | None
+    item_ids: list[int]
+    can_decide: bool
+    rank_text: str | None = None
+    project_prices: list[dict] = Field(default_factory=list)
+    price_warnings: list[str] = Field(default_factory=list)
 
 
 class CategoryApprovalDecisionInput(Schema):
@@ -410,6 +416,9 @@ class ProjectChangeOutput(Schema):
 
 class RegistrationDetail(RegistrationListItem):
     repeat_order_valid_days: int
+    opportunity_id: int | None
+    can_change_project_status: bool
+    hold_limit_days: int
     can_split: bool
     repeat_orders: list[RepeatOrderOutput]
     repeat_order_choices: list[RepeatOrderChoice]
@@ -1104,6 +1113,14 @@ def _serialize_registration_detail(registration, user):
                 )
             ],
             "repeat_order_valid_days": PortalSetting.current().repeat_order_valid_days,
+            "opportunity_id": (
+                registration.opportunity_scope.opportunity_id
+                if registration.opportunity_scope_id
+                else None
+            ),
+            "can_change_project_status": user.is_dbgi_admin
+            and registration.opportunity_scope_id is not None,
+            "hold_limit_days": PortalSetting.current().hold_limit_days,
             "repeat_order_choices": (
                 [] if user.is_dbgi_admin else _repeat_order_choices(registration)
             ),
@@ -1174,7 +1191,7 @@ def _serialize_registration_detail(registration, user):
                 else None
             ),
             "category_approvals": [
-                _serialize_category_approval(approval)
+                _serialize_category_approval(approval, user)
                 for approval in registration.category_approvals.select_related(
                     "reviewed_by", "registration"
                 ).all()
@@ -1221,7 +1238,8 @@ def _last_renewal_text(approval):
     return f"{outcome}: {renewal.decision_reason}" if renewal.decision_reason else outcome
 
 
-def _serialize_category_approval(approval):
+def _serialize_category_approval(approval, user=None, warnings=None):
+    """`user` adds DBGI's rank and price context; `warnings` comes from a decision just saved."""
     withdrawn = approval.registration.status == Registration.Status.WITHDRAWN
     pending = (
         None
@@ -1239,6 +1257,18 @@ def _serialize_category_approval(approval):
         "pending_renewal_id": pending.pk if pending else None,
         "pending_renewal_reason": pending.reason if pending else None,
         "last_renewal": _last_renewal_text(approval),
+        "item_ids": list(
+            approval.registration.items.filter(product__category=approval.category).values_list(
+                "pk", flat=True
+            )
+        ),
+        "can_decide": bool(user and user.is_dbgi_admin)
+        and approval.registration.status != Registration.Status.WITHDRAWN,
+        "rank_text": rank_text(approval.registration) if user and user.is_dbgi_admin else None,
+        "project_prices": (
+            project_price_rows(approval.registration) if user and user.is_dbgi_admin else []
+        ),
+        "price_warnings": warnings or [],
         "id": approval.pk,
         "category": approval.category,
         "status": approval.effective_status,
@@ -3067,13 +3097,13 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
             actor=request.user,
             event_type="Commercial decision",
             details=(
-                f"{approval.category} pricing was marked {approval.get_status_display()}. "
+                f"DBGI marked the {approval.category} price {approval.get_status_display()}. "
                 f"{approval.rationale}"
             ),
             snapshot=prior_snapshot,
         )
         notify_price_decision(approval)
-    return _serialize_category_approval(approval)
+    return _serialize_category_approval(approval, request.user, warnings=price_warnings(approval))
 
 
 @api.post(
