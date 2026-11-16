@@ -39,11 +39,12 @@ CROPS = {
     "project-status": ("project-status", (285, 40, 1440, 625)),
     "price-add": ("price-add", (285, 40, 1440, 760)),
     "rank-dbgi": ("rank-dbgi", (0, 90, 1440, 420)),
+    "portal-settings": ("portal-settings", (285, 40, 1440, 1200)),
 }
 COPIES = (
     "competitor product sub-next sub-products sub-approvals sub-activity review-card options-card changes-card "
     "ret-next ret-activity confirm-card app-approvals app-products ren-approvals after-approvals out-partner "
-    "out-dbgi renewal-request renewal-decide withdraw outcome catalog reprice tie "
+    "out-dbgi renewal-request renewal-decide withdraw outcome catalog reprice "
     "repeat-request repeat-decide repeat-section merge-dialog split-dialog"
 ).split()
 

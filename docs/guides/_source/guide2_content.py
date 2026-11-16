@@ -423,7 +423,7 @@ PAGES = [
             "You see only your own rank, not the other companies.",
         ],
         "pics": [("rank-partner", "The Rankings page")],
-        "tip": "**Tied** means another company registered at the very same time. DBGI will decide the order.",
+        "tip": "**Tied** means another company registered at the very same time. You both keep the same rank.",
     },
     # Part 9
     {
@@ -536,12 +536,12 @@ PAGES = [
             [
                 "A deal DBGI has not confirmed",
                 "60 days",
-                "Reminder on day 53. On day 60 it goes back to DBGI's review list. It is never rejected by itself.",
+                "Reminder 7 days before. Then it goes back to DBGI's review list. It is never rejected by itself.",
             ],
             [
                 "A project on hold",
                 "60 days",
-                "Reminder on day 53. On day 60 the deals go back to DBGI for review.",
+                "Reminder 7 days before. Then the deals go back to DBGI for review.",
             ],
             [
                 "An approved price",
@@ -553,9 +553,14 @@ PAGES = [
                 "30 more days",
                 "Added to the end date, or counted from today if the price has ended.",
             ],
+            [
+                "An accepted repeat order",
+                "1 year",
+                "Counted from the day DBGI accepts it.",
+            ],
         ],
         "widths": [3, 2, 6],
-        "tip": "We count every calendar day, in Philippine time. Reminders start once IT turns on the portal's daily job.",
+        "tip": "These are the defaults. DBGI can change the 60-day limits, the reminder, and the repeat order time in Portal settings.",
     },
     {
         "part": 12,
@@ -613,16 +618,17 @@ PAGES = [
     },
     {
         "part": 13,
-        "title": "Decide a tie",
-        "role": "dbgi",
+        "title": "When two companies tie",
+        "role": "both",
         "intro": "A tie means two companies registered at the very same time.",
         "steps": [
-            "Click **Rankings**, then **Decide tie**.",
-            "Use the arrows to put the companies in order.",
-            "Type your reason, then click **Save order**.",
+            "Both keep the same rank. Rankings shows **Tied 1**.",
+            "Tied companies at rank 1 both get the best price.",
+            "The next company skips a place: after a tie for 1st comes 3rd.",
+            "By default, DBGI does not need to do anything.",
         ],
-        "pics": [("rank-dbgi", "DBGI sees every company"), ("tie", "Setting the order")],
-        "tip": "Companies see only their new rank, not your reason.",
+        "pics": [("rank-dbgi", "DBGI sees every company")],
+        "tip": "Ties are rare. If DBGI wants to put tied companies in order, a superuser can turn that on in Portal settings.",
     },
     {
         "part": 13,
@@ -656,16 +662,17 @@ PAGES = [
     },
     {
         "part": 13,
-        "title": "Keep the public holiday list",
+        "title": "Change the portal settings",
         "role": "dbgi",
-        "intro": "The portal needs this list to count working days.",
+        "intro": "Some rules are settings, so DBGI can change them without waiting for a new version.",
         "steps": [
-            "Click **Administration**, then **Public holidays**.",
-            "Click the add button.",
-            "Type the date and the name of the holiday.",
-            "Click **Save**.",
+            "Click **Administration**, then **Portal settings**.",
+            "Change a time limit, how long a repeat order stays valid, or which events email DBGI.",
+            "Each group explains what it does. Click **Save**.",
+            "Holidays are separate: **Administration**, then **Public holidays**.",
         ],
-        "tip": "A working day is Monday to Friday, without public holidays. After 5:00 PM, counting starts on the next working day.",
+        "pics": [("portal-settings", "Portal settings, grouped by topic")],
+        "tip": "Only a DBGI superuser can change settings. The dashboard shows the current values.",
     },
     # Part 14
     {
@@ -716,7 +723,7 @@ PAGES = [
             ("repeat-decide", "Accepting the repeat order"),
             ("repeat-section", "What the partner sees afterward"),
         ],
-        "tip": "The partner gets a message and can read your reason.",
+        "tip": "The partner gets a message and can read your reason. An accepted repeat order stays valid for 1 year.",
     },
     # Part 15
     {
