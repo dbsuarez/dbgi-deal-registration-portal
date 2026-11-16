@@ -3,7 +3,12 @@
 DBGI still decides each price, so a broken rule is a warning and never blocks the decision.
 """
 
-from .models import Registration, RegistrationCategoryApproval, RegistrationItemApproval
+from .models import (
+    PortalSetting,
+    Registration,
+    RegistrationCategoryApproval,
+    RegistrationItemApproval,
+)
 from .ranking import latest_rank_orders, latest_tie_decisions, rank_scope, ranked_registrations
 
 ACTIVE_STATUSES = {
@@ -98,9 +103,12 @@ def price_warnings(approval):
                 f"(rank {_rank_text(other)}) is {other_price:,.2f}."
             )
             if own.rank == 1 and other.rank == 1:
-                warnings.append(
-                    f"Decide the tie first, so rank 1 can have the best price. {compared}"
-                )
+                if PortalSetting.current().dbgi_orders_ties:
+                    warnings.append(
+                        f"Decide the tie first, so rank 1 can have the best price. {compared}"
+                    )
+                elif price != other_price:
+                    warnings.append(f"Everyone at rank 1 should have the same price. {compared}")
             elif (own.rank == 1 and price >= other_price) or (
                 other.rank == 1 and other_price >= price
             ):

@@ -165,6 +165,36 @@ Where the two responses differ, response 2 (the head of pricing and business dev
 
 **Still open:**
 
-- **Head's confirmation:** the edit and repricing rules above.
+- **Head's confirmation:** answered 2026-11-11, see the next section. Three answers need a follow-up.
 - **Day counts:** validity periods (60 and 90 days) and renewals (30 days) are calendar days; working days apply only
   to deadlines stated in working days.
+
+## Head's answers to "Portal Rules to Confirm" (2026-11-11)
+
+The head of pricing and business development answered all 20 questions. The signed form is kept locally in
+`docs/guides/Answers`, which git ignores.
+
+**Confirmed as built (16):** every edit and repricing rule (questions 1 to 10), what counts as a postponed or reposted
+tender (12), a typed-in product joining a decided category (15), renewing an ended price before a repeat order (16), the
+merge order (18), keeping or reviewing prices in a merge or split (19), and a split deal keeping its submission time (20).
+
+**Asked to change (4):**
+
+| #   | Question                                   | Head's answer                                                                                                                                    | Status                                                                                             |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| 11  | Which deals does the 60-day limit cover?   | "60 days limit of what? Price validity? Registration validity? If registration validity, it should be 60 days after the confirmation from DBGI." | Needs a follow-up: he asked what the limit is, and counting from DBGI's confirmation is a new rule |
+| 13  | When should DBGI staff get an email?       | "Not automatic, need further verification whether to approve or not."                                                                            | Needs a follow-up: the note does not seem to answer the email question                             |
+| 14  | Should tied companies get different ranks? | "Same ranking for the 2 companies. No more rank 2 if this scenario occurs."                                                                      | Clear: ties keep the same rank; DBGI no longer orders them                                         |
+| 17  | Should there be a limit on repeat orders?  | "1 year validity for the verified repeat order only."                                                                                            | Needs a follow-up: what the year counts from, and what it limits                                   |
+
+**How the four were settled (2026-11-16).** DBGI chose settings instead of more questions. All are in Administration,
+Portal settings, grouped and explained, and a DBGI superuser can change them:
+
+- **11, the 60-day limit:** a setting, default 60 days, with the reminder (default 7 days before) and the hold limit
+  (default 60 days) beside it. It still counts from when the partner sent the deal.
+- **13, DBGI emails:** the head's note answered the renewal example. Emailing DBGI when a partner asks to renew a price
+  is a setting, default on.
+- **14, ties:** tied companies keep the same rank by default. Only rank 1 gets the best price, so the next place number
+  does not matter. In case DBGI changes its mind, a setting (default off) brings back Decide tie.
+- **17, repeat orders:** an accepted repeat order stays valid for a set time from the day DBGI accepts it, a setting
+  with a default of 1 year.

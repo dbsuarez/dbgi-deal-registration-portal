@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator, MinValueValidator
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models.functions import Coalesce
 from django.db.models.signals import post_delete
@@ -1097,6 +1097,51 @@ class PortalSetting(models.Model):
             "notifies DBGI. Off: the change is only recorded in the registration's Activity."
         ),
     )
+    unconfirmed_limit_days = models.PositiveSmallIntegerField(
+        "days a deal can wait for DBGI",
+        default=60,
+        validators=[MinValueValidator(7), MaxValueValidator(365)],
+        help_text=(
+            "A deal DBGI has not confirmed goes back to DBGI's review list after this many days, "
+            "counted from when the partner sent it. It is never rejected by itself. Default: 60."
+        ),
+    )
+    hold_limit_days = models.PositiveSmallIntegerField(
+        "days a project can stay on hold",
+        default=60,
+        validators=[MinValueValidator(7), MaxValueValidator(365)],
+        help_text=(
+            "Partners keep their place this long while a project is on hold. Then DBGI reviews "
+            "the deals again. Default: 60."
+        ),
+    )
+    limit_reminder_days = models.PositiveSmallIntegerField(
+        "reminder, days before a limit",
+        default=7,
+        validators=[MinValueValidator(1), MaxValueValidator(60)],
+        help_text=(
+            "Partners get a reminder this many days before either limit above. Must be shorter "
+            "than both limits. Default: 7."
+        ),
+    )
+    dbgi_orders_ties = models.BooleanField(
+        "let DBGI set the order of tied companies",
+        default=False,
+        help_text=(
+            "Off: companies that registered at the very same time keep the same rank, and rank 1 "
+            "includes all of them. On: DBGI can put them in order on the Rankings page with "
+            "Decide tie. Default: off (the head's answer of 2026-11-11)."
+        ),
+    )
+    repeat_order_valid_days = models.PositiveSmallIntegerField(
+        "days an accepted repeat order stays valid",
+        default=365,
+        validators=[MinValueValidator(1), MaxValueValidator(1825)],
+        help_text=(
+            "Counted from the day DBGI accepts it. Applies to repeat orders accepted after a "
+            "change. Default: 365 (1 year)."
+        ),
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -1105,6 +1150,18 @@ class PortalSetting(models.Model):
 
     def __str__(self):
         return "Portal settings"
+
+    @classmethod
+    def current(cls):
+        """The saved settings, or the defaults when nobody has saved any yet."""
+        return cls.objects.filter(key="portal").first() or cls()
+
+    def clean(self):
+        super().clean()
+        if self.limit_reminder_days >= min(self.unconfirmed_limit_days, self.hold_limit_days):
+            raise ValidationError(
+                {"limit_reminder_days": "The reminder must come before both limits."}
+            )
 
 
 class NotificationEventSetting(models.Model):
@@ -1298,6 +1355,8 @@ class RepeatOrder(models.Model):
     ntp_name = models.CharField(max_length=255)
     note = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    # Set when DBGI accepts it, from the portal setting on that day.
+    valid_until = models.DateField(null=True, blank=True)
     decided_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,

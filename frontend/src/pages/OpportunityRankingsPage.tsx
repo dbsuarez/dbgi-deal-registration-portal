@@ -81,6 +81,8 @@ export default function OpportunityRankingsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  // Portal settings decide whether DBGI may order tied companies (off by default).
+  const [tiesOrdered, setTiesOrdered] = useState(false);
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [mergeSource, setMergeSource] = useState<{
     scope_id: number;
@@ -114,6 +116,7 @@ export default function OpportunityRankingsPage() {
       .then((result) => {
         setRows(flattenRankings(result.items));
         setTotal(result.total);
+        setTiesOrdered(Boolean(result.dbgi_orders_ties));
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError")
@@ -257,22 +260,26 @@ export default function OpportunityRankingsPage() {
                 </Button>
               ),
             },
-            {
-              field: "tie_action",
-              headerName: "Tie",
-              minWidth: 130,
-              sortable: false,
-              renderCell: ({ row }: { row: RankingRow }) =>
-                row.is_tied || row.tie_decided ? (
-                  <Button size="small" onClick={() => openTie(row)}>
-                    {row.is_tied ? "Decide tie" : "Change"}
-                  </Button>
-                ) : null,
-            },
+            ...(tiesOrdered
+              ? [
+                  {
+                    field: "tie_action",
+                    headerName: "Tie",
+                    minWidth: 130,
+                    sortable: false,
+                    renderCell: ({ row }: { row: RankingRow }) =>
+                      row.is_tied || row.tie_decided ? (
+                        <Button size="small" onClick={() => openTie(row)}>
+                          {row.is_tied ? "Decide tie" : "Change"}
+                        </Button>
+                      ) : null,
+                  },
+                ]
+              : []),
           ]
         : []),
     ],
-    [session.is_dbgi_admin, openTie],
+    [session.is_dbgi_admin, tiesOrdered, openTie],
   );
 
   return (
@@ -468,8 +475,13 @@ export default function OpportunityRankingsPage() {
           </Typography>
           <Typography>
             Registrations with the exact same timestamp share a rank and are
-            marked as tied until DBGI decides their order. If DBGI merges two
-            projects, it can also set the order for that case.
+            marked as tied. Tied companies at rank 1 all get the best price, and
+            the next company skips a place: after a tie for 1st comes 3rd.
+            {tiesOrdered &&
+              " Portal settings currently let DBGI put tied companies in order with Decide tie."}{" "}
+            A DBGI superuser can change this in Administration, Portal settings.
+            If DBGI merges two projects, it can also set the order for that
+            case.
           </Typography>
         </DialogContent>
         <DialogActions>

@@ -68,6 +68,11 @@ export default function RepeatOrdersSection({
   onChange,
 }: Props) {
   const orders = registration.repeat_orders ?? [];
+  const validDays = registration.repeat_order_valid_days ?? 365;
+  const validFor =
+    validDays % 365 === 0
+      ? `${validDays / 365} year${validDays === 365 ? "" : "s"}`
+      : `${validDays} days`;
   const choices = registration.repeat_order_choices ?? [];
 
   const [requestOpen, setRequestOpen] = useState(false);
@@ -171,7 +176,10 @@ export default function RepeatOrdersSection({
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         A repeat order is when the same buyer orders more of the same item
         without a new bidding. It can use the approved price if the buyer&apos;s
-        Notice of Award and Notice to Proceed say it is a repeat order.
+        Notice of Award and Notice to Proceed say it is a repeat order. An
+        accepted repeat order stays valid for {validFor}.
+        {isDbgiAdmin &&
+          " A DBGI superuser can change this in Administration, Portal settings."}
       </Typography>
       {orders.length > 0 && (
         <TableContainer>
@@ -183,6 +191,7 @@ export default function RepeatOrdersSection({
                 <TableCell sx={moneyCell}>Total (with VAT)</TableCell>
                 <TableCell>Letters</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>Valid until</TableCell>
                 <TableCell>DBGI&apos;s reason</TableCell>
               </TableRow>
             </TableHead>
@@ -217,6 +226,7 @@ export default function RepeatOrdersSection({
                     </Box>
                   </TableCell>
                   <TableCell>{order.status_label}</TableCell>
+                  <TableCell>{order.valid_until ?? "-"}</TableCell>
                   <TableCell>
                     {order.decision_reason}
                     {order.can_decide && (
@@ -262,8 +272,9 @@ export default function RepeatOrdersSection({
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             This uses your approved price again. The order must be from{" "}
-            {registration.end_user_name}. Please allow at least one working day
-            for DBGI to review your request
+            {registration.end_user_name}. If DBGI accepts it, it stays valid for{" "}
+            {validFor}. Please allow at least one working day for DBGI to review
+            your request
             {oneWorkingDayEnds ? `, up to ${oneWorkingDayEnds}` : ""}.
           </Typography>
           {error && (

@@ -2846,6 +2846,13 @@ class RegistrationApiTests(TestCase):
         )
         return opportunity.scopes.get()
 
+    def ranks(self):
+        rows = self.client.get("/api/v1/rankings").json()["items"][0]["entries"]
+        return {row["registration_id"]: row for row in rows}
+
+    def allow_tie_orders(self):
+        PortalSetting.objects.update_or_create(key="portal", defaults={"dbgi_orders_ties": True})
+
     def decide_tie(self, scope, order, reason="Better documents on file."):
         return self.client.post(
             f"/api/v1/review/opportunity-scopes/{scope.pk}/tie-decision",
@@ -2853,11 +2860,8 @@ class RegistrationApiTests(TestCase):
             content_type="application/json",
         )
 
-    def ranks(self):
-        rows = self.client.get("/api/v1/rankings").json()["items"][0]["entries"]
-        return {row["registration_id"]: row for row in rows}
-
     def test_tie_is_shared_until_dbgi_decides_the_order(self):
+        self.allow_tie_orders()
         scope = self.tied_project()
         a, b = self.registration_a.pk, self.registration_b.pk
         self.client.force_login(self.admin)
@@ -2890,6 +2894,7 @@ class RegistrationApiTests(TestCase):
         self.assertNotIn("Better documents", event.details)
 
     def test_tie_decision_must_list_the_whole_tie_once(self):
+        self.allow_tie_orders()
         scope = self.tied_project()
         a, b = self.registration_a.pk, self.registration_b.pk
         self.client.force_login(self.admin)
@@ -2902,6 +2907,7 @@ class RegistrationApiTests(TestCase):
         self.assertFalse(RankingTieDecision.objects.exists())
 
     def test_latest_tie_decision_applies_and_a_decision_cannot_be_edited(self):
+        self.allow_tie_orders()
         scope = self.tied_project()
         a, b = self.registration_a.pk, self.registration_b.pk
         self.client.force_login(self.admin)
@@ -2915,6 +2921,7 @@ class RegistrationApiTests(TestCase):
             decision.save()
 
     def test_decided_tie_keeps_later_places_and_survives_a_withdrawal(self):
+        self.allow_tie_orders()
         scope = self.tied_project()
         third_company = Company.objects.create(name="Third Dealer")
         third_user = User.objects.create_user(
@@ -2936,6 +2943,37 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(remaining[a]["rank"], 1)
         self.assertFalse(remaining[a]["is_tied"])
         self.assertEqual(remaining[third.pk]["rank"], 2)
+
+    def test_tied_companies_keep_the_same_rank(self):
+        scope = self.tied_project()
+        self.client.force_login(self.admin)
+        ranks = self.ranks()
+        self.assertEqual(ranks[self.registration_a.pk]["rank"], 1)
+        self.assertEqual(ranks[self.registration_b.pk]["rank"], 1)
+        self.assertTrue(ranks[self.registration_a.pk]["is_tied"])
+        refused = self.client.post(
+            f"/api/v1/review/opportunity-scopes/{scope.pk}/tie-decision",
+            data=json.dumps(
+                {
+                    "order": [self.registration_a.pk, self.registration_b.pk],
+                    "reason": "Not allowed now.",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.json()["code"], "ties_share_a_rank")
+
+    def test_a_company_after_a_tie_for_first_is_third(self):
+        scope = self.tied_project()
+        later = self.register_deal()
+        Registration.objects.filter(pk=later.pk).update(
+            company=Company.objects.create(name="Third Dealer"),
+            status=Registration.Status.ELIGIBLE_MATCHED,
+            opportunity_scope=scope,
+        )
+        self.client.force_login(self.admin)
+        self.assertEqual(self.ranks()[later.pk]["rank"], 3)
 
     def approve_in_admin(self, approval, valid_until=""):
         return self.client.post(
@@ -3466,17 +3504,20 @@ class RegistrationApiTests(TestCase):
         warnings = self.rule_warnings(self.approve_with_warnings(first, "9500.00"))
         self.assertTrue(any("Rank 1 should have the best price" in text for text in warnings))
 
-    def test_tied_first_place_asks_dbgi_to_decide_the_tie(self):
-        first, second, _ = self.ranked_deals()
-        Registration.objects.filter(pk=second.pk).update(
+    def test_tied_first_place_counts_as_rank_1_for_the_price(self):
+        first, second, third = self.ranked_deals()
+        Registration.objects.filter(pk__in=[second.pk, third.pk]).update(
             original_submitted_at=first.original_submitted_at
         )
         self.approve_with_warnings(first, "8000.00")
-        warnings = self.rule_warnings(self.approve_with_warnings(second, "8000.00"))
-        self.assertTrue(any("Decide the tie first" in text for text in warnings))
+        self.assertFalse(self.rule_warnings(self.approve_with_warnings(second, "8000.00")))
+        different = self.rule_warnings(self.approve_with_warnings(third, "8500.00"))
+        self.assertTrue(
+            any("Everyone at rank 1 should have the same price" in w for w in different)
+        )
 
     def rule_warnings(self, messages):
-        return [text for text in messages if "should have" in text or "Decide the tie" in text]
+        return [text for text in messages if "should have" in text]
 
     def test_clearing_removes_newer_records_and_their_letters(self):
         first, second = self.two_projects()
@@ -3759,4 +3800,79 @@ class RegistrationApiTests(TestCase):
         new_end = timezone.localdate() + timedelta(days=40)
         self.assertEqual(
             row["last_renewal"], f"Renewed to {new_end:%Y-%m-%d}: The new bid date is confirmed."
+        )
+
+    def test_time_limits_follow_portal_settings(self):
+        PortalSetting.objects.update_or_create(
+            key="portal", defaults={"unconfirmed_limit_days": 30, "limit_reminder_days": 5}
+        )
+        submitted = self.registration_a.original_submitted_at
+        early = process_deadlines(now=submitted + timedelta(days=24))
+        self.assertEqual(early.reminders, 0)
+        reminded = process_deadlines(now=submitted + timedelta(days=25))
+        self.assertGreaterEqual(reminded.reminders, 1)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                title="5 days left for DBGI confirmation"
+            ).exists()
+        )
+        reached = process_deadlines(now=submitted + timedelta(days=30))
+        self.assertGreaterEqual(reached.limits_reached, 1)
+        self.assertTrue(
+            RegistrationEvent.objects.filter(event_type="30-day limit reached").exists()
+        )
+
+    def test_portal_settings_refuse_a_reminder_after_the_limit(self):
+        setting = PortalSetting(
+            unconfirmed_limit_days=10, hold_limit_days=60, limit_reminder_days=10
+        )
+        with self.assertRaises(ValidationError):
+            setting.full_clean()
+
+    def test_accepted_repeat_order_stays_valid_for_the_set_time(self):
+        PortalSetting.objects.update_or_create(
+            key="portal", defaults={"repeat_order_valid_days": 30}
+        )
+        registration = self.priced_deal()
+        self.link_to_project(registration)
+        self.approve_price(registration)
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.user_a)
+            detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+            self.assertEqual(detail["repeat_order_valid_days"], 30)
+            repeat_id = self.request_repeat(registration).json()["id"]
+            self.client.force_login(self.admin)
+            decided = self.decide_repeat(repeat_id).json()
+        self.assertEqual(
+            decided["valid_until"], (timezone.localdate() + timedelta(days=30)).isoformat()
+        )
+        RepeatOrder.objects.filter(pk=repeat_id).update(
+            valid_until=timezone.localdate() - timedelta(days=1)
+        )
+        self.client.force_login(self.user_a)
+        detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+        self.assertEqual(detail["repeat_orders"][0]["status_label"], "Accepted, now ended")
+
+    def test_settings_page_groups_rules_and_switches_the_renewal_email(self):
+        superuser = User.objects.create_superuser("settings-admin", password="example-password")
+        self.client.force_login(superuser)
+        setting, _ = PortalSetting.objects.get_or_create(key="portal")
+        url = reverse("admin:registrations_portalsetting_change", args=[setting.pk])
+        page = self.client.get(url)
+        for group in ("Time limits", "Repeat orders", "Emails and alerts to DBGI"):
+            self.assertContains(page, group)
+        response = self.client.post(
+            url,
+            {
+                "unconfirmed_limit_days": 60,
+                "hold_limit_days": 60,
+                "limit_reminder_days": 7,
+                "repeat_order_valid_days": 365,
+                "alert_dbgi_on_attachment_change": "on",
+                "show_end_user_field_help": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content[:800])
+        self.assertFalse(
+            NotificationEventSetting.objects.get(event_type="renewal_requested").email_enabled
         )

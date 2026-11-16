@@ -417,10 +417,14 @@ test("capture the guide screenshots", async ({ browser }) => {
     .click();
   await dbgi.goto("/rankings/");
   await shot(dbgi, "rank-dbgi");
-  await dbgi.getByRole("button", { name: "Decide tie" }).first().click();
-  await dbgi
-    .getByRole("dialog")
-    .getByLabel(/Reason for this order/)
-    .fill("Sample Partner showed the earlier signed quotation.");
-  await dialog(dbgi, "tie");
+
+  // Portal settings: the rules DBGI can change
+  await dbgi.goto("/admin/registrations/portalsetting/");
+  await settle(dbgi);
+  const existing = dbgi.locator("table tbody tr a").first();
+  if (await existing.count()) await existing.click();
+  else await dbgi.goto("/admin/registrations/portalsetting/add/");
+  await dbgi.setViewportSize({ width: 1440, height: 1400 });
+  await shot(dbgi, "portal-settings");
+  await dbgi.setViewportSize({ width: 1440, height: 900 });
 });

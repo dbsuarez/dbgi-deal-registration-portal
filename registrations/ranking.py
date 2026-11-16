@@ -1,4 +1,5 @@
-"""Opportunity rankings: first eligible submission wins; DBGI settles exact ties (decision B5)."""
+"""Opportunity rankings: first eligible submission wins. Exact ties share their rank, unless
+Portal settings let DBGI order them (decision B5)."""
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -36,7 +37,12 @@ def ranked_registrations(scope_ids):
 
 
 def latest_tie_decisions(scope_ids):
-    """The decision in force for each (scope, tied time): the most recent one."""
+    """The decision in force for each (scope, tied time): the most recent one. None apply while
+    Portal settings keep ties at the same rank, which is the default (head's answer, 2026-11-11)."""
+    from .models import PortalSetting
+
+    if not PortalSetting.current().dbgi_orders_ties:
+        return {}
     decisions = RankingTieDecision.objects.filter(opportunity_scope_id__in=scope_ids).order_by(
         "decided_at", "id"
     )

@@ -1,10 +1,11 @@
-"""60-day deadlines (decisions B6 and B7), processed once a day by `manage.py process_deadlines`.
+"""Time limits (decisions B6 and B7), processed once a day by `manage.py process_deadlines`.
 
-B6: a registration DBGI has not confirmed gets a reminder 7 days before its 60-day limit, then goes
-back to DBGI for review on day 60. It is never rejected automatically.
-B7: while a project is on hold, its linked registrations keep their place for 60 days, with the same
-reminder, then DBGI reviews them.
-Days are calendar days. Each step is recorded on the row, so running the job twice changes nothing.
+B6: a registration DBGI has not confirmed gets a reminder before its limit, then goes back to DBGI
+for review. It is never rejected automatically.
+B7: while a project is on hold, its linked registrations keep their place for a set time, with the
+same reminder, then DBGI reviews them.
+The lengths are in Portal settings (defaults 60 days, reminder 7 days before). Days are calendar
+days. Each step is recorded on the row, so running the job twice changes nothing.
 """
 
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from django.utils import timezone
 from .audit import registration_snapshot
 from .models import (
     Opportunity,
+    PortalSetting,
     Registration,
     RegistrationCategoryApproval,
     RegistrationEvent,
@@ -23,8 +25,6 @@ from .models import (
 )
 from .notifications import notify_company_users, notify_dbgi_admins
 
-LIMIT_DAYS = 60
-REMINDER_DAYS_BEFORE = 7
 PRICE_REMINDER_DAYS_BEFORE = 14  # decision C1
 
 UNCONFIRMED_STATUSES = {
@@ -58,8 +58,14 @@ def _flag_for_review(registration, now, title, details):
 
 def process_deadlines(now=None):
     now = now or timezone.now()
-    reminder_cutoff = now - timedelta(days=LIMIT_DAYS - REMINDER_DAYS_BEFORE)
-    limit_cutoff = now - timedelta(days=LIMIT_DAYS)
+    settings = PortalSetting.current()
+    limit = settings.unconfirmed_limit_days
+    hold = settings.hold_limit_days
+    remind = settings.limit_reminder_days
+    reminder_cutoff = now - timedelta(days=limit - remind)
+    limit_cutoff = now - timedelta(days=limit)
+    hold_reminder_cutoff = now - timedelta(days=hold - remind)
+    hold_cutoff = now - timedelta(days=hold)
     summary = DeadlineSummary()
 
     # B6: registrations still waiting for DBGI's confirmation
@@ -78,18 +84,18 @@ def process_deadlines(now=None):
             _flag_for_review(
                 registration,
                 now,
-                "60-day limit reached",
-                "Not confirmed within 60 days of submission. DBGI must review it.",
+                f"{limit}-day limit reached",
+                f"Not confirmed within {limit} days of submission. DBGI must review it.",
             )
             notify_dbgi_admins(
                 registration=registration,
                 event_type=RegistrationNotification.EventType.DEADLINE_REACHED,
                 event_key=f"registration:{registration.pk}:limit-reached",
                 email=True,
-                title="60-day limit reached",
+                title=f"{limit}-day limit reached",
                 message=(
                     f"{registration.reference} ({registration.project_title}) from "
-                    f"{registration.company.name} was not confirmed within 60 days. Review it."
+                    f"{registration.company.name} was not confirmed within {limit} days. Review it."
                 ),
             )
             summary.limits_reached += 1
@@ -107,11 +113,11 @@ def process_deadlines(now=None):
                 registration=registration,
                 event_type=RegistrationNotification.EventType.DEADLINE_REMINDER,
                 event_key=f"registration:{registration.pk}:limit-reminder",
-                title="7 days left for DBGI confirmation",
+                title=f"{remind} days left for DBGI confirmation",
                 message=(
-                    f"{registration.reference} reaches its 60-day limit in 7 days without DBGI "
-                    "confirmation. DBGI will then review it. Make sure its details and evidence "
-                    "are complete."
+                    f"{registration.reference} reaches its {limit}-day limit in {remind} days "
+                    "without DBGI confirmation. DBGI will then review it. Make sure its details "
+                    "and evidence are complete."
                 ),
             )
             summary.reminders += 1
@@ -122,7 +128,7 @@ def process_deadlines(now=None):
         on_hold_since__isnull=False,
         hold_limit_reached_at__isnull=True,
     )
-    for pk in on_hold.filter(on_hold_since__lte=limit_cutoff).values_list("pk", flat=True):
+    for pk in on_hold.filter(on_hold_since__lte=hold_cutoff).values_list("pk", flat=True):
         with transaction.atomic():
             opportunity = Opportunity.objects.select_for_update().get(pk=pk)
             if opportunity.hold_limit_reached_at:
@@ -133,23 +139,23 @@ def process_deadlines(now=None):
                 _flag_for_review(
                     registration,
                     now,
-                    "60-day hold limit reached",
-                    "The project has been on hold for 60 days. DBGI must review it.",
+                    f"{hold}-day hold limit reached",
+                    f"The project has been on hold for {hold} days. DBGI must review it.",
                 )
                 notify_dbgi_admins(
                     registration=registration,
                     event_type=RegistrationNotification.EventType.DEADLINE_REACHED,
                     event_key=f"opportunity:{opportunity.pk}:hold-limit:{registration.pk}",
                     email=True,
-                    title="60-day hold limit reached",
+                    title=f"{hold}-day hold limit reached",
                     message=(
                         f"{registration.reference} ({registration.project_title}): the project "
-                        "has been on hold for 60 days. Review it."
+                        f"has been on hold for {hold} days. Review it."
                     ),
                 )
             summary.hold_limits_reached += 1
     hold_reminders = on_hold.filter(
-        on_hold_since__lte=reminder_cutoff, hold_reminder_sent_at__isnull=True
+        on_hold_since__lte=hold_reminder_cutoff, hold_reminder_sent_at__isnull=True
     )
     for pk in hold_reminders.values_list("pk", flat=True):
         with transaction.atomic():
@@ -166,10 +172,11 @@ def process_deadlines(now=None):
                         f"opportunity:{opportunity.pk}:hold-reminder:"
                         f"{opportunity.on_hold_since:%Y%m%d}:{registration.pk}"
                     ),
-                    title="7 days left on the project hold",
+                    title=f"{remind} days left on the project hold",
                     message=(
-                        f"The project for {registration.reference} has been on hold for 53 days. "
-                        "Your place is kept for 60 days; DBGI will then review it."
+                        f"The project for {registration.reference} has been on hold for "
+                        f"{hold - remind} days. Your place is kept for {hold} days; DBGI will "
+                        "then review it."
                     ),
                 )
             summary.hold_reminders += 1

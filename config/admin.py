@@ -145,6 +145,7 @@ class DBGIAdminSite(UnfoldAdminSite):
     def index(self, request, extra_context=None):
         from registrations.models import (
             EndUser,
+            PortalSetting,
             Registration,
             RegistrationCategoryApproval,
             RegistrationNotification,
@@ -214,6 +215,12 @@ class DBGIAdminSite(UnfoldAdminSite):
             ),
             "danger_zone_url": (
                 reverse("admin:danger-zone") if request.user.is_superuser else None
+            ),
+            "portal_settings": PortalSetting.current(),
+            "portal_settings_url": (
+                reverse("admin:registrations_portalsetting_changelist")
+                if request.user.is_superuser
+                else None
             ),
         }
         return super().index(request, {**dashboard_context, **(extra_context or {})})

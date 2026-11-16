@@ -1715,24 +1715,21 @@ test("DBGI administrator adds a typed-in product to the catalog", async ({
   await expect(page.getByText(/Not in the catalog yet/)).toHaveCount(0);
 });
 
-test("DBGI administrator decides a tied ranking", async ({ page }) => {
+test("tied companies share a rank and there is nothing to decide", async ({
+  page,
+}) => {
   await page.route("**/api/v1/session", (route) =>
-    route.fulfill({
-      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
-    }),
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
   );
-  const entry = (id: number, name: string, rank: number, tied: boolean) => ({
-    rank,
-    is_tied: tied,
-    tie_decided: !tied,
-    tie_reason: tied ? null : "Better documents on file.",
+  const entry = (id: number, name: string) => ({
+    rank: 1,
+    is_tied: true,
     registration_id: id,
-    reference: `DBGI-00000${id}`,
+    reference: `DBGI-0000${id}`,
     company_name: name,
     project_title: "Tied project",
     original_submitted_at: "2026-11-01T02:00:00Z",
   });
-  let decided = false;
   await page.route("**/api/v1/rankings*", (route) =>
     route.fulfill({
       json: {
@@ -1740,20 +1737,12 @@ test("DBGI administrator decides a tied ranking", async ({ page }) => {
           {
             opportunity_id: 1,
             opportunity_title: "Tied project",
-            end_user_name: "Sample municipality",
+            end_user_name: "Office",
             scope_id: 5,
             scope_name: "Whole opportunity",
             scope_type: "whole",
             participant_count: 2,
-            entries: decided
-              ? [
-                  entry(3, "South Dealer", 1, false),
-                  entry(2, "North Dealer", 2, false),
-                ]
-              : [
-                  entry(2, "North Dealer", 1, true),
-                  entry(3, "South Dealer", 1, true),
-                ],
+            entries: [entry(31, "North Dealer"), entry(32, "South Dealer")],
           },
         ],
         total: 1,
@@ -1762,37 +1751,10 @@ test("DBGI administrator decides a tied ranking", async ({ page }) => {
       },
     }),
   );
-  let sent: Record<string, unknown> | null = null;
-  await page.route(
-    "**/api/v1/review/opportunity-scopes/5/tie-decision",
-    (route) => {
-      sent = route.request().postDataJSON();
-      decided = true;
-      return route.fulfill({
-        json: { id: 1, decided_at: "2026-11-04T02:00:00Z" },
-      });
-    },
-  );
 
   await page.goto("/rankings/");
-  await expect(page.getByText("Tied 1").first()).toBeVisible();
-  await page.getByRole("button", { name: "Decide tie" }).first().click();
-  const dialog = page.getByRole("dialog", {
-    name: "Decide the tied ranking",
-  });
-  await dialog.getByRole("button", { name: "Move South Dealer up" }).click();
-  await expect(dialog.getByText("1. South Dealer")).toBeVisible();
-  const save = dialog.getByRole("button", { name: "Save order" });
-  await expect(save).toBeDisabled();
-  await dialog
-    .getByLabel(/Reason for this order/)
-    .fill("Better documents on file.");
-  await save.click();
-
-  await expect(dialog).toBeHidden();
-  expect(sent).toEqual({ order: [3, 2], reason: "Better documents on file." });
-  await expect(page.getByText("1 (tie decided)")).toBeVisible();
-  await expect(page.getByText("2 (tie decided)")).toBeVisible();
+  await expect(page.getByText("Tied 1")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Decide tie" })).toHaveCount(0);
 });
 
 test("partner requests a price renewal from the registration", async ({
@@ -2159,4 +2121,85 @@ test("DBGI merges a project using the preview", async ({ page }) => {
 
   await expect(dialog).toBeHidden();
   expect(sent).toMatchObject({ target_scope_id: 8, order: [21, 20] });
+});
+
+test("DBGI orders a tie when Portal settings allow it", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({
+      json: { ...session, is_dbgi_admin: true, display_name: "DBGI Admin" },
+    }),
+  );
+  const entry = (id: number, name: string, rank: number, tied: boolean) => ({
+    rank,
+    is_tied: tied,
+    tie_decided: !tied,
+    tie_reason: tied ? null : "Better documents on file.",
+    registration_id: id,
+    reference: `DBGI-00000${id}`,
+    company_name: name,
+    project_title: "Tied project",
+    original_submitted_at: "2026-11-01T02:00:00Z",
+  });
+  let decided = false;
+  await page.route("**/api/v1/rankings*", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            opportunity_id: 1,
+            opportunity_title: "Tied project",
+            end_user_name: "Sample municipality",
+            scope_id: 5,
+            scope_name: "Whole opportunity",
+            scope_type: "whole",
+            participant_count: 2,
+            entries: decided
+              ? [
+                  entry(3, "South Dealer", 1, false),
+                  entry(2, "North Dealer", 2, false),
+                ]
+              : [
+                  entry(2, "North Dealer", 1, true),
+                  entry(3, "South Dealer", 1, true),
+                ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 25,
+        dbgi_orders_ties: true,
+      },
+    }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route(
+    "**/api/v1/review/opportunity-scopes/5/tie-decision",
+    (route) => {
+      sent = route.request().postDataJSON();
+      decided = true;
+      return route.fulfill({
+        json: { id: 1, decided_at: "2026-11-04T02:00:00Z" },
+      });
+    },
+  );
+
+  await page.goto("/rankings/");
+  await expect(page.getByText("Tied 1").first()).toBeVisible();
+  await page.getByRole("button", { name: "Decide tie" }).first().click();
+  const dialog = page.getByRole("dialog", {
+    name: "Decide the tied ranking",
+  });
+  await dialog.getByRole("button", { name: "Move South Dealer up" }).click();
+  await expect(dialog.getByText("1. South Dealer")).toBeVisible();
+  const save = dialog.getByRole("button", { name: "Save order" });
+  await expect(save).toBeDisabled();
+  await dialog
+    .getByLabel(/Reason for this order/)
+    .fill("Better documents on file.");
+  await save.click();
+
+  await expect(dialog).toBeHidden();
+  expect(sent).toEqual({ order: [3, 2], reason: "Better documents on file." });
+  await expect(page.getByText("1 (tie decided)")).toBeVisible();
+  await expect(page.getByText("2 (tie decided)")).toBeVisible();
 });

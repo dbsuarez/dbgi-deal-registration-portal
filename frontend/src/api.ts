@@ -227,6 +227,7 @@ export type OpportunityRankingPage = {
   total: number;
   page: number;
   page_size: number;
+  dbgi_orders_ties?: boolean;
 };
 
 export type OutcomeReport = {
@@ -270,6 +271,7 @@ export type RegistrationDetail = RegistrationListItem & {
   can_split?: boolean;
   repeat_orders?: RepeatOrder[];
   repeat_order_choices?: RepeatOrderChoice[];
+  repeat_order_valid_days?: number;
 };
 
 export type RepeatOrder = {
@@ -294,6 +296,7 @@ export type RepeatOrder = {
   decision_reason: string;
   decided_by: string | null;
   decided_at: string | null;
+  valid_until?: string | null;
 };
 
 export type RepeatOrderChoice = {

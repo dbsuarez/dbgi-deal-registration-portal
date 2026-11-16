@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
+from unfold.widgets import UnfoldBooleanSwitchWidget
 
 from .audit import registration_snapshot
 from .models import (
@@ -211,16 +212,100 @@ class CompetitorModelAdmin(ModelAdmin):
         queryset.update(is_active=True)
 
 
+class PortalSettingForm(forms.ModelForm):
+    # Saved as the email switch for this event type, so both places always agree.
+    email_dbgi_on_renewal_request = forms.BooleanField(
+        label="email DBGI when a partner asks to renew a price",
+        required=False,
+        widget=UnfoldBooleanSwitchWidget,
+        help_text=(
+            "On: DBGI gets an email as well as the portal message. Off: only the portal message. "
+            "Default: on."
+        ),
+    )
+
+    class Meta:
+        model = PortalSetting
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        setting = NotificationEventSetting.objects.filter(
+            event_type=RegistrationNotification.EventType.RENEWAL_REQUESTED
+        ).first()
+        self.fields["email_dbgi_on_renewal_request"].initial = (
+            setting.email_enabled if setting else True
+        )
+
+    def save(self, commit=True):
+        NotificationEventSetting.objects.update_or_create(
+            event_type=RegistrationNotification.EventType.RENEWAL_REQUESTED,
+            defaults={"email_enabled": self.cleaned_data["email_dbgi_on_renewal_request"]},
+        )
+        return super().save(commit)
+
+
 @admin.register(PortalSetting)
 class PortalSettingAdmin(ModelAdmin):
+    """Rules DBGI can change without a new version of the portal, grouped by topic."""
+
+    form = PortalSettingForm
     list_display = (
         "__str__",
-        "show_end_user_field_help",
-        "alert_dbgi_on_attachment_change",
+        "unconfirmed_limit_days",
+        "hold_limit_days",
+        "repeat_order_valid_days",
         "updated_at",
     )
     readonly_fields = ("updated_at",)
-    fields = ("show_end_user_field_help", "alert_dbgi_on_attachment_change", "updated_at")
+    fieldsets = (
+        (
+            "Time limits",
+            {
+                "description": (
+                    "How long a deal can wait for DBGI, and how long a project can stay on hold. "
+                    "Partners get a reminder first. Nothing is rejected by itself: DBGI reviews "
+                    "the deal. Changes apply from the next daily check."
+                ),
+                "fields": ("unconfirmed_limit_days", "hold_limit_days", "limit_reminder_days"),
+            },
+        ),
+        (
+            "Ranking",
+            {
+                "description": (
+                    "What happens when two companies register at the very same time. Tie orders "
+                    "DBGI saved earlier are kept, and apply again whenever this is on."
+                ),
+                "fields": ("dbgi_orders_ties",),
+            },
+        ),
+        (
+            "Repeat orders",
+            {
+                "description": (
+                    "How long a repeat order stays valid after DBGI accepts it. Repeat orders "
+                    "accepted before a change keep their end date."
+                ),
+                "fields": ("repeat_order_valid_days",),
+            },
+        ),
+        (
+            "Emails and alerts to DBGI",
+            {
+                "description": "When DBGI gets an email or an alert, besides the portal message.",
+                "fields": ("email_dbgi_on_renewal_request", "alert_dbgi_on_attachment_change"),
+            },
+        ),
+        (
+            "Forms",
+            {
+                "description": "Help shown to partners while they fill in forms.",
+                "fields": ("show_end_user_field_help",),
+            },
+        ),
+        ("Record", {"fields": ("updated_at",)}),
+    )
 
     def has_module_permission(self, request):
         return request.user.is_superuser
@@ -621,18 +706,11 @@ class OpportunityRankingAdmin(ModelAdmin):
     def calculated_rank_display(self, obj):
         scope_id = obj.opportunity_scope_id
         rank_order = latest_rank_orders([scope_id]).get(scope_id)
-        if (
-            not rank_order
-            and not RankingTieDecision.objects.filter(
-                opportunity_scope_id=scope_id, submitted_at=obj.original_submitted_at
-            ).exists()
-        ):
+        decisions = latest_tie_decisions([scope_id])
+        if not rank_order and not decisions:
             return obj.calculated_rank
         entries = rank_scope(
-            scope_id,
-            ranked_registrations([scope_id])[scope_id],
-            latest_tie_decisions([scope_id]),
-            rank_order,
+            scope_id, ranked_registrations([scope_id])[scope_id], decisions, rank_order
         )
         return next(entry.rank for entry in entries if entry.registration.pk == obj.pk)
 
@@ -653,6 +731,8 @@ class OpportunityRankingAdmin(ModelAdmin):
 
 @admin.register(RankingTieDecision)
 class RankingTieDecisionAdmin(ModelAdmin):
+    """Tie orders DBGI set. They apply only while Portal settings let DBGI order ties."""
+
     list_display = ("opportunity_scope", "submitted_at", "decided_by", "decided_at")
     readonly_fields = (
         "opportunity_scope",

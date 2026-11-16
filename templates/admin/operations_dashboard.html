@@ -327,7 +327,29 @@
       {% endfor %}
     </div>
   </section>
-  {% endif %} {% if danger_zone_url %}
+  {% endif %}
+  <section
+    class="border border-base-200 p-4 rounded-default dark:border-base-800"
+  >
+    <h2 class="font-semibold">Portal settings</h2>
+    <p class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark">
+      A deal can wait {{ portal_settings.unconfirmed_limit_days }} days for DBGI,
+      and a project can stay on hold {{ portal_settings.hold_limit_days }} days.
+      Partners get a reminder {{ portal_settings.limit_reminder_days }} days
+      before. An accepted repeat order stays valid
+      {{ portal_settings.repeat_order_valid_days }} days.
+    </p>
+    {% if portal_settings_url %}
+    <a class="inline-block mt-3" href="{{ portal_settings_url }}"
+      >Change portal settings</a
+    >
+    {% else %}
+    <p class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark">
+      A DBGI superuser can change these.
+    </p>
+    {% endif %}
+  </section>
+  {% if danger_zone_url %}
   <section
     class="border border-red-300 p-4 rounded-default dark:border-red-700"
   >

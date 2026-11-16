@@ -351,6 +351,7 @@ class RepeatOrderOutput(Schema):
     decision_reason: str
     decided_by: str | None
     decided_at: datetime | None
+    valid_until: date | None
 
 
 class RepeatOrderChoice(Schema):
@@ -408,6 +409,7 @@ class ProjectChangeOutput(Schema):
 
 
 class RegistrationDetail(RegistrationListItem):
+    repeat_order_valid_days: int
     can_split: bool
     repeat_orders: list[RepeatOrderOutput]
     repeat_order_choices: list[RepeatOrderChoice]
@@ -580,6 +582,7 @@ class OpportunityRankingPage(Schema):
     total: int
     page: int
     page_size: int
+    dbgi_orders_ties: bool
 
 
 class NotificationOutput(Schema):
@@ -960,7 +963,13 @@ def _serialize_repeat_order(repeat_order, user):
     return {
         "id": repeat_order.pk,
         "status": repeat_order.status,
-        "status_label": repeat_order.get_status_display(),
+        "status_label": (
+            "Accepted, now ended"
+            if repeat_order.status == RepeatOrder.Status.ACCEPTED
+            and repeat_order.valid_until
+            and repeat_order.valid_until < timezone.localdate()
+            else repeat_order.get_status_display()
+        ),
         "requested_by": (
             repeat_order.requested_by.get_full_name() or repeat_order.requested_by.username
         ),
@@ -982,6 +991,7 @@ def _serialize_repeat_order(repeat_order, user):
             else None
         ),
         "decided_at": repeat_order.decided_at,
+        "valid_until": repeat_order.valid_until,
     }
 
 
@@ -1093,6 +1103,7 @@ def _serialize_registration_detail(registration, user):
                     "requested_by", "decided_by", "registration"
                 )
             ],
+            "repeat_order_valid_days": PortalSetting.current().repeat_order_valid_days,
             "repeat_order_choices": (
                 [] if user.is_dbgi_admin else _repeat_order_choices(registration)
             ),
@@ -2039,7 +2050,13 @@ def list_rankings(request, page: int = 1, page_size: int = 25, search: str = "")
                 "entries": entries,
             }
         )
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "dbgi_orders_ties": PortalSetting.current().dbgi_orders_ties,
+    }
 
 
 @api.post(
@@ -2048,10 +2065,22 @@ def list_rankings(request, page: int = 1, page_size: int = 25, search: str = "")
     response={200: TieDecisionOutput, 400: ErrorResponse, 403: ErrorResponse, 404: ErrorResponse},
 )
 def decide_ranking_tie(request, scope_id: int, payload: TieDecisionInput):
-    """DBGI sets the order of registrations with the same submission time (decision B5)."""
+    """DBGI sets the order of registrations with the same submission time (decision B5), only
+    while Portal settings allow it."""
     if not _require_admin(request):
         return Status(
             403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    if not PortalSetting.current().dbgi_orders_ties:
+        return Status(
+            400,
+            {
+                "code": "ties_share_a_rank",
+                "message": (
+                    "Tied companies keep the same rank. A superuser can let DBGI order ties in "
+                    "Portal settings."
+                ),
+            },
         )
     with transaction.atomic():
         get_object_or_404(OpportunityScope.objects.select_for_update(), pk=scope_id, is_active=True)
@@ -2336,6 +2365,11 @@ def decide_repeat_order(request, repeat_order_id: int, payload: RepeatOrderDecis
         repeat_order.decision_reason = payload.reason.strip()
         repeat_order.decided_by = request.user
         repeat_order.decided_at = timezone.now()
+        if payload.accept:
+            # Decided 2026-11-11: an accepted repeat order stays valid for a set time.
+            repeat_order.valid_until = timezone.localdate() + timedelta(
+                days=PortalSetting.current().repeat_order_valid_days
+            )
         repeat_order.save()
         RegistrationEvent.objects.create(
             registration=registration,

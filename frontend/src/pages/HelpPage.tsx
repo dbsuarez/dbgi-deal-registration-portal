@@ -588,6 +588,12 @@ export default function HelpPage() {
             <List dense disablePadding>
               <ListItem disableGutters>
                 <ListItemText
+                  primary="Portal settings"
+                  secondary="Time limits for deals and projects on hold, how long an accepted repeat order stays valid, and which events email DBGI. A DBGI superuser changes them in Administration, Portal settings."
+                />
+              </ListItem>
+              <ListItem disableGutters>
+                <ListItemText
                   primary="Users and companies"
                   secondary="Assign company users to the correct company and maintain their name, designation, email, and phone. New registrations use these values as editable contact defaults. Company membership controls tenant access and must be checked carefully."
                 />
