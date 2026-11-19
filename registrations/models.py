@@ -468,7 +468,15 @@ class Registration(models.Model):
         ELIGIBLE_MATCHED = "eligible_matched", "Registered"
         REVIEW_REQUIRED = "review_required", "Review required after edit"
         REJECTED = "rejected", "Rejected"
-        WITHDRAWN = "withdrawn", "Withdrawn"
+        CLOSED = "closed", "Closed"
+
+    class CloseReason(models.TextChoices):
+        ANOTHER_COMPANY_WON = "another_company_won", "Another company won"
+        PROJECT_CANCELLED = "project_cancelled", "The project was cancelled"
+        STOPPED_PURSUING = "stopped_pursuing", "The company stopped pursuing it"
+        OTHER = "other", "Other"
+        # Deals withdrawn before Close deal replaced Withdraw (2026-11-19).
+        WITHDRAWN = "withdrawn", "Withdrawn by the company"
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="registrations")
     submitted_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="registrations")
@@ -497,7 +505,15 @@ class Registration(models.Model):
         related_name="registrations",
     )
     original_submitted_at = models.DateTimeField(default=timezone.now, editable=False)
-    withdrawn_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Close deal: the company or DBGI ends the deal; DBGI can reopen it to its earlier status.
+    closed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    closed_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True, editable=False, related_name="+"
+    )
+    close_reason = models.CharField(
+        max_length=30, choices=CloseReason.choices, blank=True, editable=False
+    )
+    status_before_close = models.CharField(max_length=20, blank=True, editable=False)
     # Decision B6: an unconfirmed registration gets a reminder on day 53 and DBGI review on day 60.
     limit_reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
     limit_reached_at = models.DateTimeField(null=True, blank=True, editable=False)
@@ -517,9 +533,9 @@ class Registration(models.Model):
 
     # Evidence is frozen once a reviewer has it or a decision exists, so an
     # upload or delete can never change what a decision was based on.
-    EVIDENCE_LOCKED_STATUSES = frozenset({Status.UNDER_REVIEW, Status.REJECTED, Status.WITHDRAWN})
-    # A partner can withdraw at any point before a final outcome; withdrawal is final.
-    WITHDRAWABLE_STATUSES = frozenset(set(Status) - {Status.REJECTED, Status.WITHDRAWN})
+    EVIDENCE_LOCKED_STATUSES = frozenset({Status.UNDER_REVIEW, Status.REJECTED, Status.CLOSED})
+    # The company or DBGI can close a deal at any point before it is rejected or closed.
+    CLOSABLE_STATUSES = frozenset(set(Status) - {Status.REJECTED, Status.CLOSED})
 
     @property
     def reference(self):
@@ -610,7 +626,7 @@ class Registration(models.Model):
         labels = {
             "not_requested": "Not requested",
             "pending": "Pending",
-            "changes_requested": "Changes requested",
+            "changes_requested": "Needs a new price",
             "partially_approved": "Partially approved",
             "approved": "Approved",
             "rejected": "Rejected",
@@ -900,7 +916,8 @@ class RegistrationItem(models.Model):
 class RegistrationCategoryApproval(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
-        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        # DBGI asks the company for a new price; the company can then change that category.
+        CHANGES_REQUESTED = "changes_requested", "Needs a new price"
         PARTIALLY_APPROVED = "partially_approved", "Partially approved"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
@@ -1026,6 +1043,30 @@ class ProjectOutcomeReport(models.Model):
     )
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_note = models.TextField(blank=True)
+    # A Won report needs the Notice of Award, the moment the project is won.
+    award_notice = models.FileField(
+        "Notice of Award",
+        upload_to=registration_upload_path,
+        blank=True,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=("pdf", "png", "jpg", "jpeg", "docx", "xlsx")
+            ),
+            validate_attachment_size,
+            validate_attachment_content,
+        ],
+    )
+    award_notice_name = models.CharField(max_length=255, blank=True)
+    # After DBGI confirms a Won report, DBGI issues the manufacturer and dealer certificates
+    # outside the portal; this records that a DBGI admin marked them issued.
+    certificates_done_at = models.DateTimeField(null=True, blank=True)
+    certificates_done_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1066,13 +1107,14 @@ class RegistrationNotification(models.Model):
         SUBMISSION_CONFIRMED = "submission_confirmed", "Submission confirmed"
         REGISTRATION_DECISION = "registration_decision", "Registration decision"
         PRICE_DECISION = "price_decision", "Price decision"
-        REGISTRATION_WITHDRAWN = "registration_withdrawn", "Registration withdrawn"
+        REGISTRATION_CLOSED = "registration_closed", "Registration closed"
         OUTCOME_REPORTED = "outcome_reported", "Project outcome reported"
         DEADLINE_REMINDER = "deadline_reminder", "60-day deadline reminder"
         DEADLINE_REACHED = "deadline_reached", "60-day deadline reached"
         REVIEW_NEEDED = "review_needed", "Registration needs review"
         RENEWAL_REQUESTED = "renewal_requested", "Price renewal requested"
         REPEAT_ORDER_REQUESTED = "repeat_order_requested", "Repeat order requested"
+        CERTIFICATES_DUE = "certificates_due", "Certificates to issue"
 
     class EmailStatus(models.TextChoices):
         NOT_REQUESTED = "not_requested", "Not requested"

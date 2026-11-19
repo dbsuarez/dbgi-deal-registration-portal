@@ -83,6 +83,7 @@ import {
 import { useSession } from "../session";
 import { example } from "./exampleText";
 import IsoDateField from "./IsoDateField";
+import PreviewLink from "./PreviewLink";
 
 type MainFields = Omit<
   RegistrationPayload,
@@ -845,7 +846,15 @@ export default function RegistrationFormPage() {
                 fullWidth
                 required
                 label="Project opportunity title"
-                {...example("20 laser printers for the Mayor's Office")}
+                {...example("20 laser printers for the Mayor's Office", {
+                  debug: session.is_debug,
+                  onFill: (text) => updateMain("project_title", text),
+                  more: [
+                    "30 desktop computers for the Treasurer's Office",
+                    "Printers and scanners for the City Library",
+                    "Toner supply for the Provincial Capitol for one year",
+                  ],
+                })}
                 value={main.project_title}
                 onChange={(e) => updateMain("project_title", e.target.value)}
               />
@@ -1051,6 +1060,15 @@ export default function RegistrationFormPage() {
                 label="Attachment description"
                 {...example(
                   "Request for quotation from the Mayor's Office, sent by the Records Officer.",
+                  {
+                    debug: session.is_debug,
+                    onFill: (text) => updateMain("evidence_description", text),
+                    more: [
+                      "Invitation to bid posted on PhilGEPS for 20 laser printers, reference 2026-1123.",
+                      "Email from the Supply Officer asking for our price on 20 laser printers.",
+                      "Purchase request approved by the City Administrator, with the list of items.",
+                    ],
+                  },
                 )}
                 value={main.evidence_description}
                 onChange={(e) =>
@@ -1408,6 +1426,7 @@ function CompetitorDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const { is_debug: isDebug } = useSession();
   const brandInputRef = useRef<HTMLInputElement>(null);
   const modelOptions = models
     .filter(
@@ -1488,7 +1507,15 @@ function CompetitorDialog({
               multiline
               rows={2}
               label="Remarks"
-              {...example("They offered this price at the pre-bid meeting.")}
+              {...example("They offered this price at the pre-bid meeting.", {
+                debug: isDebug,
+                onFill: (text) => onChange({ ...value, remarks: text }),
+                more: [
+                  "Seen in their quotation to the office.",
+                  "The office told us their bid price.",
+                  "Their price includes delivery and installation.",
+                ],
+              })}
               value={value.remarks}
               onChange={(e) => onChange({ ...value, remarks: e.target.value })}
             />
@@ -1528,6 +1555,7 @@ function ItemDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const { is_debug: isDebug } = useSession();
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Requested product</DialogTitle>
@@ -1576,7 +1604,19 @@ function ItemDialog({
                 fullWidth
                 required
                 label="Non-catalog product description"
-                {...example("High-speed document scanner, 60 pages per minute")}
+                {...example(
+                  "High-speed document scanner, 60 pages per minute",
+                  {
+                    debug: isDebug,
+                    onFill: (text) =>
+                      onChange({ ...value, non_catalog_name: text }),
+                    more: [
+                      "Wireless presenter with laser pointer",
+                      "Heavy-duty document shredder",
+                      "Toner cartridge, 10,000 pages",
+                    ],
+                  },
+                )}
                 value={value.non_catalog_name}
                 onChange={(e) =>
                   onChange({ ...value, non_catalog_name: e.target.value })
@@ -1618,7 +1658,15 @@ function ItemDialog({
               multiline
               rows={2}
               label="Justification"
-              {...example("The competitor offered 9,300 to the same office.")}
+              {...example("The competitor offered 9,300 to the same office.", {
+                debug: isDebug,
+                onFill: (text) => onChange({ ...value, justification: text }),
+                more: [
+                  "Canon offered 9,300 to the same office.",
+                  "The office's budget is 185,000 for 20 units.",
+                  "Two other brands are bidding below our list price.",
+                ],
+              })}
               value={value.justification}
               onChange={(e) =>
                 onChange({ ...value, justification: e.target.value })
@@ -2137,9 +2185,13 @@ function ListAttachments({
     <Stack spacing={1} sx={{ mt: 2 }}>
       {attachments.map((item) => (
         <Stack key={item.id} direction="row" alignItems="center">
-          <Link href={item.download_url} sx={{ flexGrow: 1 }}>
+          <PreviewLink
+            url={item.download_url}
+            name={item.original_name}
+            sx={{ flexGrow: 1 }}
+          >
             {item.original_name}
-          </Link>
+          </PreviewLink>
           <IconButton
             aria-label={`Remove ${item.original_name}`}
             onClick={() => onDeleteExisting(item)}

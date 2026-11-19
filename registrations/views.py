@@ -4,9 +4,17 @@ from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 
-from .models import RegistrationAttachment, RepeatOrder
+from .models import ProjectOutcomeReport, RegistrationAttachment, RepeatOrder
 
 logger = logging.getLogger(__name__)
+
+# Files the browser can show in the preview box. Word and Excel files are only downloaded.
+PREVIEW_TYPES = {
+    "pdf": "application/pdf",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+}
 
 
 def _can_access_registration(user, company_id):
@@ -15,6 +23,30 @@ def _can_access_registration(user, company_id):
     return (
         user.role == user.Role.COMPANY and user.company_id == company_id and user.company.is_active
     )
+
+
+def _file_response(request, stored, name):
+    """Send a private file. With ?inline=1, a PDF or picture opens in the browser's preview box
+    (same site only); everything else, and every other request, is a download."""
+    extension = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if request.GET.get("inline") == "1" and extension in PREVIEW_TYPES:
+        response = FileResponse(
+            stored.open("rb"),
+            as_attachment=False,
+            filename=name,
+            content_type=PREVIEW_TYPES[extension],
+        )
+        # The portal shows it inside its own page; other sites still cannot frame it.
+        response["X-Frame-Options"] = "SAMEORIGIN"
+    else:
+        response = FileResponse(
+            stored.open("rb"),
+            as_attachment=True,
+            filename=name,
+            content_type="application/octet-stream",
+        )
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @login_required
@@ -34,14 +66,7 @@ def registration_attachment(request, attachment_id):
             },
         )
         raise Http404("Attachment file is unavailable.")
-    response = FileResponse(
-        attachment.file.open("rb"),
-        as_attachment=True,
-        filename=attachment.original_name,
-        content_type="application/octet-stream",
-    )
-    response["Cache-Control"] = "private, no-store"
-    return response
+    return _file_response(request, attachment.file, attachment.original_name)
 
 
 @login_required
@@ -61,11 +86,21 @@ def repeat_order_letter(request, repeat_order_id, letter):
     if not stored.storage.exists(stored.name):
         logger.error("Repeat order letter is missing", extra={"repeat_order_id": repeat_order.pk})
         raise Http404("The letter is unavailable.")
-    response = FileResponse(
-        stored.open("rb"),
-        as_attachment=True,
-        filename=name,
-        content_type="application/octet-stream",
+    return _file_response(request, stored, name)
+
+
+@login_required
+def outcome_award_notice(request, report_id):
+    """The Notice of Award attached to a Won report: for that company and DBGI only."""
+    report = get_object_or_404(
+        ProjectOutcomeReport.objects.select_related("registration"), pk=report_id
     )
-    response["Cache-Control"] = "private, no-store"
-    return response
+    if not report.award_notice or not _can_access_registration(
+        request.user, report.registration.company_id
+    ):
+        raise Http404
+    stored = report.award_notice
+    if not stored.storage.exists(stored.name):
+        logger.error("Notice of Award is missing", extra={"outcome_report_id": report.pk})
+        raise Http404("The Notice of Award is unavailable.")
+    return _file_response(request, stored, report.award_notice_name)

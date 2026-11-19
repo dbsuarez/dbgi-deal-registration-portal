@@ -146,6 +146,7 @@ class DBGIAdminSite(UnfoldAdminSite):
         from registrations.models import (
             EndUser,
             PortalSetting,
+            ProjectOutcomeReport,
             Registration,
             RegistrationCategoryApproval,
             RegistrationNotification,
@@ -169,7 +170,7 @@ class DBGIAdminSite(UnfoldAdminSite):
                     RegistrationCategoryApproval.Status.CHANGES_REQUESTED,
                 )
             )
-            .exclude(registration__status=Registration.Status.WITHDRAWN)
+            .exclude(registration__status=Registration.Status.CLOSED)
             .select_related("registration", "registration__company")
         )
         if not request.user.has_perm("registrations.view_registrationcategoryapproval"):
@@ -190,6 +191,15 @@ class DBGIAdminSite(UnfoldAdminSite):
         if not request.user.has_perm("registrations.view_registrationcategoryapproval"):
             expiring_approvals = expiring_approvals.none()
 
+        # Confirmed wins whose manufacturer and dealer certificates are not marked issued yet.
+        certificates_due = ProjectOutcomeReport.objects.filter(
+            outcome=ProjectOutcomeReport.Outcome.WON,
+            status=ProjectOutcomeReport.Status.CONFIRMED,
+            certificates_done_at__isnull=True,
+        ).select_related("registration", "registration__company")
+        if not request.user.has_perm("registrations.view_registration"):
+            certificates_due = certificates_due.none()
+
         dashboard_context = {
             "title": "Operations dashboard",
             "review_count": review_queue.count(),
@@ -202,6 +212,7 @@ class DBGIAdminSite(UnfoldAdminSite):
             "pending_end_users": pending_end_users.order_by("created_at", "id")[:5],
             "failed_notifications": failed_notifications.order_by("-created_at", "-id")[:5],
             "expiring_approvals": expiring_approvals.order_by("valid_until", "id")[:5],
+            "certificates_due": certificates_due.order_by("decided_at", "id"),
             "registration_list_url": reverse("admin:registrations_registration_changelist"),
             "pricing_list_url": reverse(
                 "admin:registrations_registrationcategoryapproval_changelist"

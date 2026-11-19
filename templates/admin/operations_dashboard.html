@@ -298,6 +298,40 @@
     </section>
   </div>
 
+  {% if certificates_due %}
+  <section
+    class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700"
+  >
+    <div class="border-b border-base-200 px-4 py-3 dark:border-base-700">
+      <h2
+        class="font-semibold text-font-important-light dark:text-font-important-dark"
+      >
+        Certificates to issue
+      </h2>
+      <p class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark">
+        These companies won. Issue the manufacturer certificate and the dealer
+        certificate, then open the deal and click Mark certificates issued.
+      </p>
+    </div>
+    <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+      {% for report in certificates_due %}
+      <a
+        class="border border-base-200 p-3 rounded-default dark:border-base-700"
+        href="/registrations/{{ report.registration_id }}/"
+        ><div class="font-medium">
+          {{ report.registration.reference }} | {{ report.registration.company.name }}
+        </div>
+        <div
+          class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark"
+        >
+          {{ report.registration.project_title }} | Won confirmed {{
+          report.decided_at|date:"Y-m-d" }}
+        </div></a
+      >
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
   {% if expiring_approvals %}
   <section
     class="bg-white border border-base-200 rounded-default shadow-xs dark:bg-base-900 dark:border-base-700"

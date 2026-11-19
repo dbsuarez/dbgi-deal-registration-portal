@@ -244,6 +244,20 @@ export type OutcomeReport = {
   decided_by_name: string | null;
   decided_at: string | null;
   decision_note: string;
+  award_notice_name?: string;
+  award_notice_url?: string | null;
+  certificates_done_at?: string | null;
+};
+
+export type CloseReason =
+  "another_company_won" | "project_cancelled" | "stopped_pursuing" | "other";
+
+export type OtherOpenDeal = {
+  id: number;
+  reference: string;
+  company_name: string;
+  status_label: string;
+  version: number;
 };
 
 export type RegistrationDetail = RegistrationListItem & {
@@ -258,7 +272,14 @@ export type RegistrationDetail = RegistrationListItem & {
   evidence_url: string;
   evidence_sharing_confirmed: boolean;
   can_edit: boolean;
-  can_withdraw: boolean;
+  can_close: boolean;
+  can_reopen?: boolean;
+  close_reason_label?: string | null;
+  closed_at?: string | null;
+  // DBGI only: a confirmed Won report whose certificates are not marked issued yet.
+  certificates_due_report_id?: number | null;
+  // DBGI only, on a Won project: other companies' deals still open.
+  other_open_deals?: OtherOpenDeal[];
   can_report_outcome: boolean;
   can_reprice?: boolean;
   outcome_reports: OutcomeReport[];
@@ -964,13 +985,14 @@ export function repriceRegistration(
   );
 }
 
-export function withdrawRegistration(
+// The company closes its own deal, or DBGI closes it for the company.
+export function closeRegistration(
   registrationId: number,
-  payload: { version: number; reason: string },
+  payload: { version: number; reason: CloseReason; note: string },
   csrfToken: string,
 ) {
   return mutation<RegistrationDetail>(
-    `/api/v1/registrations/${registrationId}/withdraw`,
+    `/api/v1/registrations/${registrationId}/close`,
     "POST",
     csrfToken,
     JSON.stringify(payload),
@@ -978,17 +1000,47 @@ export function withdrawRegistration(
   );
 }
 
-export function reportProjectOutcome(
+export function reopenRegistration(
   registrationId: number,
-  payload: { outcome: OutcomeReport["outcome"]; note: string },
+  payload: { version: number; reason: string },
   csrfToken: string,
 ) {
   return mutation<RegistrationDetail>(
-    `/api/v1/registrations/${registrationId}/outcome-reports`,
+    `/api/v1/review/registrations/${registrationId}/reopen`,
     "POST",
     csrfToken,
     JSON.stringify(payload),
     "application/json",
+  );
+}
+
+export function markCertificatesIssued(reportId: number, csrfToken: string) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/review/outcome-reports/${reportId}/certificates-issued`,
+    "POST",
+    csrfToken,
+  );
+}
+
+// A Won report needs the Notice of Award file.
+export function reportProjectOutcome(
+  registrationId: number,
+  payload: {
+    outcome: OutcomeReport["outcome"];
+    note: string;
+    awardNotice?: File | null;
+  },
+  csrfToken: string,
+) {
+  const data = new FormData();
+  data.append("outcome", payload.outcome);
+  data.append("note", payload.note);
+  if (payload.awardNotice) data.append("award_notice", payload.awardNotice);
+  return mutation<RegistrationDetail>(
+    `/api/v1/registrations/${registrationId}/outcome-reports`,
+    "POST",
+    csrfToken,
+    data,
   );
 }
 

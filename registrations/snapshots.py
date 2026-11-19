@@ -10,6 +10,7 @@ only in debug mode; the backup_portal and restore_portal commands work anywhere.
 import json
 import re
 import shutil
+import tempfile
 import zipfile
 from datetime import timedelta
 from io import StringIO
@@ -108,15 +109,60 @@ def take_snapshot(label=""):
     return {"name": name, **meta}
 
 
+def upgrade_records(records):
+    """Bring records from an older snapshot up to today's fields. Returns True if any changed.
+
+    2026-11-19 (migration 0043): Close deal replaced Withdraw. withdrawn_at became closed_at, and a
+    Withdrawn deal became Closed with the reason "Withdrawn by the company".
+    """
+    changed = False
+    for record in records:
+        model, fields = record.get("model"), record.get("fields", {})
+        if model == "registrations.registration":
+            if "withdrawn_at" in fields:
+                fields["closed_at"] = fields.pop("withdrawn_at")
+                changed = True
+            if fields.get("status") == "withdrawn":
+                fields["status"] = "closed"
+                fields["close_reason"] = "withdrawn"
+                changed = True
+        elif (
+            model
+            in (
+                "registrations.registrationnotification",
+                "registrations.notificationeventsetting",
+            )
+            and fields.get("event_type") == "registration_withdrawn"
+        ):
+            fields["event_type"] = "registration_closed"
+            changed = True
+    return changed
+
+
 def restore_snapshot(name):
-    """Replace all portal data and uploaded files with the snapshot. All or nothing for the data."""
+    """Replace all portal data and uploaded files with the snapshot. All or nothing for the data.
+
+    An older snapshot is upgraded on the way in (see upgrade_records); its own file is not changed.
+    """
     folder = _folder(name)
     tables = [model._meta.db_table for model in _models()]
-    with transaction.atomic():
-        statements = connection.ops.sql_flush(no_style(), tables, allow_cascade=True)
-        connection.ops.execute_sql_flush(statements)
-        call_command("loaddata", str(folder / "data.json"), verbosity=0)
-        transaction.on_commit(lambda: _restore_files(folder))
+    records = json.loads((folder / "data.json").read_text(encoding="utf-8"))
+    upgraded = None
+    if upgrade_records(records):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", encoding="utf-8", delete=False
+        ) as handle:
+            json.dump(records, handle)
+        upgraded = Path(handle.name)
+    try:
+        with transaction.atomic():
+            statements = connection.ops.sql_flush(no_style(), tables, allow_cascade=True)
+            connection.ops.execute_sql_flush(statements)
+            call_command("loaddata", str(upgraded or folder / "data.json"), verbosity=0)
+            transaction.on_commit(lambda: _restore_files(folder))
+    finally:
+        if upgraded:
+            upgraded.unlink(missing_ok=True)
     return json.loads((folder / "meta.json").read_text(encoding="utf-8"))
 
 

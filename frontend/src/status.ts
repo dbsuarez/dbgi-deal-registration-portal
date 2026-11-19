@@ -11,7 +11,7 @@ const STATUS_COLORS: Record<StatusKind, Record<string, ChipProps["color"]>> = {
     eligible_matched: "success",
     review_required: "warning",
     rejected: "error",
-    withdrawn: "default",
+    closed: "default",
   },
   project: {
     upcoming: "info",
@@ -54,8 +54,8 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
       "This registration changed after matching and must be reviewed again by DBGI.",
     rejected:
       "DBGI rejected this registration. Open the decision to read the reason.",
-    withdrawn:
-      "The company withdrew this registration. It left the ranking and cannot change or be restored.",
+    closed:
+      "This deal is closed. It left the ranking and cannot change. Only DBGI can reopen it.",
   },
   project: {
     unlinked:
@@ -77,7 +77,7 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
     pending:
       "DBGI has not made a final pricing decision for every requested product category.",
     changes_requested:
-      "DBGI needs more information before deciding the requested pricing.",
+      "DBGI needs a new price from the company. The company edits the deal, changes the price, and saves.",
     partially_approved:
       "DBGI approved pricing for some requested items or categories, but not all of them.",
     approved:

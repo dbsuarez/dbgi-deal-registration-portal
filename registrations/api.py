@@ -13,7 +13,7 @@ from django.http import Http404
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Field, Form, NinjaAPI, Schema, Status, UploadedFile
+from ninja import Field, File, Form, NinjaAPI, Schema, Status, UploadedFile
 from ninja.errors import AuthenticationError
 from ninja.errors import ValidationError as NinjaValidationError
 from ninja.security import django_auth
@@ -50,11 +50,15 @@ from .models import (
     normalize_end_user_value,
 )
 from .notifications import (
+    notify_company_closed_by_dbgi,
+    notify_company_reopened,
     notify_company_users,
+    notify_dbgi_certificates_due,
+    notify_dbgi_closed,
+    notify_dbgi_new_price,
     notify_dbgi_renewal_requested,
     notify_dbgi_repeat_order_requested,
     notify_dbgi_review_needed,
-    notify_dbgi_withdrawal,
     notify_outcome_decision,
     notify_outcome_reported,
     notify_price_decision,
@@ -173,14 +177,15 @@ class RegistrationFinalize(Schema):
     version: int
 
 
-class RegistrationWithdrawInput(Schema):
+class RegistrationCloseInput(Schema):
+    version: int
+    reason: Literal["another_company_won", "project_cancelled", "stopped_pursuing", "other"]
+    note: str = Field(min_length=5, max_length=1000)
+
+
+class RegistrationReopenInput(Schema):
     version: int
     reason: str = Field(min_length=5, max_length=1000)
-
-
-class OutcomeReportInput(Schema):
-    outcome: Literal["won", "lost", "cancelled"]
-    note: str = Field(min_length=5, max_length=2000)
 
 
 class OutcomeDecisionInput(Schema):
@@ -200,6 +205,17 @@ class OutcomeReportOutput(Schema):
     decided_by_name: str | None
     decided_at: datetime | None
     decision_note: str
+    award_notice_name: str
+    award_notice_url: str | None
+    certificates_done_at: datetime | None
+
+
+class OtherOpenDeal(Schema):
+    id: int
+    reference: str
+    company_name: str
+    status_label: str
+    version: int
 
 
 class RegistrationListItem(Schema):
@@ -434,7 +450,12 @@ class RegistrationDetail(RegistrationListItem):
     evidence_url: str
     evidence_sharing_confirmed: bool
     can_edit: bool
-    can_withdraw: bool
+    can_close: bool
+    can_reopen: bool
+    close_reason_label: str | None
+    closed_at: datetime | None
+    certificates_due_report_id: int | None
+    other_open_deals: list[OtherOpenDeal]
     can_report_outcome: bool
     can_reprice: bool
     outcome_reports: list[OutcomeReportOutput]
@@ -894,7 +915,10 @@ def _serialize_registration(registration, user=None):
 
 
 def _serialize_registration_event(event, *, include_internal_details):
-    if not include_internal_details and event.event_type == "Start review":
+    if not include_internal_details and event.event_type in {
+        "Start review",
+        "Certificates issued",
+    }:
         return None
     details = event.details
     if not include_internal_details and event.event_type in {
@@ -994,7 +1018,7 @@ def _serialize_repeat_order(repeat_order, user):
         "total": sum((line["line_total"] for line in lines), Decimal("0.00")),
         "can_decide": user.is_dbgi_admin
         and repeat_order.status == RepeatOrder.Status.PENDING
-        and repeat_order.registration.status != Registration.Status.WITHDRAWN,
+        and repeat_order.registration.status != Registration.Status.CLOSED,
         "decision_reason": repeat_order.decision_reason,
         "decided_by": (
             (repeat_order.decided_by.get_full_name() or repeat_order.decided_by.username)
@@ -1045,6 +1069,13 @@ def _serialize_outcome_report(report):
         "decided_by_name": name(report.decided_by),
         "decided_at": report.decided_at,
         "decision_note": report.decision_note,
+        "award_notice_name": report.award_notice_name,
+        "award_notice_url": (
+            f"/attachments/outcome-reports/{report.pk}/award-notice/download/"
+            if report.award_notice
+            else None
+        ),
+        "certificates_done_at": report.certificates_done_at,
     }
 
 
@@ -1093,6 +1124,50 @@ def _set_project_status(opportunity, status, actor, reason, report=None):
         )
 
 
+def _certificates_due_report_id(registration, user):
+    """DBGI only: the confirmed Won report whose certificates are not marked issued yet."""
+    if not user.is_dbgi_admin:
+        return None
+    report = (
+        registration.outcome_reports.filter(
+            outcome=ProjectOutcomeReport.Outcome.WON,
+            status=ProjectOutcomeReport.Status.CONFIRMED,
+            certificates_done_at__isnull=True,
+        )
+        .order_by("-decided_at")
+        .first()
+    )
+    return report.pk if report else None
+
+
+def _other_open_deals(registration, user):
+    """DBGI only, on a Won project: other companies' open deals, so DBGI can close them."""
+    if not user.is_dbgi_admin or not registration.opportunity_scope_id:
+        return []
+    opportunity = registration.opportunity_scope.opportunity
+    if opportunity.project_status != Opportunity.ProjectStatus.WON:
+        return []
+    deals = (
+        Registration.objects.filter(opportunity_scope__opportunity=opportunity)
+        .exclude(pk=registration.pk)
+        .exclude(status__in=[Registration.Status.CLOSED, Registration.Status.REJECTED])
+        .select_related("company")
+        .order_by("original_submitted_at", "id")
+    )
+    if opportunity.won_by_company_id:
+        deals = deals.exclude(company_id=opportunity.won_by_company_id)
+    return [
+        {
+            "id": deal.pk,
+            "reference": deal.reference,
+            "company_name": deal.company.name,
+            "status_label": deal.get_status_display(),
+            "version": deal.version,
+        }
+        for deal in deals
+    ]
+
+
 def _serialize_registration_detail(registration, user):
     detail = _serialize_registration(registration, user)
     serialized_events = [
@@ -1112,12 +1187,16 @@ def _serialize_registration_detail(registration, user):
             "evidence_url": registration.evidence_url,
             "evidence_sharing_confirmed": registration.evidence_sharing_confirmed,
             "can_edit": not user.is_dbgi_admin
-            and registration.status != Registration.Status.WITHDRAWN,
-            "can_withdraw": not user.is_dbgi_admin
-            and registration.status in Registration.WITHDRAWABLE_STATUSES,
+            and registration.status != Registration.Status.CLOSED,
+            "can_close": registration.status in Registration.CLOSABLE_STATUSES,
+            "can_reopen": user.is_dbgi_admin and registration.status == Registration.Status.CLOSED,
+            "close_reason_label": registration.get_close_reason_display() or None,
+            "closed_at": registration.closed_at,
+            "certificates_due_report_id": _certificates_due_report_id(registration, user),
+            "other_open_deals": _other_open_deals(registration, user),
             "can_reprice": user.is_dbgi_admin
             and registration.status
-            not in {Registration.Status.WITHDRAWN, Registration.Status.REJECTED}
+            not in {Registration.Status.CLOSED, Registration.Status.REJECTED}
             and not _commercial_review_started(registration),
             "can_report_outcome": not user.is_dbgi_admin
             and _outcome_report_blocker(registration) is None,
@@ -1260,7 +1339,7 @@ def _last_renewal_text(approval):
 
 def _serialize_category_approval(approval, user=None, warnings=None):
     """`user` adds DBGI's rank and price context; `warnings` comes from a decision just saved."""
-    withdrawn = approval.registration.status == Registration.Status.WITHDRAWN
+    withdrawn = approval.registration.status == Registration.Status.CLOSED
     pending = (
         None
         if withdrawn
@@ -1283,7 +1362,7 @@ def _serialize_category_approval(approval, user=None, warnings=None):
             )
         ),
         "can_decide": bool(user and user.is_dbgi_admin)
-        and approval.registration.status != Registration.Status.WITHDRAWN,
+        and approval.registration.status != Registration.Status.CLOSED,
         "rank_text": rank_text(approval.registration) if user and user.is_dbgi_admin else None,
         "project_prices": (
             project_price_rows(approval.registration) if user and user.is_dbgi_admin else []
@@ -1519,7 +1598,7 @@ def list_registrations(
         "review_required",
         "approved",
         "rejected",
-        "withdrawn",
+        "closed",
     ] = "",
     sort: Literal[
         "created_at",
@@ -1711,24 +1790,27 @@ def _item_key(product_id, non_catalog_name):
     return (product_id, "" if product_id else normalize_end_user_value(non_catalog_name))
 
 
-def _requested_items_changed(registration, payload):
-    saved = Counter(
-        (
-            *_item_key(item.product_id, item.non_catalog_name),
-            item.quantity,
-            item.requested_unit_price,
+def _changed_price_categories(registration, payload):
+    """The price categories whose products, quantities, or requested prices this edit changes.
+
+    None stands for a typed-in product, which has no price review until DBGI adds it to the catalog.
+    """
+
+    def lines(rows):
+        return Counter(
+            (
+                *_item_key(row.product_id, row.non_catalog_name),
+                row.quantity,
+                row.requested_unit_price,
+            )
+            for row in rows
         )
-        for item in registration.items.all()
-    )
-    sent = Counter(
-        (
-            *_item_key(item.product_id, item.non_catalog_name),
-            item.quantity,
-            item.requested_unit_price,
-        )
-        for item in payload.items
-    )
-    return saved != sent
+
+    saved, sent = lines(registration.items.all()), lines(payload.items)
+    changed = (saved - sent) + (sent - saved)
+    product_ids = {key[0] for key in changed if key[0]}
+    categories = dict(Product.objects.filter(pk__in=product_ids).values_list("pk", "category"))
+    return {categories.get(key[0]) if key[0] else None for key in changed}
 
 
 def _capture_price(item, product, basis):
@@ -1928,21 +2010,48 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
                     ),
                 },
             )
-        if registration.status == Registration.Status.WITHDRAWN:
-            return Status(409, WITHDRAWN_ERROR)
-        if _commercial_review_started(registration) and (
-            payload.request_repricing or _requested_items_changed(registration, payload)
-        ):
+        if registration.status == Registration.Status.CLOSED:
+            return Status(409, CLOSED_ERROR)
+        # A decided price locks its category's products and prices. A category where DBGI asked
+        # for a new price ("Needs a new price") is open again, so the company can send one.
+        approvals = {
+            approval.category: approval for approval in registration.category_approvals.all()
+        }
+        open_statuses = {
+            RegistrationCategoryApproval.Status.PENDING,
+            RegistrationCategoryApproval.Status.CHANGES_REQUESTED,
+        }
+        touched = _changed_price_categories(registration, payload)
+        locked = sorted(
+            category
+            for category in touched
+            if category in approvals and approvals[category].status not in open_statuses
+        )
+        if locked or (payload.request_repricing and _commercial_review_started(registration)):
             return Status(
                 409,
                 {
                     "code": "commercial_review_locked",
                     "message": (
-                        "Products and requested prices cannot change after commercial review "
-                        "has started. Ask DBGI to request changes first."
+                        f"The {', '.join(locked)} price is already decided, so its products and "
+                        "prices cannot change. Ask DBGI for a new price first."
+                        if locked
+                        else "Prices cannot be updated after DBGI started deciding them."
                     ),
                 },
             )
+        new_price_categories = sorted(
+            category
+            for category in touched
+            if category in approvals
+            and approvals[category].status == RegistrationCategoryApproval.Status.CHANGES_REQUESTED
+        )
+        for category in new_price_categories:
+            # Back to Pending before the lines are saved, so an emptied category is removed.
+            approval = approvals[category]
+            approval.status = RegistrationCategoryApproval.Status.PENDING
+            approval.version += 1
+            approval.save(update_fields=["status", "version"])
         prior_snapshot = registration_snapshot(registration)
         end_user = _selected_end_user(request.user, payload.end_user_id)
         end_user_changed = registration.end_user_id != end_user.pk
@@ -1972,10 +2081,17 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
         if payload.request_repricing:
             changes.append("Repricing requested")
         previous_status = registration.status
+        # Only a new price that DBGI asked for: the match and rank are unchanged, so the deal
+        # stays as it is and only the price goes back to DBGI.
+        price_only = (
+            bool(new_price_categories)
+            and changes == ["Requested products"]
+            and touched <= set(new_price_categories)
+        )
         if registration.status == Registration.Status.CHANGES_REQUESTED:
             registration.status = Registration.Status.RESUBMITTED
             registration.needs_review = True
-        elif changes:
+        elif changes and not price_only:
             registration.needs_review = True
             if registration.status == Registration.Status.ELIGIBLE_MATCHED:
                 registration.status = Registration.Status.REVIEW_REQUIRED
@@ -1987,7 +2103,15 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
                 if registration.status == Registration.Status.RESUBMITTED
                 else "edited after it was registered",
             )
-        if changes:
+        if new_price_categories:
+            notify_dbgi_new_price(registration, new_price_categories)
+        if price_only:
+            event_type = "New price sent"
+            details = (
+                f"Company sent a new price for {', '.join(new_price_categories)}. "
+                "DBGI decides it again. The status and place in line are unchanged."
+            )
+        elif changes:
             event_type = "Company edit"
             details = f"Company changed: {', '.join(changes)}. DBGI review is required."
         elif registration.status != previous_status:
@@ -2007,7 +2131,7 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
             snapshot=prior_snapshot,
             resulting_snapshot=registration_snapshot(registration),
         )
-        if changes or registration.status != previous_status:
+        if (changes and not price_only) or registration.status != previous_status:
             generate_matching_suggestion(registration)
     return _serialize_registration(registration, request.user)
 
@@ -2300,8 +2424,8 @@ def request_repeat_order(
             pk=registration_id,
             company_id=company_id,
         )
-        if registration.status == Registration.Status.WITHDRAWN:
-            return Status(409, WITHDRAWN_ERROR)
+        if registration.status == Registration.Status.CLOSED:
+            return Status(409, CLOSED_ERROR)
         choices = {choice["item_id"]: choice for choice in _repeat_order_choices(registration)}
         parsed = _parse_repeat_order_lines(lines)
         if parsed is None or any(item_id not in choices for item_id, _ in parsed):
@@ -2394,8 +2518,8 @@ def decide_repeat_order(request, repeat_order_id: int, payload: RepeatOrderDecis
             status=RepeatOrder.Status.PENDING,
         )
         registration = repeat_order.registration
-        if registration.status == Registration.Status.WITHDRAWN:
-            return Status(409, WITHDRAWN_ERROR)
+        if registration.status == Registration.Status.CLOSED:
+            return Status(409, CLOSED_ERROR)
         if payload.accept and not all(
             _has_active_price(line.registration_item)
             for line in repeat_order.lines.select_related(
@@ -2483,14 +2607,35 @@ def refresh_matching_suggestion(request, registration_id: int):
     return _serialize_matching_suggestion(suggestion)
 
 
-WITHDRAWN_ERROR = {
-    "code": "registration_withdrawn",
-    "message": "This registration was withdrawn and can no longer change.",
+CLOSED_ERROR = {
+    "code": "registration_closed",
+    "message": "This deal is closed and can no longer change.",
 }
 
 
+def _validation_error(field, message):
+    return Status(
+        400,
+        {
+            "code": "validation_error",
+            "message": "Correct the highlighted fields.",
+            "details": [{"field": field, "message": message}],
+        },
+    )
+
+
+def _fresh_detail(request, registration_id):
+    registration = (
+        _registration_queryset(request.user)
+        .prefetch_related("competitor_items", "items__product", "attachments", "events__actor")
+        .select_related("opportunity_scope__opportunity")
+        .get(pk=registration_id)
+    )
+    return _serialize_registration_detail(registration, request.user)
+
+
 @api.post(
-    "/registrations/{registration_id}/withdraw",
+    "/registrations/{registration_id}/close",
     auth=django_auth,
     response={
         200: RegistrationDetail,
@@ -2500,73 +2645,177 @@ WITHDRAWN_ERROR = {
         409: ErrorResponse,
     },
 )
-def withdraw_registration(request, registration_id: int, payload: RegistrationWithdrawInput):
-    """A partner withdraws its own registration: final, leaves the ranking, and DBGI is notified."""
-    company_id = _company_id(request.user)
-    if company_id in (None, False):
+def close_registration(request, registration_id: int, payload: RegistrationCloseInput):
+    """The company closes its own deal, or a DBGI admin closes it for the company (after a call).
+
+    A closed deal leaves the work queues and the ranking. DBGI can reopen it.
+    """
+    note = payload.note.strip()
+    if len(note) < 5:
+        return _validation_error("note", "Explain why the deal is closing (at least 5 characters).")
+    is_dbgi = request.user.is_dbgi_admin
+    company_id = None if is_dbgi else _company_id(request.user)
+    if not is_dbgi and company_id in (None, False):
         return Status(
             403,
             {"code": "company_access_required", "message": "A valid company account is required."},
         )
+    with transaction.atomic():
+        queryset = Registration.objects.select_for_update(of=("self",)).select_related("company")
+        if not is_dbgi:
+            queryset = queryset.filter(company_id=company_id)
+        registration = get_object_or_404(queryset, pk=registration_id)
+        if registration.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This registration changed. Refresh before closing it.",
+                },
+            )
+        if registration.status not in Registration.CLOSABLE_STATUSES:
+            return Status(
+                400,
+                {"code": "invalid_transition", "message": "This deal can no longer be closed."},
+            )
+        prior_snapshot = registration_snapshot(registration)
+        registration.status_before_close = registration.status
+        registration.status = Registration.Status.CLOSED
+        registration.close_reason = payload.reason
+        registration.closed_at = timezone.now()
+        registration.closed_by = request.user
+        registration.needs_review = False
+        registration.version += 1
+        registration.save()
+        reason_label = registration.get_close_reason_display()
+        who = "DBGI closed this deal for the company" if is_dbgi else "The company closed this deal"
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Closed",
+            details=f"{who}. Reason: {reason_label}. {note}",
+            snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
+        )
+        if is_dbgi:
+            notify_company_closed_by_dbgi(registration)
+        else:
+            notify_dbgi_closed(registration, reason_label, note)
+    return _fresh_detail(request, registration_id)
+
+
+@api.post(
+    "/review/registrations/{registration_id}/reopen",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def reopen_registration(request, registration_id: int, payload: RegistrationReopenInput):
+    """DBGI reopens a closed deal, for example when the winner was disqualified.
+
+    It returns to the status it had before it was closed, with its original submission time,
+    so it takes back its place in the ranking.
+    """
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
     reason = payload.reason.strip()
     if len(reason) < 5:
-        return Status(
-            400,
-            {
-                "code": "validation_error",
-                "message": "Correct the highlighted fields.",
-                "details": [
-                    {
-                        "field": "reason",
-                        "message": "Explain why you are withdrawing (at least 5 characters).",
-                    }
-                ],
-            },
+        return _validation_error(
+            "reason", "Explain why the deal is reopened (at least 5 characters)."
         )
     with transaction.atomic():
         registration = get_object_or_404(
             Registration.objects.select_for_update(of=("self",)).select_related("company"),
             pk=registration_id,
-            company_id=company_id,
         )
         if registration.version != payload.version:
             return Status(
                 409,
                 {
                     "code": "edit_conflict",
-                    "message": "This registration changed. Refresh before withdrawing.",
+                    "message": "This registration changed. Refresh before reopening it.",
                 },
             )
-        if registration.status not in Registration.WITHDRAWABLE_STATUSES:
+        if registration.status != Registration.Status.CLOSED:
             return Status(
                 400,
-                {
-                    "code": "invalid_transition",
-                    "message": "This registration can no longer be withdrawn.",
-                },
+                {"code": "invalid_transition", "message": "Only a closed deal can be reopened."},
             )
         prior_snapshot = registration_snapshot(registration)
-        registration.status = Registration.Status.WITHDRAWN
-        registration.needs_review = False
-        registration.withdrawn_at = timezone.now()
+        registration.status = registration.status_before_close or (
+            Registration.Status.ELIGIBLE_MATCHED
+            if registration.opportunity_scope_id
+            else Registration.Status.SUBMITTED
+        )
+        registration.status_before_close = ""
+        registration.close_reason = ""
+        registration.closed_at = None
+        registration.closed_by = None
         registration.version += 1
         registration.save()
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
-            event_type="Withdrawn",
-            details=reason,
+            event_type="Reopened",
+            details=f"DBGI reopened this deal as {registration.get_status_display()}. {reason}",
             snapshot=prior_snapshot,
             resulting_snapshot=registration_snapshot(registration),
         )
-        notify_dbgi_withdrawal(registration, reason)
-    registration = (
-        _registration_queryset(request.user)
-        .prefetch_related("competitor_items", "items__product", "attachments", "events__actor")
-        .select_related("opportunity_scope__opportunity")
-        .get(pk=registration_id)
-    )
-    return _serialize_registration_detail(registration, request.user)
+        notify_company_reopened(registration)
+    return _fresh_detail(request, registration_id)
+
+
+@api.post(
+    "/review/outcome-reports/{report_id}/certificates-issued",
+    auth=django_auth,
+    response={200: RegistrationDetail, 400: ErrorResponse, 403: ErrorResponse, 404: ErrorResponse},
+)
+def mark_certificates_issued(request, report_id: int):
+    """A DBGI admin records that the winner's manufacturer and dealer certificates were issued.
+
+    The certificates themselves are issued outside the portal; the company does not see this step.
+    """
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        report = get_object_or_404(
+            ProjectOutcomeReport.objects.select_for_update(of=("self",)).select_related(
+                "registration"
+            ),
+            pk=report_id,
+        )
+        if (
+            report.outcome != ProjectOutcomeReport.Outcome.WON
+            or report.status != ProjectOutcomeReport.Status.CONFIRMED
+            or report.certificates_done_at
+        ):
+            return Status(
+                400,
+                {
+                    "code": "invalid_transition",
+                    "message": "There are no certificates waiting for this report.",
+                },
+            )
+        report.certificates_done_at = timezone.now()
+        report.certificates_done_by = request.user
+        report.save(update_fields=["certificates_done_at", "certificates_done_by"])
+        RegistrationEvent.objects.create(
+            registration=report.registration,
+            actor=request.user,
+            event_type="Certificates issued",
+            details="DBGI issued the manufacturer certificate and the dealer certificate.",
+            snapshot=registration_snapshot(report.registration),
+        )
+    return _fresh_detail(request, report.registration_id)
 
 
 def _detail_response(request, registration_id):
@@ -2590,8 +2839,24 @@ def _detail_response(request, registration_id):
         409: ErrorResponse,
     },
 )
-def report_project_outcome(request, registration_id: int, payload: OutcomeReportInput):
-    """A partner reports its linked project as won, lost, or cancelled; DBGI confirms later."""
+def report_project_outcome(
+    request,
+    registration_id: int,
+    outcome: Form[Literal["won", "lost", "cancelled"]],
+    note: Form[str],
+    award_notice: File[UploadedFile] = None,
+):
+    """A partner reports its linked project as won, lost, or cancelled; DBGI confirms later.
+
+    A Won report needs the Notice of Award: the project is won when the company receives it.
+    """
+    note = note.strip()
+    if len(note) < 5:
+        return _validation_error("note", "Say what happened (at least 5 characters).")
+    if outcome == "won" and award_notice is None:
+        return _validation_error(
+            "award_notice", "Attach the Notice of Award. A project is won when you receive it."
+        )
     company_id = _company_id(request.user)
     if company_id in (None, False):
         return Status(
@@ -2609,13 +2874,32 @@ def report_project_outcome(request, registration_id: int, payload: OutcomeReport
         blocker = _outcome_report_blocker(registration)
         if blocker:
             return Status(409 if blocker["code"] == "outcome_report_pending" else 400, blocker)
-        report = ProjectOutcomeReport.objects.create(
+        report = ProjectOutcomeReport(
             registration=registration,
             opportunity=registration.opportunity_scope.opportunity,
-            outcome=payload.outcome,
-            note=payload.note.strip(),
+            outcome=outcome,
+            note=note,
             reported_by=request.user,
         )
+        if award_notice is not None:
+            report.award_notice = award_notice
+            report.award_notice_name = award_notice.name.replace("\\", "/").rsplit("/", 1)[-1]
+        try:
+            report.full_clean()
+        except DjangoValidationError as exc:
+            return Status(
+                400,
+                {
+                    "code": "invalid_attachment",
+                    "message": "The Notice of Award could not be uploaded.",
+                    "details": [
+                        {"field": field, "message": message}
+                        for field, messages in exc.message_dict.items()
+                        for message in messages
+                    ],
+                },
+            )
+        report.save()
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
@@ -2666,7 +2950,7 @@ def add_item_to_catalog(request, item_id: int, payload: CatalogLinkInput):
                 },
             )
         if item.product_id or registration.status in {
-            Registration.Status.WITHDRAWN,
+            Registration.Status.CLOSED,
             Registration.Status.REJECTED,
         }:
             return Status(
@@ -2708,7 +2992,7 @@ def add_item_to_catalog(request, item_id: int, payload: CatalogLinkInput):
                     "code": "commercial_review_locked",
                     "message": (
                         "This category's prices were already decided. "
-                        "Request changes on them first."
+                        "Ask for a new price on it first."
                     ),
                 },
             )
@@ -2784,12 +3068,12 @@ def reprice_registration(request, registration_id: int, payload: RegistrationRep
                     "message": "This registration changed. Refresh before repricing.",
                 },
             )
-        if registration.status in {Registration.Status.WITHDRAWN, Registration.Status.REJECTED}:
+        if registration.status in {Registration.Status.CLOSED, Registration.Status.REJECTED}:
             return Status(
                 400,
                 {
                     "code": "invalid_transition",
-                    "message": "A withdrawn or rejected registration cannot be repriced.",
+                    "message": "A closed or rejected registration cannot be repriced.",
                 },
             )
         if _commercial_review_started(registration):
@@ -2884,6 +3168,8 @@ def decide_outcome_report(request, report_id: int, payload: OutcomeDecisionInput
                 f"Confirmed the reported outcome. {note}",
                 report=report,
             )
+            if report.outcome == ProjectOutcomeReport.Outcome.WON:
+                notify_dbgi_certificates_due(report)
         else:
             RegistrationEvent.objects.create(
                 registration=report.registration,
@@ -3052,8 +3338,8 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
                     "message": "This commercial approval changed. Refresh before deciding.",
                 },
             )
-        if approval.registration.status == Registration.Status.WITHDRAWN:
-            return Status(409, WITHDRAWN_ERROR)
+        if approval.registration.status == Registration.Status.CLOSED:
+            return Status(409, CLOSED_ERROR)
         items = list(
             approval.registration.items.select_related("product").filter(
                 product__category=approval.category
@@ -3200,8 +3486,8 @@ def request_price_renewal(request, approval_id: int, payload: RenewalRequestInpu
                 "message": "Only approved commercial terms can be renewed.",
             },
         )
-    if approval.registration.status == Registration.Status.WITHDRAWN:
-        return Status(409, WITHDRAWN_ERROR)
+    if approval.registration.status == Registration.Status.CLOSED:
+        return Status(409, CLOSED_ERROR)
     if approval.renewals.filter(status=PriceApprovalRenewal.Status.PENDING).exists():
         return Status(
             400,
@@ -3249,8 +3535,8 @@ def decide_price_renewal(request, renewal_id: int, payload: RenewalDecisionInput
             status=PriceApprovalRenewal.Status.PENDING,
         )
         approval = renewal.category_approval
-        if approval.registration.status == Registration.Status.WITHDRAWN:
-            return Status(409, WITHDRAWN_ERROR)
+        if approval.registration.status == Registration.Status.CLOSED:
+            return Status(409, CLOSED_ERROR)
         renewal.decided_by = request.user
         renewal.decided_at = timezone.now()
         renewal.decision_reason = payload.reason.strip()

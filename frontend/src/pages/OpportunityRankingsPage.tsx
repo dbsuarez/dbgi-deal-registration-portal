@@ -425,7 +425,15 @@ export default function OpportunityRankingsPage() {
             minRows={3}
             label="Reason for this order"
             helperText="At least 5 characters. Only DBGI sees this."
-            {...example("This company sent its complete papers first.")}
+            {...example("This company sent its complete papers first.", {
+              debug: session.is_debug,
+              onFill: setTieReason,
+              more: [
+                "This company sent its complete papers first.",
+                "This company confirmed the project with the office first.",
+                "DBGI checked both and chose this order.",
+              ],
+            })}
             value={tieReason}
             onChange={(event) => setTieReason(event.target.value)}
           />

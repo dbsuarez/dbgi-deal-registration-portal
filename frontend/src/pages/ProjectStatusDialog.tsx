@@ -17,6 +17,7 @@ import {
   getRegistration,
   type RegistrationDetail,
 } from "../api";
+import { useSession } from "../session";
 import { example } from "./exampleText";
 
 const STATUSES = [
@@ -43,6 +44,7 @@ export default function ProjectStatusDialog({
   onClose,
   onSaved,
 }: Props) {
+  const { is_debug: isDebug } = useSession();
   const [status, setStatus] = useState("active");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -121,7 +123,15 @@ export default function ProjectStatusDialog({
             minRows={3}
             label="Reason"
             helperText="At least 5 characters. It is saved in each deal's Activity."
-            {...example("The bidding was postponed.")}
+            {...example("The bidding was postponed.", {
+              debug: isDebug,
+              onFill: setReason,
+              more: [
+                "The bidding was postponed.",
+                "The office will post the tender again next month.",
+                "The office confirmed the bid opening date.",
+              ],
+            })}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />

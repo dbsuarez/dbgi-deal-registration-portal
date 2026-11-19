@@ -14,7 +14,7 @@ from .models import (
     RegistrationEvent,
     RegistrationItem,
 )
-from .notifications import notify_automatic_match
+from .notifications import notify_automatic_match, notify_automatic_rejection
 
 RULE_VERSION = "matching-v2"
 ADDRESS_ALIASES = {
@@ -22,6 +22,8 @@ ADDRESS_ALIASES = {
     "rd": "road",
     "st": "street",
 }
+# Only new deals: Submitted, or Resubmitted after DBGI asked for changes.
+AUTO_REJECTABLE_STATUSES = {Registration.Status.SUBMITTED, Registration.Status.RESUBMITTED}
 AUTO_MATCHABLE_STATUSES = {
     Registration.Status.SUBMITTED,
     Registration.Status.RESUBMITTED,
@@ -205,7 +207,33 @@ def generate_matching_suggestion(registration):
             conflicting_factors=conflicts,
             rule_version=RULE_VERSION,
         )
+        awarded_scope = exact_candidates[0][5] if len(exact_candidates) == 1 else None
         if (
+            awarded_scope is not None
+            and awarded_scope.opportunity.project_status == Opportunity.ProjectStatus.WON
+            and registration.opportunity_scope_id is None
+            and registration.status in AUTO_REJECTABLE_STATUSES
+        ):
+            # A new deal that certainly matches a project already won is rejected right away.
+            # Only new, unlinked deals: an edit to a deal already on the project is never rejected.
+            prior_snapshot = registration_snapshot(registration)
+            registration.status = Registration.Status.REJECTED
+            registration.needs_review = False
+            registration.version += 1
+            registration.save()
+            RegistrationEvent.objects.create(
+                registration=registration,
+                actor=None,
+                event_type="Automatically rejected",
+                details=(
+                    "This project was already awarded. The end-user name and address and all "
+                    f"products match {awarded_scope}, which is Won."
+                ),
+                snapshot=prior_snapshot,
+                resulting_snapshot=registration_snapshot(registration),
+            )
+            notify_automatic_rejection(registration)
+        elif (
             len(exact_candidates) == 1
             and candidate_scope == exact_candidates[0][5]
             and not conflicts

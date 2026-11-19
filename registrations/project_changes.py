@@ -29,7 +29,7 @@ MERGED_EVENT = "Project merged"
 SPLIT_EVENT = "Deal split"
 PROJECT_CHANGE_EVENTS = frozenset({MERGED_EVENT, SPLIT_EVENT})
 
-CLOSED_STATUSES = frozenset({Registration.Status.WITHDRAWN, Registration.Status.REJECTED})
+CLOSED_STATUSES = frozenset({Registration.Status.CLOSED, Registration.Status.REJECTED})
 SPLITTABLE_STATUSES = frozenset(
     {
         Registration.Status.ELIGIBLE_MATCHED,

@@ -190,7 +190,7 @@ def process_deadlines(now=None):
         valid_until__gte=today,
         valid_until__lte=today + timedelta(days=PRICE_REMINDER_DAYS_BEFORE),
         expiry_reminder_sent_at__isnull=True,
-    ).exclude(registration__status=Registration.Status.WITHDRAWN)
+    ).exclude(registration__status=Registration.Status.CLOSED)
     for pk in expiring.values_list("pk", flat=True):
         with transaction.atomic():
             approval = (

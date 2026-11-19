@@ -54,7 +54,7 @@ import {
   reportProjectOutcome,
   requestPriceRenewal,
   reviewRegistration,
-  withdrawRegistration,
+  markCertificatesIssued,
   type OpportunityScope,
   type CategoryApproval,
   type OutcomeReport,
@@ -64,9 +64,12 @@ import {
 import { useSession } from "../session";
 import { getStatusColor, getStatusExplanation } from "../status";
 import { example } from "./exampleText";
+import CloseDealDialog, { type CloseTarget } from "./CloseDealDialog";
 import { companyNextStep } from "./registrationReview";
+import PreviewLink from "./PreviewLink";
 import PriceDecisionDialog from "./PriceDecisionDialog";
 import ProjectStatusDialog from "./ProjectStatusDialog";
+import ReopenDealDialog from "./ReopenDealDialog";
 import RepeatOrdersSection from "./RepeatOrdersSection";
 import SplitDealDialog from "./SplitDealDialog";
 
@@ -123,10 +126,12 @@ export default function RegistrationDetailPage() {
   const [suggestionError, setSuggestionError] = useState("");
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [matchingGuideOpen, setMatchingGuideOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [withdrawReason, setWithdrawReason] = useState("");
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawError, setWithdrawError] = useState("");
+  // The deal being closed: this one, or (for DBGI) another company's deal on a Won project.
+  const [closeTarget, setCloseTarget] = useState<CloseTarget | null>(null);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [certificatesSaving, setCertificatesSaving] = useState(false);
+  const [certificatesError, setCertificatesError] = useState("");
+  const [outcomeFile, setOutcomeFile] = useState<File | null>(null);
   const [catalogItem, setCatalogItem] = useState<
     RegistrationDetail["items"][number] | null
   >(null);
@@ -239,7 +244,11 @@ export default function RegistrationDetailPage() {
     try {
       const updated = await reportProjectOutcome(
         registration.id,
-        { outcome: outcomeChoice, note: outcomeNote.trim() },
+        {
+          outcome: outcomeChoice,
+          note: outcomeNote.trim(),
+          awardNotice: outcomeFile,
+        },
         session.csrf_token,
       );
       setRegistration(updated);
@@ -383,24 +392,33 @@ export default function RegistrationDetailPage() {
     }
   };
 
-  const handleWithdraw = async () => {
-    if (!registration) return;
-    setWithdrawing(true);
-    setWithdrawError("");
+  const handleClosed = async (updated: RegistrationDetail) => {
+    setCloseTarget(null);
+    // Closing another company's deal from this page: reload this deal's list of open deals.
+    setRegistration(
+      registration && updated.id !== registration.id
+        ? await getRegistration(registration.id)
+        : updated,
+    );
+  };
+
+  const handleCertificatesIssued = async () => {
+    if (!registration?.certificates_due_report_id) return;
+    setCertificatesSaving(true);
+    setCertificatesError("");
     try {
-      const updated = await withdrawRegistration(
-        registration.id,
-        { version: registration.version, reason: withdrawReason.trim() },
-        session.csrf_token,
+      setRegistration(
+        await markCertificatesIssued(
+          registration.certificates_due_report_id,
+          session.csrf_token,
+        ),
       );
-      setRegistration(updated);
-      setWithdrawOpen(false);
     } catch (reason) {
-      setWithdrawError(
-        reason instanceof Error ? reason.message : "The withdrawal failed.",
+      setCertificatesError(
+        reason instanceof Error ? reason.message : "That could not be saved.",
       );
     } finally {
-      setWithdrawing(false);
+      setCertificatesSaving(false);
     }
   };
 
@@ -561,6 +579,7 @@ export default function RegistrationDetailPage() {
               onClick={() => {
                 setOutcomeChoice("won");
                 setOutcomeNote("");
+                setOutcomeFile(null);
                 setOutcomeError("");
                 setOutcomeOpen(true);
               }}
@@ -568,17 +587,24 @@ export default function RegistrationDetailPage() {
               Report project outcome
             </Button>
           )}
-          {registration.can_withdraw && (
+          {registration.can_close && (
             <Button
               variant="outlined"
               color="error"
-              onClick={() => {
-                setWithdrawReason("");
-                setWithdrawError("");
-                setWithdrawOpen(true);
-              }}
+              onClick={() =>
+                setCloseTarget({
+                  id: registration.id,
+                  version: registration.version,
+                  reference: registration.reference,
+                })
+              }
             >
-              Withdraw registration
+              Close deal
+            </Button>
+          )}
+          {registration.can_reopen && (
+            <Button variant="outlined" onClick={() => setReopenOpen(true)}>
+              Reopen deal
             </Button>
           )}
           {registration.can_edit && (
@@ -726,7 +752,15 @@ export default function RegistrationDetailPage() {
                 multiline
                 required
                 minRows={2}
-                {...example("Checking the end-user and the attachment.")}
+                {...example("Checking the end-user and the attachment.", {
+                  debug: session.is_debug,
+                  onFill: setRationale,
+                  more: [
+                    "Checking the request for quotation from the Mayor's Office.",
+                    "Corrections came back. Checking the name of the sender they added.",
+                    "The partner says this is the same project as last week's deal. Checking if it matches.",
+                  ],
+                })}
                 label="Review reason"
                 value={rationale}
                 onChange={(event) => setRationale(event.target.value)}
@@ -849,6 +883,34 @@ export default function RegistrationDetailPage() {
                       : finalDecision === "reject"
                         ? "The office confirmed it has no plan to buy this year."
                         : "First registration for this project.",
+                  {
+                    debug: session.is_debug,
+                    onFill: setRationale,
+                    more:
+                      finalDecision === "link_existing"
+                        ? [
+                            "Same office, same address, and same printers as the existing project.",
+                            "The partner confirmed it is the same tender as the existing project.",
+                            "Same end-user and the same bid date as the existing project.",
+                          ]
+                        : finalDecision === "request_changes"
+                          ? [
+                              "Please attach the request for quotation from the office.",
+                              "Please correct the bid date. The office says it is on 2026-12-15.",
+                              "Please add the quantity for each printer.",
+                            ]
+                          : finalDecision === "reject"
+                            ? [
+                                "The office said it has no plan to buy this year.",
+                                "The attachment is for a different office.",
+                                "This deal repeats another deal from the same company.",
+                              ]
+                            : [
+                                "First registration for this project.",
+                                "No existing project matches this office and these products.",
+                                "New tender from the office, separate from last year's purchase.",
+                              ],
+                  },
                 )}
                 sx={{ mt: 2 }}
               />
@@ -941,9 +1003,12 @@ export default function RegistrationDetailPage() {
                 <ListItem key={attachment.id} disableGutters>
                   <ListItemText
                     primary={
-                      <Link href={attachment.download_url}>
+                      <PreviewLink
+                        url={attachment.download_url}
+                        name={attachment.original_name}
+                      >
                         {attachment.original_name}
-                      </Link>
+                      </PreviewLink>
                     }
                     secondary={attachment.description || "No description"}
                   />
@@ -995,6 +1060,21 @@ export default function RegistrationDetailPage() {
         <Typography variant="h2" gutterBottom>
           Commercial approvals
         </Typography>
+        {!session.is_dbgi_admin &&
+          (registration.category_approvals ?? []).some(
+            (approval) => approval.status === "changes_requested",
+          ) && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              DBGI needs a new price for{" "}
+              {(registration.category_approvals ?? [])
+                .filter((approval) => approval.status === "changes_requested")
+                .map((approval) => approval.category)
+                .join(", ")}
+              . Read DBGI&apos;s reason below, click{" "}
+              <strong>Edit registration</strong>, change the price, and save.
+              Your place in line does not change.
+            </Alert>
+          )}
         <TableContainer>
           <Table>
             <TableHead>
@@ -1122,7 +1202,7 @@ export default function RegistrationDetailPage() {
                     )}
                     {!item.product_id &&
                       session.is_dbgi_admin &&
-                      registration.status !== "withdrawn" &&
+                      registration.status !== "closed" &&
                       registration.status !== "rejected" && (
                         <Button
                           size="small"
@@ -1199,6 +1279,89 @@ export default function RegistrationDetailPage() {
         onChange={setRegistration}
       />
 
+      {registration.status === "closed" && (
+        <Alert severity="info" sx={{ mt: 3 }}>
+          This deal is closed
+          {registration.close_reason_label
+            ? `: ${registration.close_reason_label}`
+            : ""}
+          {registration.closed_at
+            ? `, ${formatEventTimestamp(registration.closed_at)}`
+            : ""}
+          . The note is under Activity.
+          {session.is_dbgi_admin && " DBGI can reopen it."}
+        </Alert>
+      )}
+
+      {session.is_dbgi_admin && registration.certificates_due_report_id && (
+        <Alert
+          severity="warning"
+          sx={{ mt: 3 }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              disabled={certificatesSaving}
+              onClick={handleCertificatesIssued}
+            >
+              Mark certificates issued
+            </Button>
+          }
+        >
+          {registration.company_name} won this project. Issue the manufacturer
+          certificate and the dealer certificate, then mark them issued. The
+          company does not see this step.
+          {certificatesError && ` ${certificatesError}`}
+        </Alert>
+      )}
+
+      {session.is_dbgi_admin &&
+        (registration.other_open_deals ?? []).length > 0 && (
+          <Paper sx={{ mt: 3, p: 2 }}>
+            <Typography variant="h2" gutterBottom>
+              Other companies' open deals on this project
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              The project is won. Call each company, then close its deal with a
+              note from the call.
+            </Typography>
+            <List disablePadding>
+              {(registration.other_open_deals ?? []).map((deal) => (
+                <ListItem
+                  key={deal.id}
+                  divider
+                  sx={{ px: 0 }}
+                  secondaryAction={
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() =>
+                        setCloseTarget({
+                          id: deal.id,
+                          version: deal.version,
+                          reference: deal.reference,
+                          companyName: deal.company_name,
+                        })
+                      }
+                    >
+                      Close
+                    </Button>
+                  }
+                >
+                  <ListItemText
+                    primary={
+                      <Link href={`/registrations/${deal.id}/`}>
+                        {deal.reference}
+                      </Link>
+                    }
+                    secondary={`${deal.company_name} | ${deal.status_label}`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        )}
+
       {(registration.outcome_reports ?? []).length > 0 && (
         <Paper sx={{ mt: 3, p: 2 }}>
           <Typography variant="h2" gutterBottom>
@@ -1240,6 +1403,16 @@ export default function RegistrationDetailPage() {
                   </Typography>
                 </Stack>
                 <Typography variant="body2">{report.note}</Typography>
+                {report.award_notice_url && (
+                  <Box sx={{ mt: 0.5 }}>
+                    <PreviewLink
+                      url={report.award_notice_url}
+                      name={report.award_notice_name ?? "Notice of Award"}
+                    >
+                      Notice of Award: {report.award_notice_name}
+                    </PreviewLink>
+                  </Box>
+                )}
                 {report.decision_note && (
                   <Typography
                     variant="body2"
@@ -1480,7 +1653,15 @@ export default function RegistrationDetailPage() {
             minRows={2}
             label="Reason"
             helperText="At least 5 characters."
-            {...example("This product is now part of our product line.")}
+            {...example("This product is now part of our product line.", {
+              debug: session.is_debug,
+              onFill: setCatalogReason,
+              more: [
+                "The supplier added this product to our line this month.",
+                "Several partners asked for this product.",
+                "Needed so DBGI can review the price on this deal.",
+              ],
+            })}
             value={catalogReason}
             onChange={(event) => setCatalogReason(event.target.value)}
           />
@@ -1546,6 +1727,28 @@ export default function RegistrationDetailPage() {
                 : renewal?.action === "approve"
                   ? "The new bid date is confirmed."
                   : "The bid date has not changed, so the current end date is enough.",
+              {
+                debug: session.is_debug,
+                onFill: setRenewalReason,
+                more:
+                  renewal?.action === "request"
+                    ? [
+                        "The office moved the bid opening to 2027-01-10.",
+                        "The office needs two more weeks to finish its review.",
+                        "The bid was posted again with a new date.",
+                      ]
+                    : renewal?.action === "approve"
+                      ? [
+                          "The new bid date is confirmed by the office.",
+                          "The office posted the new schedule on PhilGEPS.",
+                          "The partner sent the office's letter about the delay.",
+                        ]
+                      : [
+                          "The bid date has not changed.",
+                          "The price still has enough time left.",
+                          "Please send proof of the new bid date first.",
+                        ],
+              },
             )}
             value={renewalReason}
             onChange={(event) => setRenewalReason(event.target.value)}
@@ -1608,7 +1811,15 @@ export default function RegistrationDetailPage() {
           )}
           <TextField
             label="Reason for repricing"
-            {...example("The list price changed before the review started.")}
+            {...example("The list price changed before the review started.", {
+              debug: session.is_debug,
+              onFill: setRepriceReason,
+              more: [
+                "The list price changed before the review started.",
+                "The supplier's new prices apply from this month.",
+                "The deal was saved with last year's price.",
+              ],
+            })}
             value={repriceReason}
             onChange={(event) => setRepriceReason(event.target.value)}
             helperText="At least 5 characters."
@@ -1675,15 +1886,56 @@ export default function RegistrationDetailPage() {
                 : outcomeChoice === "lost"
                   ? "The office awarded the project to another bidder."
                   : "The office cancelled the bidding.",
+              {
+                debug: session.is_debug,
+                onFill: setOutcomeNote,
+                more:
+                  outcomeChoice === "won"
+                    ? [
+                        "The office awarded the project to us. We got the notice of award today.",
+                        "We received the notice of award dated 2026-12-20.",
+                        "The office confirmed the award by letter.",
+                      ]
+                    : outcomeChoice === "lost"
+                      ? [
+                          "The office awarded the project to another bidder.",
+                          "Our bid was the second lowest.",
+                          "We were disqualified at post-qualification.",
+                        ]
+                      : [
+                          "The office cancelled the bidding.",
+                          "The office moved the budget to another project.",
+                          "The bid failed and will not be posted again.",
+                        ],
+              },
             )}
             value={outcomeNote}
             onChange={(event) => setOutcomeNote(event.target.value)}
-            helperText="For example, the notice of award you received. At least 5 characters."
+            helperText="At least 5 characters."
             multiline
             minRows={3}
             fullWidth
             required
           />
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" fontWeight={600}>
+              Notice of Award (NOA)
+              {outcomeChoice === "won" ? " (required)" : " (optional)"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {outcomeChoice === "won"
+                ? "A project is won when you receive the Notice of Award. DBGI checks it before confirming."
+                : "Attach it if you have one."}
+            </Typography>
+            <input
+              type="file"
+              aria-label="Notice of Award file"
+              accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
+              onChange={(event) =>
+                setOutcomeFile(event.target.files?.[0] ?? null)
+              }
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button
@@ -1694,7 +1946,11 @@ export default function RegistrationDetailPage() {
           </Button>
           <Button
             variant="contained"
-            disabled={outcomeSaving || outcomeNote.trim().length < 5}
+            disabled={
+              outcomeSaving ||
+              outcomeNote.trim().length < 5 ||
+              (outcomeChoice === "won" && !outcomeFile)
+            }
             onClick={handleReportOutcome}
           >
             Send report
@@ -1730,6 +1986,21 @@ export default function RegistrationDetailPage() {
               decision?.confirm
                 ? "We checked the notice of award."
                 : "Please send the notice of award so we can confirm it.",
+              {
+                debug: session.is_debug,
+                onFill: setDecisionNote,
+                more: decision?.confirm
+                  ? [
+                      "We checked the notice of award.",
+                      "The notice of award matches the office and the project.",
+                      "Confirmed with the office by phone.",
+                    ]
+                  : [
+                      "Please send the notice of award so we can confirm it.",
+                      "The notice of award is for a different office.",
+                      "The file cannot be opened. Please upload it again.",
+                    ],
+              },
             )}
             value={decisionNote}
             onChange={(event) => setDecisionNote(event.target.value)}
@@ -1755,50 +2026,25 @@ export default function RegistrationDetailPage() {
           </Button>
         </DialogActions>
       </Dialog>
-      <Dialog
-        open={withdrawOpen}
-        onClose={() => !withdrawing && setWithdrawOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Withdraw this registration?</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Withdrawal is final. The registration leaves the ranking, can no
-            longer be edited, and cannot be restored. DBGI is notified.
-          </Alert>
-          {withdrawError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {withdrawError}
-            </Alert>
-          )}
-          <TextField
-            label="Reason for withdrawing"
-            {...example("The office cancelled its plan to buy.")}
-            value={withdrawReason}
-            onChange={(event) => setWithdrawReason(event.target.value)}
-            helperText="DBGI sees this reason. At least 5 characters."
-            multiline
-            minRows={3}
-            fullWidth
-            required
-            autoFocus
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setWithdrawOpen(false)} disabled={withdrawing}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            disabled={withdrawing || withdrawReason.trim().length < 5}
-            onClick={handleWithdraw}
-          >
-            Withdraw registration
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <CloseDealDialog
+        key={closeTarget ? `close-${closeTarget.id}` : "close-shut"}
+        target={closeTarget}
+        isDbgi={session.is_dbgi_admin}
+        csrfToken={session.csrf_token}
+        onClose={() => setCloseTarget(null)}
+        onClosed={handleClosed}
+      />
+      <ReopenDealDialog
+        key={reopenOpen ? "reopen-open" : "reopen-shut"}
+        open={reopenOpen}
+        registration={registration}
+        csrfToken={session.csrf_token}
+        onClose={() => setReopenOpen(false)}
+        onSaved={(updated) => {
+          setReopenOpen(false);
+          setRegistration(updated);
+        }}
+      />
       <Dialog
         open={matchingGuideOpen}
         onClose={() => setMatchingGuideOpen(false)}

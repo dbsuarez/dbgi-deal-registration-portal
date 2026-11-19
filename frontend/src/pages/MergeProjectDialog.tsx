@@ -32,6 +32,7 @@ import {
   type MergePreviewRow,
   type OpportunityScope,
 } from "../api";
+import { useSession } from "../session";
 import { example } from "./exampleText";
 
 type Props = {
@@ -47,6 +48,7 @@ export default function MergeProjectDialog({
   onClose,
   onMerged,
 }: Props) {
+  const { is_debug: isDebug } = useSession();
   const [scopes, setScopes] = useState<OpportunityScope[]>([]);
   const [targetId, setTargetId] = useState("");
   const [preview, setPreview] = useState<MergePreview | null>(null);
@@ -252,7 +254,15 @@ export default function MergeProjectDialog({
                 minRows={3}
                 label="Reason"
                 helperText="At least 5 characters. Only DBGI sees this."
-                {...example("DBGI learned these are the same tender.")}
+                {...example("DBGI learned these are the same tender.", {
+                  debug: isDebug,
+                  onFill: setReason,
+                  more: [
+                    "The office posted the same tender twice.",
+                    "Both projects are for the same office and items.",
+                    "The office combined the two lots into one bid.",
+                  ],
+                })}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />

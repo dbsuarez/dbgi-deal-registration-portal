@@ -246,6 +246,19 @@ test("company user can open the React registration form", async ({ page }) => {
     page.getByRole("button", { name: "Add competitor" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Add product" })).toBeVisible();
+  // Developer mode: the bug button opens a menu of samples that fill the box.
+  const attachment = page.getByLabel(/Attachment description/);
+  await expect(attachment).toHaveValue("");
+  await page
+    .locator(".MuiTextField-root", { has: attachment })
+    .getByRole("button", { name: "Fill a sample" })
+    .click();
+  const samples = page.getByRole("menuitem");
+  await expect(samples).toHaveCount(4);
+  await samples.nth(1).click();
+  await expect(attachment).toHaveValue(
+    "Invitation to bid posted on PhilGEPS for 20 laser printers, reference 2026-1123.",
+  );
 
   await page.getByRole("button", { name: "Add competitor" }).click();
   await page.getByLabel("Brand").fill("Canon");
@@ -560,6 +573,9 @@ test("test-data panel is hidden outside debug mode", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Test data", exact: true }),
   ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Fill a sample" })).toHaveCount(
+    0,
+  );
 });
 
 test("quick status filters compose and clear", async ({ page }) => {
@@ -1260,16 +1276,14 @@ test("DBGI administrator can inspect a suggestion and start review", async ({
   await expect(page.getByText("Registered", { exact: true })).toBeVisible();
 });
 
-test("company user can withdraw a registration with a reason", async ({
-  page,
-}) => {
+test("company user closes a deal with a reason", async ({ page }) => {
   await page.route("**/api/v1/session", (route) =>
     route.fulfill({ json: session }),
   );
   const detail = (overrides: Record<string, unknown>) => ({
     id: 9,
     reference: "DBGI-000009",
-    project_title: "Withdrawn printer project",
+    project_title: "Closed printer project",
     company_name: "North Dealer",
     end_user_name: "Sample municipality",
     end_user_address: "Test address",
@@ -1292,7 +1306,7 @@ test("company user can withdraw a registration with a reason", async ({
     created_at: "2026-10-30T01:00:00Z",
     version: 2,
     can_edit: true,
-    can_withdraw: true,
+    can_close: true,
     competitor_items: [],
     items: [],
     attachments: [],
@@ -1307,40 +1321,41 @@ test("company user can withdraw a registration with a reason", async ({
     route.fulfill({ json: detail({}) }),
   );
   let sent: Record<string, unknown> | null = null;
-  await page.route("**/api/v1/registrations/9/withdraw", (route) => {
+  await page.route("**/api/v1/registrations/9/close", (route) => {
     sent = route.request().postDataJSON();
     return route.fulfill({
       json: detail({
-        status: "withdrawn",
-        status_label: "Withdrawn",
+        status: "closed",
+        status_label: "Closed",
+        close_reason_label: "The company stopped pursuing it",
         version: 3,
         can_edit: false,
-        can_withdraw: false,
+        can_close: false,
       }),
     });
   });
 
   await page.goto("/registrations/9/");
-  await page.getByRole("button", { name: "Withdraw registration" }).click();
-  const dialog = page.getByRole("dialog", {
-    name: "Withdraw this registration?",
-  });
-  const confirm = dialog.getByRole("button", { name: "Withdraw registration" });
+  await page.getByRole("button", { name: "Close deal" }).click();
+  const dialog = page.getByRole("dialog", { name: "Close this deal?" });
+  const confirm = dialog.getByRole("button", { name: "Close deal" });
   await expect(confirm).toBeDisabled();
   await dialog
-    .getByLabel(/Reason for withdrawing/)
+    .getByLabel(/Reason/)
     .fill("The end-user cancelled the purchase.");
   await confirm.click();
 
   await expect(dialog).toBeHidden();
   expect(sent).toEqual({
     version: 2,
-    reason: "The end-user cancelled the purchase.",
+    reason: "stopped_pursuing",
+    note: "The end-user cancelled the purchase.",
   });
-  await expect(page.getByText("Withdrawn").first()).toBeVisible();
+  await expect(page.getByText("Closed").first()).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Withdraw registration" }),
-  ).toHaveCount(0);
+    page.getByText(/This deal is closed: The company stopped pursuing it/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close deal" })).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Edit registration" }),
   ).toHaveCount(0);
@@ -1400,7 +1415,7 @@ test("partner reports a project outcome and DBGI confirms it", async ({
     created_at: "2026-10-30T01:00:00Z",
     version: 4,
     can_edit: true,
-    can_withdraw: true,
+    can_close: true,
     can_report_outcome: true,
     outcome_reports: [],
     competitor_items: [],
@@ -1417,9 +1432,9 @@ test("partner reports a project outcome and DBGI confirms it", async ({
   await page.route("**/api/v1/registrations/11", (route) =>
     route.fulfill({ json: current }),
   );
-  let reported: Record<string, unknown> | null = null;
+  let reported = "";
   await page.route("**/api/v1/registrations/11/outcome-reports", (route) => {
-    reported = route.request().postDataJSON();
+    reported = route.request().postData() ?? "";
     current = detail({
       can_report_outcome: false,
       outcome_reports: [report({})],
@@ -1431,7 +1446,7 @@ test("partner reports a project outcome and DBGI confirms it", async ({
     decided = route.request().postDataJSON();
     current = detail({
       can_edit: false,
-      can_withdraw: false,
+      can_close: false,
       can_report_outcome: false,
       project_status: "won",
       project_status_label: "Won",
@@ -1457,12 +1472,19 @@ test("partner reports a project outcome and DBGI confirms it", async ({
   await reportDialog
     .getByLabel(/What happened/)
     .fill("We received the notice of award.");
-  await reportDialog.getByRole("button", { name: "Send report" }).click();
-  await expect(reportDialog).toBeHidden();
-  expect(reported).toEqual({
-    outcome: "won",
-    note: "We received the notice of award.",
+  const send = reportDialog.getByRole("button", { name: "Send report" });
+  await expect(send).toBeDisabled();
+  await reportDialog.getByLabel("Notice of Award file").setInputFiles({
+    name: "noa.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 notice of award"),
   });
+  await send.click();
+  await expect(reportDialog).toBeHidden();
+  expect(reported).toContain('name="outcome"');
+  expect(reported).toContain("won");
+  expect(reported).toContain("We received the notice of award.");
+  expect(reported).toContain('filename="noa.pdf"');
   await expect(page.getByText("Waiting for DBGI")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Report project outcome" }),
@@ -1543,7 +1565,7 @@ test("DBGI administrator applies current list prices with a reason", async ({
     created_at: "2026-11-01T02:00:00Z",
     version: 3,
     can_edit: false,
-    can_withdraw: false,
+    can_close: false,
     can_report_outcome: false,
     can_reprice: true,
     outcome_reports: [],
@@ -1655,7 +1677,7 @@ test("DBGI administrator adds a typed-in product to the catalog", async ({
     created_at: "2026-11-01T02:00:00Z",
     version: 2,
     can_edit: false,
-    can_withdraw: false,
+    can_close: false,
     can_report_outcome: false,
     outcome_reports: [],
     competitor_items: [],
@@ -1807,7 +1829,7 @@ test("partner requests a price renewal from the registration", async ({
         created_at: "2026-11-01T02:00:00Z",
         version: 3,
         can_edit: true,
-        can_withdraw: true,
+        can_close: true,
         can_report_outcome: false,
         outcome_reports: [],
         competitor_items: [],
@@ -1869,7 +1891,7 @@ const decidedDeal = (overrides: Record<string, unknown>) => ({
   created_at: "2026-11-01T02:00:00Z",
   version: 3,
   can_edit: true,
-  can_withdraw: true,
+  can_close: true,
   can_report_outcome: false,
   outcome_reports: [],
   competitor_items: [],
@@ -2338,4 +2360,209 @@ test("DBGI puts a project on hold from the deal page", async ({ page }) => {
     status: "on_hold",
     reason: "The bidding was postponed.",
   });
+});
+
+test("DBGI is reminded to issue certificates and closes the other companies' deals", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
+  );
+  let current = decidedDeal({
+    project_status: "won",
+    project_status_label: "Won",
+    certificates_due_report_id: 5,
+    other_open_deals: [
+      {
+        id: 16,
+        reference: "DBGI-000016",
+        company_name: "South Dealer",
+        status_label: "Registered",
+        version: 3,
+      },
+    ],
+  });
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({ json: current }),
+  );
+  let closed: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/registrations/16/close", (route) => {
+    closed = route.request().postDataJSON();
+    current = { ...current, other_open_deals: [] };
+    return route.fulfill({ json: { ...current, id: 16 } });
+  });
+  let certificates = false;
+  await page.route(
+    "**/api/v1/review/outcome-reports/5/certificates-issued",
+    (route) => {
+      certificates = true;
+      current = { ...current, certificates_due_report_id: null };
+      return route.fulfill({ json: current });
+    },
+  );
+
+  await page.goto("/registrations/15/");
+  await expect(
+    page.getByText(/Issue the manufacturer certificate/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Close South Dealer's deal?",
+  });
+  await dialog
+    .getByLabel(/Note from the call/)
+    .fill("Called the company today. They will not continue.");
+  await dialog.getByRole("button", { name: "Close deal" }).click();
+  await expect(dialog).toBeHidden();
+  expect(closed).toEqual({
+    version: 3,
+    reason: "another_company_won",
+    note: "Called the company today. They will not continue.",
+  });
+  await expect(
+    page.getByText("Other companies' open deals on this project"),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Mark certificates issued" }).click();
+  await expect(
+    page.getByText(/Issue the manufacturer certificate/),
+  ).toHaveCount(0);
+  expect(certificates).toBe(true);
+});
+
+test("DBGI reopens a closed deal with a reason", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: { ...session, is_dbgi_admin: true } }),
+  );
+  let current = decidedDeal({
+    status: "closed",
+    status_label: "Closed",
+    close_reason_label: "Another company won",
+    can_close: false,
+    can_reopen: true,
+  });
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({ json: current }),
+  );
+  let sent: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/review/registrations/15/reopen", (route) => {
+    sent = route.request().postDataJSON();
+    current = decidedDeal({ can_reopen: false });
+    return route.fulfill({ json: current });
+  });
+
+  await page.goto("/registrations/15/");
+  await expect(
+    page.getByText(/This deal is closed: Another company won/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Reopen deal" }).click();
+  const dialog = page.getByRole("dialog", { name: "Reopen this deal?" });
+  await dialog.getByLabel(/Reason/).fill("The winner was disqualified.");
+  await dialog.getByRole("button", { name: "Reopen deal" }).click();
+  await expect(dialog).toBeHidden();
+  expect(sent).toMatchObject({ reason: "The winner was disqualified." });
+  await expect(page.getByRole("button", { name: "Reopen deal" })).toHaveCount(
+    0,
+  );
+});
+
+test("partner sees that DBGI needs a new price", async ({ page }) => {
+  await page.route("**/api/v1/session", (route) =>
+    route.fulfill({ json: session }),
+  );
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({
+      json: decidedDeal({
+        price_status: "changes_requested",
+        price_status_label: "Needs a new price",
+        category_approvals: [
+          {
+            id: 9,
+            category: "Laser Printers",
+            status: "changes_requested",
+            status_label: "Needs a new price",
+            rationale: "Please send a price of at least 9,200.",
+            reviewed_by: "DBGI Admin",
+            reviewed_at: "2026-11-19T03:00:00Z",
+            valid_until: null,
+            version: 2,
+            can_request_renewal: false,
+            pending_renewal_id: null,
+            pending_renewal_reason: null,
+            last_renewal: null,
+          },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto("/registrations/15/");
+  await expect(page.getByText("Pricing: Needs a new price")).toBeVisible();
+  await expect(
+    page.getByText(/DBGI needs a new price for Laser Printers/),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Please send a price of at least 9,200."),
+  ).toBeVisible();
+});
+
+test("documents open in a preview box, and can still be downloaded", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/registrations/15", (route) =>
+    route.fulfill({
+      json: decidedDeal({
+        attachments: [
+          {
+            id: 21,
+            original_name: "request-for-quotation.pdf",
+            description: "Request for quotation",
+            uploaded_at: "2026-11-19T01:00:00Z",
+            download_url: "/attachments/21/download/",
+          },
+          {
+            id: 22,
+            original_name: "price-list.xlsx",
+            description: "Price list",
+            uploaded_at: "2026-11-19T01:00:00Z",
+            download_url: "/attachments/22/download/",
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route("**/attachments/21/download/**", (route) =>
+    route.fulfill({
+      body: "%PDF-1.4 sample",
+      contentType: "application/pdf",
+    }),
+  );
+
+  await page.goto("/registrations/15/");
+  await page.getByRole("button", { name: "request-for-quotation.pdf" }).click();
+  const pdf = page.getByRole("dialog", {
+    name: "request-for-quotation.pdf",
+  });
+  await expect(pdf.locator("iframe")).toHaveAttribute(
+    "src",
+    "/attachments/21/download/?inline=1",
+  );
+  await expect(pdf.getByRole("link", { name: "Download" })).toHaveAttribute(
+    "href",
+    "/attachments/21/download/",
+  );
+  await pdf.getByRole("button", { name: "Close" }).click();
+  await expect(pdf).toBeHidden();
+
+  await page.getByRole("button", { name: "price-list.xlsx" }).click();
+  const sheet = page.getByRole("dialog", {
+    name: "price-list.xlsx",
+  });
+  await expect(
+    sheet.getByText("This file type cannot be shown in the browser."),
+  ).toBeVisible();
+  await expect(sheet.getByRole("link", { name: "Download" })).toHaveAttribute(
+    "href",
+    "/attachments/22/download/",
+  );
 });

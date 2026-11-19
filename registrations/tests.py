@@ -19,7 +19,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
-from django.test import Client, RequestFactory, TestCase, override_settings
+from django.db.migrations.executor import MigrationExecutor
+from django.test import Client, RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
@@ -62,7 +63,13 @@ from .models import (
     RepeatOrder,
     User,
 )
-from .snapshots import SnapshotError, import_backup, list_snapshots, restore_snapshot
+from .snapshots import (
+    SnapshotError,
+    import_backup,
+    list_snapshots,
+    restore_snapshot,
+    take_snapshot,
+)
 from .working_days import add_working_days
 
 
@@ -444,7 +451,7 @@ class RegistrationApiTests(TestCase):
         )
 
     @override_settings(DEBUG=True)
-    def test_a_late_deal_for_a_won_project_is_suggested_but_not_matched(self):
+    def test_a_late_deal_for_a_won_project_is_rejected_or_left_to_dbgi(self):
         call_command("seed_development_accounts", stdout=StringIO())
         call_command("seed_sample_matching_scenario", stdout=StringIO())
         first = Registration.objects.get(company__name="IT Avenue")
@@ -459,15 +466,42 @@ class RegistrationApiTests(TestCase):
 
         suggestion = generate_matching_suggestion(late)
 
+        # A certain match to a Won project is rejected right away, and the company is told.
         late.refresh_from_db()
-        self.assertEqual(late.status, Registration.Status.SUBMITTED)
+        self.assertEqual(late.status, Registration.Status.REJECTED)
         self.assertIsNone(late.opportunity_scope_id)
         self.assertEqual(suggestion.candidate_scope_id, first.opportunity_scope_id)
         self.assertIn("This project is already Won.", " ".join(suggestion.conflicting_factors))
+        event = late.events.get(event_type="Automatically rejected")
+        self.assertIn("already awarded", event.details)
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                registration=late, title="Registration rejected"
+            ).exists()
+        )
+
+        # A near match is left to DBGI, with the warning.
+        Registration.objects.filter(pk=late.pk).update(
+            status=Registration.Status.SUBMITTED, end_user_address="A different street"
+        )
+        late.refresh_from_db()
+        suggestion = generate_matching_suggestion(late)
+        late.refresh_from_db()
+        self.assertEqual(late.status, Registration.Status.SUBMITTED)
+        self.assertIn("This project is already Won.", " ".join(suggestion.conflicting_factors))
+        # A Lost project is never rejected automatically.
+        Opportunity.objects.filter(pk=first.opportunity_scope.opportunity_id).update(
+            project_status=Opportunity.ProjectStatus.LOST
+        )
+        Registration.objects.filter(pk=late.pk).update(end_user_address=first.end_user_address)
+        late.refresh_from_db()
+        generate_matching_suggestion(late)
+        late.refresh_from_db()
+        self.assertEqual(late.status, Registration.Status.SUBMITTED)
         self.client.force_login(self.admin)
         scopes = self.client.get("/api/v1/review/opportunity-scopes").json()
         won = next(scope for scope in scopes if scope["id"] == first.opportunity_scope_id)
-        self.assertTrue(won["label"].endswith("(Won)"))
+        self.assertTrue(won["label"].endswith("(Lost)"))  # closed projects are marked
 
     @override_settings(DEBUG=True)
     def test_automatic_matching_stops_when_two_scopes_match_exactly(self):
@@ -2057,31 +2091,49 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(stale.status_code, 409, stale.content)
         self.assertEqual(stale.json()["code"], "edit_conflict")
 
-    def withdraw(self, registration, reason="The end-user cancelled this purchase.", version=None):
+    def close(self, registration, reason="stopped_pursuing", note=None, version=None):
         return self.client.post(
-            f"/api/v1/registrations/{registration.pk}/withdraw",
+            f"/api/v1/registrations/{registration.pk}/close",
             data=json.dumps(
-                {"version": registration.version if version is None else version, "reason": reason}
+                {
+                    "version": registration.version if version is None else version,
+                    "reason": reason,
+                    "note": "The end-user cancelled this purchase." if note is None else note,
+                }
             ),
             content_type="application/json",
         )
 
-    def test_company_withdraws_own_registration_and_dbgi_is_notified(self):
+    def reopen(self, registration, reason="The winner was disqualified."):
+        registration.refresh_from_db()
+        return self.client.post(
+            f"/api/v1/review/registrations/{registration.pk}/reopen",
+            data=json.dumps({"version": registration.version, "reason": reason}),
+            content_type="application/json",
+        )
+
+    def test_company_closes_own_deal_and_dbgi_is_notified(self):
         self.client.force_login(self.user_a)
-        response = self.withdraw(self.registration_a)
+        response = self.close(self.registration_a)
 
         self.assertEqual(response.status_code, 200, response.content)
         body = response.json()
-        self.assertEqual(body["status"], Registration.Status.WITHDRAWN)
+        self.assertEqual(body["status"], Registration.Status.CLOSED)
+        self.assertEqual(body["status_label"], "Closed")
+        self.assertEqual(body["close_reason_label"], "The company stopped pursuing it")
         self.assertFalse(body["can_edit"])
-        self.assertFalse(body["can_withdraw"])
+        self.assertFalse(body["can_close"])
+        self.assertFalse(body["can_reopen"])
         self.registration_a.refresh_from_db()
-        self.assertIsNotNone(self.registration_a.withdrawn_at)
-        event = self.registration_a.events.get(event_type="Withdrawn")
+        self.assertIsNotNone(self.registration_a.closed_at)
+        self.assertEqual(self.registration_a.closed_by, self.user_a)
+        self.assertEqual(self.registration_a.status_before_close, Registration.Status.SUBMITTED)
+        event = self.registration_a.events.get(event_type="Closed")
         self.assertEqual(event.actor, self.user_a)
-        self.assertEqual(event.details, "The end-user cancelled this purchase.")
+        self.assertIn("The company closed this deal", event.details)
+        self.assertIn("The end-user cancelled this purchase.", event.details)
         notification = RegistrationNotification.objects.get(
-            event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN
+            event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED
         )
         self.assertEqual(notification.recipient, self.admin)
         self.assertIn("The end-user cancelled this purchase.", notification.message)
@@ -2090,33 +2142,50 @@ class RegistrationApiTests(TestCase):
         )
         self.assertEqual(mail.outbox, [])
 
-    def test_only_the_owning_company_can_withdraw(self):
+    def test_dbgi_closes_a_company_deal_after_a_call_and_the_company_is_told(self):
         self.client.force_login(self.user_b)
-        self.assertEqual(self.withdraw(self.registration_a).status_code, 404)
+        self.assertEqual(self.close(self.registration_a).status_code, 404)
         self.client.force_login(self.admin)
-        self.assertEqual(self.withdraw(self.registration_a).status_code, 403)
-        self.registration_a.refresh_from_db()
-        self.assertNotEqual(self.registration_a.status, Registration.Status.WITHDRAWN)
-
-    def test_withdrawal_needs_a_reason_and_the_current_version(self):
+        response = self.close(
+            self.registration_a,
+            reason="another_company_won",
+            note="Called the company on 2026-11-20; they will not continue.",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()["can_reopen"])
+        event = self.registration_a.events.get(event_type="Closed")
+        self.assertIn("DBGI closed this deal for the company", event.details)
+        self.assertIn("Another company won", event.details)
+        notice = RegistrationNotification.objects.get(
+            recipient=self.user_a,
+            event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
+        )
+        self.assertEqual(notice.title, "Deal closed by DBGI")
         self.client.force_login(self.user_a)
-        short = self.withdraw(self.registration_a, reason="   no ")
-        self.assertEqual(short.status_code, 400, short.content)
-        stale = self.withdraw(self.registration_a, version=self.registration_a.version - 1)
+        partner_view = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertIn("Called the company", partner_view["events"][0]["details"])
+
+    def test_closing_needs_a_note_a_known_reason_and_the_current_version(self):
+        self.client.force_login(self.user_a)
+        short = self.close(self.registration_a, note="   no ")
+        self.assertIn(short.status_code, {400, 422}, short.content)
+        unknown = self.close(self.registration_a, reason="withdrawn")
+        self.assertEqual(unknown.status_code, 422, unknown.content)
+        stale = self.close(self.registration_a, version=self.registration_a.version - 1)
         self.assertEqual(stale.status_code, 409, stale.content)
         self.assertEqual(stale.json()["code"], "edit_conflict")
 
-    def test_rejected_registration_cannot_be_withdrawn(self):
+    def test_rejected_registration_cannot_be_closed(self):
         Registration.objects.filter(pk=self.registration_a.pk).update(
             status=Registration.Status.REJECTED
         )
         self.registration_a.refresh_from_db()
         self.client.force_login(self.user_a)
-        response = self.withdraw(self.registration_a)
+        response = self.close(self.registration_a)
         self.assertEqual(response.status_code, 400, response.content)
         self.assertEqual(response.json()["code"], "invalid_transition")
 
-    def test_withdrawn_registration_is_final_and_leaves_the_ranking(self):
+    def test_closed_deal_leaves_the_ranking_until_dbgi_reopens_it(self):
         opportunity = Opportunity.objects.create(
             title="Shared opportunity",
             end_user=self.end_user,
@@ -2135,26 +2204,45 @@ class RegistrationApiTests(TestCase):
         self.registration_a.refresh_from_db()
 
         self.client.force_login(self.user_a)
-        self.assertEqual(self.withdraw(self.registration_a).status_code, 200)
+        self.assertEqual(self.close(self.registration_a).status_code, 200)
         self.registration_a.refresh_from_db()
-
         edit = self.client.put(
             f"/api/v1/registrations/{self.registration_a.pk}",
             data=json.dumps({**self.payload(), "version": self.registration_a.version}),
             content_type="application/json",
         )
         self.assertEqual(edit.status_code, 409, edit.content)
-        self.assertEqual(edit.json()["code"], "registration_withdrawn")
-        again = self.withdraw(self.registration_a)
-        self.assertEqual(again.json()["code"], "invalid_transition")
+        self.assertEqual(edit.json()["code"], "registration_closed")
+        self.assertEqual(self.close(self.registration_a).json()["code"], "invalid_transition")
+        self.assertEqual(self.reopen(self.registration_a).status_code, 403)
+
+        def ranked():
+            rankings = self.client.get("/api/v1/rankings").json()
+            return [
+                entry["registration_id"] for item in rankings["items"] for entry in item["entries"]
+            ]
 
         self.client.force_login(self.admin)
-        rankings = self.client.get("/api/v1/rankings").json()
-        ranked = [
-            entry["registration_id"] for item in rankings["items"] for entry in item["entries"]
-        ]
-        self.assertNotIn(self.registration_a.pk, ranked)
-        self.assertIn(self.registration_b.pk, ranked)
+        self.assertNotIn(self.registration_a.pk, ranked())
+        self.assertIn(self.registration_b.pk, ranked())
+
+        reopened = self.reopen(self.registration_a)
+        self.assertEqual(reopened.status_code, 200, reopened.content)
+        self.assertEqual(reopened.json()["status"], Registration.Status.ELIGIBLE_MATCHED)
+        self.assertIn(self.registration_a.pk, ranked())
+        self.registration_a.refresh_from_db()
+        self.assertIsNone(self.registration_a.closed_at)
+        self.assertEqual(self.registration_a.close_reason, "")
+        self.assertIn(
+            "The winner was disqualified.",
+            self.registration_a.events.get(event_type="Reopened").details,
+        )
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, title="Deal reopened"
+            ).exists()
+        )
+        self.assertEqual(self.reopen(self.registration_a).json()["code"], "invalid_transition")
 
     def link_to_project(self, *registrations):
         opportunity = Opportunity.objects.create(
@@ -2176,12 +2264,107 @@ class RegistrationApiTests(TestCase):
             registration.refresh_from_db()
         return opportunity
 
-    def report_outcome(self, registration, outcome="won", note="We received the notice of award."):
-        return self.client.post(
-            f"/api/v1/registrations/{registration.pk}/outcome-reports",
-            data=json.dumps({"outcome": outcome, "note": note}),
-            content_type="application/json",
+    def report_outcome(
+        self, registration, outcome="won", note="We received the notice of award.", noa=True
+    ):
+        data = {"outcome": outcome, "note": note}
+        if noa:
+            data["award_notice"] = SimpleUploadedFile("noa.pdf", b"%PDF-1.4 notice of award")
+        return self.client.post(f"/api/v1/registrations/{registration.pk}/outcome-reports", data)
+
+    def test_a_won_report_needs_the_notice_of_award(self):
+        self.link_to_project(self.registration_a)
+        self.client.force_login(self.user_a)
+        missing = self.report_outcome(self.registration_a, noa=False)
+        self.assertEqual(missing.status_code, 400, missing.content)
+        self.assertEqual(missing.json()["details"][0]["field"], "award_notice")
+        lost = self.report_outcome(self.registration_a, outcome="lost", noa=False)
+        self.assertEqual(lost.status_code, 200, lost.content)
+        ProjectOutcomeReport.objects.all().delete()
+
+        won = self.report_outcome(self.registration_a)
+        self.assertEqual(won.status_code, 200, won.content)
+        report = won.json()["outcome_reports"][0]
+        self.assertEqual(report["award_notice_name"], "noa.pdf")
+        download = self.client.get(report["award_notice_url"])
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(b"".join(download.streaming_content), b"%PDF-1.4 notice of award")
+        # A preview asks for ?inline=1: a PDF opens in the page, framed by the portal only.
+        preview = self.client.get(report["award_notice_url"] + "?inline=1")
+        self.assertEqual(preview["Content-Type"], "application/pdf")
+        self.assertTrue(preview["Content-Disposition"].startswith("inline"))
+        self.assertEqual(preview["X-Frame-Options"], "SAMEORIGIN")
+        self.assertEqual(download["X-Frame-Options"], "DENY")
+        self.assertTrue(download["Content-Disposition"].startswith("attachment"))
+        self.client.force_login(self.user_b)
+        self.assertEqual(self.client.get(report["award_notice_url"]).status_code, 404)
+        self.assertEqual(self.client.get(report["award_notice_url"] + "?inline=1").status_code, 404)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(report["award_notice_url"]).status_code, 200)
+
+    def test_word_and_excel_files_always_download_even_for_a_preview(self):
+        from django.core.files.base import ContentFile
+
+        from .views import _file_response
+
+        request = RequestFactory().get("/attachments/1/download/", {"inline": "1"})
+        for name in ("letter.docx", "prices.xlsx", "no-extension"):
+            response = _file_response(request, ContentFile(b"data", name=name), name)
+            self.assertTrue(response["Content-Disposition"].startswith("attachment"), name)
+            self.assertEqual(response["Content-Type"], "application/octet-stream")
+        picture = _file_response(request, ContentFile(b"data", name="noa.JPG"), "noa.JPG")
+        self.assertEqual(picture["Content-Type"], "image/jpeg")
+
+    def test_confirmed_win_reminds_dbgi_to_issue_certificates_and_lists_the_other_deals(self):
+        self.link_to_project(self.registration_a, self.registration_b)
+        self.client.force_login(self.user_a)
+        self.report_outcome(self.registration_a)
+        report = ProjectOutcomeReport.objects.get()
+        self.client.force_login(self.admin)
+        detail = self.decide_outcome(report).json()
+
+        self.assertEqual(detail["certificates_due_report_id"], report.pk)
+        self.assertEqual(
+            [deal["id"] for deal in detail["other_open_deals"]], [self.registration_b.pk]
         )
+        reminder = RegistrationNotification.objects.get(
+            event_type=RegistrationNotification.EventType.CERTIFICATES_DUE
+        )
+        self.assertEqual(reminder.recipient, self.admin)
+        self.assertIn("manufacturer certificate", reminder.message)
+
+        self.client.force_login(self.user_a)
+        partner = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertIsNone(partner["certificates_due_report_id"])
+        self.assertEqual(partner["other_open_deals"], [])
+        self.assertEqual(
+            self.client.post(
+                f"/api/v1/review/outcome-reports/{report.pk}/certificates-issued"
+            ).status_code,
+            403,
+        )
+
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get("/admin/"), "Certificates to issue")
+        done = self.client.post(f"/api/v1/review/outcome-reports/{report.pk}/certificates-issued")
+        self.assertEqual(done.status_code, 200, done.content)
+        self.assertIsNone(done.json()["certificates_due_report_id"])
+        again = self.client.post(f"/api/v1/review/outcome-reports/{report.pk}/certificates-issued")
+        self.assertEqual(again.status_code, 400)
+        self.assertNotContains(self.client.get("/admin/"), "Certificates to issue")
+        self.client.force_login(self.user_a)
+        partner = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertNotIn(
+            "Certificates issued", [event["event_type"] for event in partner["events"]]
+        )
+
+        self.client.force_login(self.admin)
+        self.registration_b.refresh_from_db()
+        self.assertEqual(
+            self.close(self.registration_b, reason="another_company_won").status_code, 200
+        )
+        detail = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertEqual(detail["other_open_deals"], [])
 
     def decide_outcome(self, report, confirm=True, note="Checked the notice of award."):
         return self.client.post(
@@ -2463,12 +2646,12 @@ class RegistrationApiTests(TestCase):
             ).exists()
         )
 
-    def test_withdrawal_notice_to_dbgi_is_not_emailed(self):
+    def test_closing_notice_to_dbgi_is_not_emailed(self):
         self.client.force_login(self.user_a)
-        self.assertEqual(self.withdraw(self.registration_a).status_code, 200)
+        self.assertEqual(self.close(self.registration_a).status_code, 200)
         notice = RegistrationNotification.objects.get(
             recipient=self.admin,
-            event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
+            event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
         )
         self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.NOT_REQUESTED)
 
@@ -2721,6 +2904,76 @@ class RegistrationApiTests(TestCase):
         locked = self.edit_deal(registration, items=[item])
         self.assertEqual(locked.status_code, 409, locked.content)
         self.assertEqual(locked.json()["code"], "commercial_review_locked")
+
+    def test_company_sends_a_new_price_when_dbgi_asks_for_one(self):
+        registration = self.registered_deal()
+        registration.category_approvals.update(
+            status=RegistrationCategoryApproval.Status.CHANGES_REQUESTED
+        )
+        approval = registration.category_approvals.get()
+        self.client.force_login(self.user_a)
+        detail = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+        self.assertEqual(detail["price_status_label"], "Needs a new price")
+        self.assertEqual(detail["category_approvals"][0]["status_label"], "Needs a new price")
+        item = {
+            "product_id": self.product.pk,
+            "non_catalog_name": "",
+            "quantity": 9,
+            "requested_unit_price": "95.00",
+            "justification": "",
+        }
+
+        response = self.edit_deal(registration, items=[item])
+
+        self.assertEqual(response.status_code, 200, response.content)
+        registration.refresh_from_db()
+        approval.refresh_from_db()
+        self.assertEqual(registration.status, Registration.Status.ELIGIBLE_MATCHED)
+        self.assertFalse(registration.needs_review)
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+        self.assertEqual(str(registration.items.get().requested_unit_price), "95.00")
+        event = registration.events.get(event_type="New price sent")
+        self.assertIn(approval.category, event.details)
+        notice = RegistrationNotification.objects.get(
+            recipient=self.admin, title="New price to decide"
+        )
+        self.assertIn("Decide price", notice.message)
+
+    def test_a_new_price_with_other_changes_still_goes_to_review(self):
+        registration = self.registered_deal()
+        registration.category_approvals.update(
+            status=RegistrationCategoryApproval.Status.CHANGES_REQUESTED
+        )
+        item = {
+            "product_id": self.product.pk,
+            "non_catalog_name": "",
+            "quantity": 9,
+            "requested_unit_price": "95.00",
+            "justification": "",
+        }
+        response = self.edit_deal(registration, items=[item], bid_date="2027-01-20")
+        self.assertEqual(response.status_code, 200, response.content)
+        registration.refresh_from_db()
+        self.assertEqual(registration.status, Registration.Status.REVIEW_REQUIRED)
+        self.assertEqual(
+            registration.category_approvals.get().status,
+            RegistrationCategoryApproval.Status.PENDING,
+        )
+
+    def test_a_decided_price_names_its_category_when_locked(self):
+        registration = self.registered_deal()
+        registration.category_approvals.update(status=RegistrationCategoryApproval.Status.APPROVED)
+        item = {
+            "product_id": self.product.pk,
+            "non_catalog_name": "",
+            "quantity": 9,
+            "requested_unit_price": "95.00",
+            "justification": "",
+        }
+        locked = self.edit_deal(registration, items=[item])
+        self.assertEqual(locked.status_code, 409, locked.content)
+        self.assertIn(self.product.category, locked.json()["message"])
+        self.assertIn("Ask DBGI for a new price", locked.json()["message"])
 
     def test_dbgi_repricing_needs_admin_and_a_reason_and_stops_at_price_review(self):
         registration = self.registered_deal()
@@ -3007,7 +3260,7 @@ class RegistrationApiTests(TestCase):
         self.decide_tie(scope, [b, a])
         self.assertEqual(self.ranks()[third.pk]["rank"], 3)
 
-        Registration.objects.filter(pk=b).update(status=Registration.Status.WITHDRAWN)
+        Registration.objects.filter(pk=b).update(status=Registration.Status.CLOSED)
         remaining = self.ranks()
         self.assertEqual(remaining[a]["rank"], 1)
         self.assertFalse(remaining[a]["is_tied"])
@@ -3078,7 +3331,7 @@ class RegistrationApiTests(TestCase):
         self.set_price("100.00")
         registration = self.register_deal()
         approval = registration.category_approvals.get()
-        Registration.objects.filter(pk=registration.pk).update(status=Registration.Status.WITHDRAWN)
+        Registration.objects.filter(pk=registration.pk).update(status=Registration.Status.CLOSED)
         self.client.force_login(self.admin)
         response = self.approve_in_admin(approval)
         self.assertEqual(response.status_code, 403)
@@ -3155,7 +3408,7 @@ class RegistrationApiTests(TestCase):
             ).exists()
         )
 
-        Registration.objects.filter(pk=registration.pk).update(status=Registration.Status.WITHDRAWN)
+        Registration.objects.filter(pk=registration.pk).update(status=Registration.Status.CLOSED)
         self.client.force_login(self.user_a)
         refused = self.client.post(
             f"/api/v1/category-approvals/{approval.pk}/renewals",
@@ -3287,7 +3540,7 @@ class RegistrationApiTests(TestCase):
             self.assertEqual(ended.status_code, 400)
             self.assertEqual(ended.json()["code"], "price_not_active")
             Registration.objects.filter(pk=registration.pk).update(
-                status=Registration.Status.WITHDRAWN
+                status=Registration.Status.CLOSED
             )
             self.assertEqual(self.decide_repeat(repeat_id, accept=False).status_code, 409)
 
@@ -3720,6 +3973,38 @@ class RegistrationApiTests(TestCase):
             self.danger_post({"action": "delete_snapshot", "snapshot": snapshot["name"]})
             self.assertEqual(list_snapshots(), [])
 
+    def test_a_snapshot_from_before_close_deal_still_restores(self):
+        """Snapshots taken before 2026-11-19 have withdrawn_at and the Withdrawn status."""
+        with (
+            TemporaryDirectory() as media_root,
+            override_settings(MEDIA_ROOT=media_root, DEBUG=True),
+        ):
+            Registration.objects.filter(pk=self.registration_a.pk).update(
+                status=Registration.Status.CLOSED, closed_at=timezone.now()
+            )
+            name = take_snapshot("Old layout")["name"]
+            data_file = next(Path(media_root).rglob(f"{name}/data.json"))
+            records = json.loads(data_file.read_text(encoding="utf-8"))
+            for record in records:
+                fields = record["fields"]
+                if record["model"] == "registrations.registration":
+                    fields["withdrawn_at"] = fields.pop("closed_at")
+                    for key in ("closed_by", "close_reason", "status_before_close"):
+                        fields.pop(key, None)
+                    if fields["status"] == "closed":
+                        fields["status"] = "withdrawn"
+            old_text = json.dumps(records)
+            data_file.write_text(old_text, encoding="utf-8")
+
+            with self.captureOnCommitCallbacks(execute=True):
+                restore_snapshot(name)
+
+            restored = Registration.objects.get(pk=self.registration_a.pk)
+            self.assertEqual(restored.status, Registration.Status.CLOSED)
+            self.assertEqual(restored.close_reason, Registration.CloseReason.WITHDRAWN)
+            self.assertIsNotNone(restored.closed_at)
+            self.assertEqual(data_file.read_text(encoding="utf-8"), old_text)
+
     def test_snapshots_are_only_for_debug_mode_and_superusers(self):
         superuser = User.objects.create_superuser("snapshot-admin", password="example-password")
         with (
@@ -4018,3 +4303,57 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(formats.date_format(moment.date()), "2026-11-04")
         self.assertEqual(formats.date_format(moment, "DATETIME_FORMAT"), "2026-11-04 14:05")
         self.assertEqual(formats.date_format(moment.date(), "SHORT_DATE_FORMAT"), "2026-11-04")
+
+
+class CloseDealMigrationTests(TransactionTestCase):
+    """0043 turns old Withdrawn deals into Closed ones, and can be undone."""
+
+    before: ClassVar = [("registrations", "0042_opportunity_won_by_company")]
+    after: ClassVar = [("registrations", "0043_close_deal_and_award_notice")]
+
+    def migrate(self, target):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(target)
+        return executor.loader.project_state(target).apps
+
+    def test_withdrawn_deals_become_closed_with_the_reason(self):
+        apps = self.migrate(self.before)
+        company = apps.get_model("registrations", "Company").objects.create(name="Old Partner")
+        user = apps.get_model("registrations", "User").objects.create(
+            username="old-partner", company=company
+        )
+        registration = apps.get_model("registrations", "Registration").objects.create(
+            company=company,
+            submitted_by=user,
+            end_user_name="Office",
+            end_user_address="Street",
+            project_title="Old deal",
+            bid_date=date(2026, 12, 1),
+            delivery_date=date(2027, 1, 1),
+            contact_person="Contact",
+            contact_designation="Officer",
+            contact_email="contact@example.com",
+            contact_number="0917",
+            evidence_description="Proof",
+            status="withdrawn",
+        )
+        apps.get_model("registrations", "RegistrationNotification").objects.create(
+            recipient=user,
+            registration=registration,
+            event_type="registration_withdrawn",
+            event_key="old",
+            title="Registration withdrawn",
+            message="Old notice",
+        )
+
+        apps = self.migrate(self.after)
+        migrated = apps.get_model("registrations", "Registration").objects.get(pk=registration.pk)
+        self.assertEqual((migrated.status, migrated.close_reason), ("closed", "withdrawn"))
+        notice = apps.get_model("registrations", "RegistrationNotification").objects.get()
+        self.assertEqual(notice.event_type, "registration_closed")
+
+        apps = self.migrate(self.before)
+        restored = apps.get_model("registrations", "Registration").objects.get(pk=registration.pk)
+        self.assertEqual(restored.status, "withdrawn")
+        self.migrate(self.after)

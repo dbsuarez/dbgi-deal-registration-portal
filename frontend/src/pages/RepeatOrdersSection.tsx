@@ -8,7 +8,6 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
-  Link,
   Paper,
   Stack,
   Table,
@@ -29,6 +28,8 @@ import {
   type RegistrationDetail,
   type RepeatOrder,
 } from "../api";
+import { useSession } from "../session";
+import PreviewLink from "./PreviewLink";
 import { example } from "./exampleText";
 
 const moneyCell = {
@@ -68,6 +69,7 @@ export default function RepeatOrdersSection({
   oneWorkingDayEnds,
   onChange,
 }: Props) {
+  const { is_debug: isDebug } = useSession();
   const orders = registration.repeat_orders ?? [];
   const validDays = registration.repeat_order_valid_days ?? 365;
   const validFor =
@@ -220,10 +222,14 @@ export default function RepeatOrdersSection({
                   <TableCell sx={moneyCell}>{money(order.total)}</TableCell>
                   <TableCell>
                     <Box>
-                      <Link href={order.noa_url}>NOA</Link>
+                      <PreviewLink url={order.noa_url} name={order.noa_name}>
+                        NOA
+                      </PreviewLink>
                     </Box>
                     <Box>
-                      <Link href={order.ntp_url}>NTP</Link>
+                      <PreviewLink url={order.ntp_url} name={order.ntp_name}>
+                        NTP
+                      </PreviewLink>
                     </Box>
                   </TableCell>
                   <TableCell>{order.status_label}</TableCell>
@@ -344,7 +350,15 @@ export default function RepeatOrdersSection({
               multiline
               minRows={2}
               label="Note (optional)"
-              {...example("Five more printers for the same office.")}
+              {...example("Five more printers for the same office.", {
+                debug: isDebug,
+                onFill: setNote,
+                more: [
+                  "Five more printers for the same office.",
+                  "More units for the second floor.",
+                  "Replacement units under the same contract.",
+                ],
+              })}
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
@@ -393,6 +407,21 @@ export default function RepeatOrdersSection({
               decision?.accept
                 ? "Both letters say it is a repeat order."
                 : "The letters do not say it is a repeat order. Please register a new deal.",
+              {
+                debug: isDebug,
+                onFill: setReason,
+                more: decision?.accept
+                  ? [
+                      "Both letters say it is a repeat order.",
+                      "The NOA and NTP are from the same office and say repeat order.",
+                      "Checked both letters with the office.",
+                    ]
+                  : [
+                      "The letters do not say it is a repeat order. Please register a new deal.",
+                      "The letters are from a different office.",
+                      "The NTP is missing. Please upload it again.",
+                    ],
+              },
             )}
             value={reason}
             onChange={(event) => setReason(event.target.value)}

@@ -24,6 +24,7 @@ import {
   type CategoryApproval,
   type RegistrationDetail,
 } from "../api";
+import { useSession } from "../session";
 import { example } from "./exampleText";
 import IsoDateField from "./IsoDateField";
 
@@ -40,7 +41,7 @@ const STATUSES = [
   },
   {
     value: "changes_requested",
-    label: "Changes requested: the partner must fix something",
+    label: "Ask for a new price: the partner must change it",
   },
   { value: "rejected", label: "Rejected" },
 ];
@@ -68,6 +69,7 @@ export default function PriceDecisionDialog({
   onClose,
   onSaved,
 }: Props) {
+  const { is_debug: isDebug } = useSession();
   // The parent gives this box a new key for each approval, so these start fresh
   // each time it opens and survive the deal page reloading after a save.
   const [status, setStatus] = useState(
@@ -276,8 +278,36 @@ export default function PriceDecisionDialog({
                   : status === "partially_approved"
                     ? "Approved the printers only. The scanner needs a new quotation."
                     : status === "changes_requested"
-                      ? "Please send the competitor's quotation."
+                      ? "Your price is below what we can give. Please send a price of at least 9,200."
                       : "The requested price is below the allowed discount.",
+                {
+                  debug: isDebug,
+                  onFill: setReason,
+                  more:
+                    status === "approved"
+                      ? [
+                          "Within the allowed discount.",
+                          "Matches rank 1's price on this project.",
+                          "Approved for this bid only.",
+                        ]
+                      : status === "partially_approved"
+                        ? [
+                            "Approved the printers only. The scanner needs a new quotation.",
+                            "Approved the main items. The accessories stay at list price.",
+                            "Only the printers are within the allowed discount.",
+                          ]
+                        : status === "changes_requested"
+                          ? [
+                              "Your price is below what we can give. Please send a price of at least 9,200.",
+                              "Please lower the quantity to 15 units.",
+                              "Please send a new price for the scanner.",
+                            ]
+                          : [
+                              "The requested price is below the allowed discount.",
+                              "This product is not part of the program.",
+                              "The office's budget does not match the requested items.",
+                            ],
+                },
               )}
               value={reason}
               onChange={(event) => setReason(event.target.value)}

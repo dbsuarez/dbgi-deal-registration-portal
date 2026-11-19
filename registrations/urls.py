@@ -13,4 +13,9 @@ urlpatterns = [
         views.repeat_order_letter,
         name="repeat-order-letter",
     ),
+    path(
+        "attachments/outcome-reports/<int:report_id>/award-notice/download/",
+        views.outcome_award_notice,
+        name="outcome-award-notice",
+    ),
 ]

@@ -203,15 +203,87 @@ def notify_repeat_order_decision(repeat_order):
     )
 
 
-def notify_dbgi_withdrawal(registration, reason):
+def notify_dbgi_closed(registration, reason_label, note):
+    """The company closed its own deal."""
     notify_dbgi_admins(
         registration=registration,
-        event_type=RegistrationNotification.EventType.REGISTRATION_WITHDRAWN,
-        event_key=f"registration:{registration.pk}:withdrawn",
-        title="Registration withdrawn",
+        event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
+        event_key=f"registration:{registration.pk}:closed:{registration.version}",
+        title="Deal closed by the company",
         message=(
-            f"{registration.company.name} withdrew {registration.reference} "
-            f"({registration.project_title}). Reason: {reason}"
+            f"{registration.company.name} closed {registration.reference} "
+            f"({registration.project_title}). Reason: {reason_label}. {note}"
+        ),
+    )
+
+
+def notify_company_closed_by_dbgi(registration):
+    notify_company_users(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
+        event_key=f"registration:{registration.pk}:closed:{registration.version}",
+        title="Deal closed by DBGI",
+        message=(
+            f"DBGI closed {registration.reference} ({registration.project_title}). "
+            "Open the registration to read DBGI's note."
+        ),
+    )
+
+
+def notify_company_reopened(registration):
+    notify_company_users(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+        event_key=f"registration:{registration.pk}:reopened:{registration.version}",
+        title="Deal reopened",
+        message=(
+            f"DBGI reopened {registration.reference} ({registration.project_title}). "
+            "Open the registration to read the reason."
+        ),
+    )
+
+
+def notify_dbgi_new_price(registration, categories):
+    """The company sent a new price after DBGI asked for one."""
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REVIEW_NEEDED,
+        event_key=f"registration:{registration.pk}:new-price:v{registration.version}",
+        title="New price to decide",
+        message=(
+            f"{registration.company.name} sent a new price for {', '.join(categories)} on "
+            f"{registration.reference} ({registration.project_title}). Open the registration and "
+            "click Decide price."
+        ),
+        email=True,
+    )
+
+
+def notify_dbgi_certificates_due(report):
+    """After a Won report is confirmed, every DBGI admin is reminded to issue the certificates."""
+    registration = report.registration
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.CERTIFICATES_DUE,
+        event_key=f"outcome-report:{report.pk}:certificates",
+        title="Issue the certificates",
+        message=(
+            f"{registration.company.name} won {registration.reference} "
+            f"({registration.project_title}). Issue the manufacturer certificate and the dealer "
+            "certificate, then mark them issued on the deal."
+        ),
+    )
+
+
+def notify_automatic_rejection(registration):
+    notify_company_users(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.REGISTRATION_DECISION,
+        event_key=f"registration:{registration.pk}:auto-rejected",
+        title="Registration rejected",
+        message=(
+            f"{registration.reference} matches a project that was already awarded, so it was "
+            "rejected. Open the registration to read the reason."
         ),
     )
 

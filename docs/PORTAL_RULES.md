@@ -19,7 +19,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 
 | Role                   | Who                                                        | What they can do                                                                                                                        |
 | ---------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Company user (partner) | Staff of a dealer company                                  | Register and edit their company's deals, withdraw them, report outcomes, ask for repeat orders, see their own rank and prices           |
+| Company user (partner) | Staff of a dealer company                                  | Register and edit their company's deals, close them, report outcomes, ask for repeat orders, see their own rank and prices              |
 | DBGI administrator     | DBGI staff (superusers, or staff with the DBGI admin role) | Review and match registrations, decide prices and repeat orders, merge and split, verify end-users, confirm outcomes, run the dashboard |
 
 - **Live:** each company sees only its own registrations, rankings, and prices. This is enforced by the server,
@@ -37,7 +37,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 3. A confirmed registration is **Registered** and gets a **rank** among the companies on the same project.
 4. DBGI **decides the prices**, per product category, with a validity date.
 5. The partner can **renew** an approved price, ask for a **repeat order**, **report the project outcome**, or
-   **withdraw** the deal.
+   **close** the deal.
 6. Notifications keep both sides informed at each step.
 
 ## 3. Registering a deal
@@ -61,33 +61,39 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 
 ## 4. Registration statuses
 
-| Status                     | Meaning                                                      | Next                                   |
-| -------------------------- | ------------------------------------------------------------ | -------------------------------------- |
-| Submitted                  | DBGI received it                                             | DBGI starts the review                 |
-| Under review               | A DBGI administrator is reviewing it                         | Confirm, request changes, or reject    |
-| Returned for changes       | DBGI needs corrections; the instructions are in the Activity | The partner edits and saves            |
-| Resubmitted                | The partner saved the corrections                            | DBGI reviews again                     |
-| Registered                 | DBGI confirmed it belongs to a project; it is ranked         | Pricing, outcome report, or withdrawal |
-| Review required after edit | The partner edited a Registered deal                         | DBGI reviews again; the rank is kept   |
-| Rejected                   | DBGI rejected it; the reason is in the Activity              | Final                                  |
-| Withdrawn                  | The partner withdrew it                                      | Final                                  |
+| Status                     | Meaning                                                      | Next                                 |
+| -------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| Submitted                  | DBGI received it                                             | DBGI starts the review               |
+| Under review               | A DBGI administrator is reviewing it                         | Confirm, request changes, or reject  |
+| Returned for changes       | DBGI needs corrections; the instructions are in the Activity | The partner edits and saves          |
+| Resubmitted                | The partner saved the corrections                            | DBGI reviews again                   |
+| Registered                 | DBGI confirmed it belongs to a project; it is ranked         | Pricing, outcome report, or closing  |
+| Review required after edit | The partner edited a Registered deal                         | DBGI reviews again; the rank is kept |
+| Rejected                   | DBGI rejected it; the reason is in the Activity              | Final                                |
+| Closed                     | The company or DBGI closed it; the reason is in the Activity | Only DBGI can reopen it              |
 
 - **Live:** a registration shows three separate badges: registration status, project status, and pricing status.
 - **Live (2026-11-05):** a deal stays Registered after its price is approved, and its Pricing label shows the approval.
   The old registration status "Approved" was removed, because nothing used it and it took deals out of the ranking.
 - **Live (A4):** the status DBGI uses to send a registration back is called "Returned for changes" (it was
-  "Changes requested"). The pricing status "Changes requested" keeps its name.
+  "Changes requested"). The pricing status for the same idea is called "Needs a new price" (it was "Changes
+  requested", renamed 2026-11-19).
 
 ## 5. Editing a registration
 
-- **Live:** partners can edit their registration at any time until it is withdrawn.
+- **Live:** partners can edit their registration at any time until it is closed.
 - **Live:** editing a "Returned for changes" registration makes it "Resubmitted".
 - **Live:** a **material** edit to a Registered registration makes it "Review required after edit". It keeps its
   original submission time and rank.
-- **Live:** products, quantities, and requested prices lock once DBGI starts the pricing review, and DBGI must
-  request changes first. Administrative corrections stay possible.
+- **Live:** a category's products, quantities, and requested prices lock once DBGI decides its price.
+  Administrative corrections stay possible.
+- **Live (2026-11-19):** when DBGI chooses **Ask for a new price**, that category's pricing shows **Needs a new
+  price**, and the company can change its products, quantities, and prices again. When the company saves, the price
+  goes back to **Pending**, DBGI gets a notice and an email ("New price to decide"), and DBGI decides it again with
+  Decide price. If the new price is the only material change, the deal stays Registered and keeps its rank; with other
+  material changes it needs review as usual. Categories with a decided price stay locked.
 - **Live:** evidence locks while the registration is under review and after a final decision (rejected or
-  withdrawn), so it cannot change after DBGI relied on it.
+  closed), so it cannot change after DBGI relied on it.
 - **Live (B1):** every edit is classified field by field, not by judgment:
   - **Administrative** (no DBGI review, status and rank unchanged, recorded in the Activity): contact person,
     designation, email, and number; competitor remarks; product justifications; and changes only in capitals,
@@ -119,8 +125,13 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   the latest match.
 - **Live (2026-11-19):** a deal is never matched automatically to a project that is already **Won, Lost, or
   Cancelled**. The suggestion still shows that project, with the warning "This project is already Won", so DBGI does
-  not create a duplicate. DBGI usually rejects such a late deal ("This project was already awarded"). DBGI can still
-  link it on purpose: closed projects are marked, for example "(Won)", in the list.
+  not create a duplicate. DBGI can still link it on purpose: closed projects are marked, for example "(Won)", in
+  the list.
+- **Live (2026-11-19):** a **new** deal that certainly matches a **Won** project (the same end-user name and address,
+  and all the same products) is **rejected automatically** with the reason "This project was already awarded", and
+  the company is told. A near match goes to DBGI with the warning instead. Lost and Cancelled projects are never
+  rejected automatically, because a tender is often posted again. A deal already on the project is never rejected
+  by this rule, even after an edit.
 - **Live (B3):** DBGI decides merges and splits case by case, with a written reason. Every merge and split is kept
   permanently (Administration, Merges and splits). Companies read a plain notice; the reason is for DBGI only.
   - **Merge:** on the Rankings page, **Merge** moves a project's open deals into another project, when DBGI learns they
@@ -148,7 +159,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 - **Live (setting, default off):** a DBGI superuser can switch on "Let DBGI set the order of tied companies" in Portal
   settings, under Ranking. Then DBGI uses **Decide tie** on the Rankings page to set the order, with a reason that only
   DBGI can read. Tie orders saved while it was on stay on record, and apply again whenever it is switched back on.
-- **Live:** a withdrawn registration leaves the ranking.
+- **Live:** a closed registration leaves the ranking until DBGI reopens it.
 
 ## 8. Projects and outcomes
 
@@ -157,7 +168,10 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 - **Live:** DBGI administrators can set the project status with a reason; it is recorded on every linked
   registration.
 - **Live (B4):** on a registration DBGI linked to a project that is still Upcoming, Active, or On hold, the partner
-  can **report the outcome**: Won, Lost, or Cancelled, with a note (for example the notice of award received).
+  can **report the outcome**: Won, Lost, or Cancelled, with a note.
+  - **Live (2026-11-19):** a project is won when the company receives the **Notice of Award (NOA)**. A Won report
+    must attach the NOA file (PDF, picture, Word, or Excel); DBGI opens it before confirming. Lost and Cancelled
+    reports may attach it.
   - Only one report per registration can wait for DBGI at a time.
   - DBGI administrators get an in-portal notice and either **confirm** it (the project status changes for every
     linked registration) or **do not accept** it, with a note either way.
@@ -169,16 +183,28 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   - **Awarded**, when DBGI set Won with Change project status, without a report saying who won.
   - DBGI still sees **Won**. DBGI's confirmation note goes only on the reporting company's deal; the others get a
     plain line in their Activity.
+- **Live (2026-11-19):** after DBGI confirms a Won report:
+  - Every DBGI administrator gets a reminder to issue the **manufacturer certificate** and the **dealer
+    certificate** to the winner. The certificates are issued outside the portal. The reminder shows on the deal and
+    on the DBGI dashboard ("Certificates to issue") until any DBGI administrator clicks **Mark certificates issued**.
+    The company does not see this step.
+  - The winning deal lists the other companies' deals still open on the project, each with **Close**, so DBGI can
+    call each company and close its deal.
 
-## 9. Withdrawal
+## 9. Closing and reopening a deal
 
-- **Live (B2):** a partner can withdraw its own registration at any time before it is rejected.
-  - A short reason (at least 5 characters) is required.
-  - Withdrawal is **instant and final**: no DBGI confirmation and no restore.
-  - The registration leaves the ranking, can no longer be edited, reviewed, or priced, and leaves DBGI's pricing
-    queue.
-  - Every DBGI administrator gets an in-portal notice with the company, the registration, and the reason.
-- If the opportunity comes back, the partner registers a new deal.
+- **Live (2026-11-19):** **Close deal** replaced Withdraw. A deal can be closed at any time before it is rejected:
+  - **The company** closes its own deal. Every DBGI administrator gets an in-portal notice with the reason.
+  - **Any DBGI administrator** closes it for the company, usually after a phone call when another company won, with
+    a note from the call. The company is told and can read the note.
+  - A reason is chosen (another company won, the project was cancelled, the company stopped pursuing it, or other),
+    and a note of at least 5 characters is required.
+  - A closed deal leaves the ranking, can no longer be edited, reviewed, renewed, or priced, gets no repeat orders,
+    and leaves DBGI's queues. It stays on record.
+- **Live (2026-11-19):** **any DBGI administrator can reopen** a closed deal, with a reason (for example, the winner
+  was disqualified). It returns to the status it had before it was closed, keeps its original submission time and
+  its place in the ranking, and the company is told. Companies cannot reopen a deal.
+- Deals withdrawn before 2026-11-19 became Closed, with the reason "Withdrawn by the company".
 
 ## 10. 60-day limits
 
@@ -203,19 +229,19 @@ All counts are calendar days, starting from the server's recorded time.
 ## 11. Pricing
 
 - **Live:** DBGI decides prices per **product category** of each registration, with item-level approved prices.
-- **Live:** a category's pricing status is Pending, Changes requested, Partially approved, Approved, Rejected, or
+- **Live:** a category's pricing status is Pending, Needs a new price, Partially approved, Approved, Rejected, or
   Expired. The registration shows one overall pricing badge.
 - **Live:** a requested price is a proposal, never an approved price.
 - **Live:** DBGI types the validity date when approving. After that date the price shows as Expired automatically.
 - **Live (C1):** if DBGI leaves the validity date empty when approving, it is set to **90 days** from today. This
-  also applies when DBGI approves in Django Admin, which is where prices are decided today. A price on a withdrawn
+  also applies when DBGI approves in Django Admin, which is where prices are decided today. A price on a closed
   deal cannot be decided there.
 - **Live (C1):** the company gets a reminder **14 days** before an approved price expires (sent by the daily
   `process_deadlines` job; a new date or an approved renewal allows a new reminder).
 - **Live:** a partner can request a renewal of an approved or partly approved price, one request at a time. If DBGI
   approves, the validity is extended by **30 days**, counted from the current expiry date, or from today if it has
   already expired. The partner asks with the **Request renewal** button on the deal page. DBGI answers on the same
-  page with **Approve** or **Decline** and a reason, and the company is told the result. A withdrawn deal cannot be
+  page with **Approve** or **Decline** and a reason, and the company is told the result. A closed deal cannot be
   renewed.
 - **Live (C2):** all prices are **VAT-inclusive**. Each list price records this, and the deal screens say so.
 - **Live (A3):** list prices have a **history**. DBGI changes a price by adding a new record with its amount, start
@@ -233,10 +259,10 @@ All counts are calendar days, starting from the server's recorded time.
 - **Live (C4):** a partner can request a product that is not in the catalog. It gets **no price review until DBGI
   adds it to the catalog**. On the registration, DBGI uses **Add to catalog** to create a new product with its first
   price or link an existing one, with a reason. The line then captures the list price, its category's price review
-  opens, and the partner is notified. If that category's prices were already decided, DBGI must request changes on
+  opens, and the partner is notified. If that category's prices were already decided, DBGI must ask for a new price on
   them first.
 - **Live (C5 keeps this):** partners see list prices and their own approved prices, never other companies' prices.
-- **Decided (A3):** the launch waits for price history (now built) as well as withdrawal (built).
+- **Decided (A3):** the launch waits for price history (now built) as well as withdrawal (built; now Close deal).
 
 ## 12. Repeat orders
 
@@ -267,7 +293,8 @@ All counts are calendar days, starting from the server's recorded time.
   registration, corrections submitted, an edit after the registration was confirmed, a project outcome report, a
   60-day limit reached, a price renewal request, or a repeat order request. The renewal request email can be turned
   off in Portal settings, under Emails and alerts to DBGI (default: on).
-- **Live:** a withdrawal only informs DBGI, so it is a portal notice without email.
+- **Live:** a company closing its own deal only informs DBGI, so it is a portal notice without email. The
+  certificate reminder is also a portal notice without email; it stays on the dashboard until it is done.
 - **Live:** each email still needs its event type switched on in the notification settings. The DBGI action events
   start switched on; DBGI can turn any of them off.
 - **Live:** emails never contain competitor details, private evidence, or detailed pricing.
@@ -325,13 +352,13 @@ about each one, then record the answer in
 
 Also worth confirming, because these details were chosen while building his decisions:
 
-| Question to ask                                                                                              | What the portal does now                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Which deals does the 60-day limit cover?                                                                     | Deals DBGI has not confirmed, counted from submission.                                                                                                                     |
-| What counts as a postponed or reposted tender?                                                               | DBGI sets the project to On hold, which starts the 60 days.                                                                                                                |
-| Which events email DBGI reviewers?                                                                           | A new registration, corrections submitted, an edit after registration, an outcome report, a 60-day limit, and a price renewal request. Withdrawals are in the portal only. |
-| When DBGI decides a tie, should it set a final order, or only note the decision while the rank stays shared? | It sets a final order, so the companies get different ranks.                                                                                                               |
-| Can a typed-in product join a category whose prices are already decided?                                     | Not until DBGI requests changes on that category.                                                                                                                          |
+| Question to ask                                                                                              | What the portal does now                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which deals does the 60-day limit cover?                                                                     | Deals DBGI has not confirmed, counted from submission.                                                                                                                       |
+| What counts as a postponed or reposted tender?                                                               | DBGI sets the project to On hold, which starts the 60 days.                                                                                                                  |
+| Which events email DBGI reviewers?                                                                           | A new registration, corrections submitted, an edit after registration, an outcome report, a 60-day limit, and a price renewal request. Closing a deal is in the portal only. |
+| When DBGI decides a tie, should it set a final order, or only note the decision while the rank stays shared? | It sets a final order, so the companies get different ranks.                                                                                                                 |
+| Can a typed-in product join a category whose prices are already decided?                                     | Not until DBGI requests changes on that category.                                                                                                                            |
 
 Also worth confirming, because these details were chosen while building repeat orders, merges, and splits:
 

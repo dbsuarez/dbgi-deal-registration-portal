@@ -26,6 +26,7 @@ import {
   type OpportunityScope,
   type RegistrationDetail,
 } from "../api";
+import { useSession } from "../session";
 import { example } from "./exampleText";
 
 type Props = {
@@ -41,6 +42,7 @@ export default function SplitDealDialog({
   csrfToken,
   onClose,
 }: Props) {
+  const { is_debug: isDebug } = useSession();
   const navigate = useNavigate();
   const [itemIds, setItemIds] = useState<number[]>([]);
   const [scopes, setScopes] = useState<OpportunityScope[]>([]);
@@ -200,7 +202,15 @@ export default function SplitDealDialog({
             minRows={3}
             label="Reason"
             helperText="At least 5 characters. Only DBGI sees this."
-            {...example("The tender has two separate lots.")}
+            {...example("The tender has two separate lots.", {
+              debug: isDebug,
+              onFill: setReason,
+              more: [
+                "The tender has two separate lots.",
+                "The office will award the scanners separately.",
+                "Lot 2 has a different bid date.",
+              ],
+            })}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />

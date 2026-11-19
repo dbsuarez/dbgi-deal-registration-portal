@@ -49,6 +49,7 @@ const registrationStatuses = [
     "A confirmed registration changed and must be reviewed again.",
   ],
   ["Rejected", "Open the registration to review DBGI's reason."],
+  ["Closed", "You or DBGI closed the deal. Only DBGI can reopen it."],
 ];
 
 type PracticeScenario = {
@@ -60,6 +61,32 @@ type PracticeScenario = {
 };
 
 const companyScenarios: PracticeScenario[] = [
+  {
+    title: "Report that you won",
+    actor: "Company user",
+    before:
+      "A project is won when you receive the Notice of Award (NOA). Have the NOA file ready.",
+    steps: [
+      "Open the registration and select Report project outcome.",
+      "Choose Won and say what happened.",
+      "Attach the Notice of Award, then select Send report.",
+    ],
+    expected:
+      "The report shows Waiting for DBGI. When DBGI confirms it, the project shows Won by your company.",
+  },
+  {
+    title: "Close a deal",
+    actor: "Company user",
+    before:
+      "Use this when your company will not go on with the deal, for example when another company won.",
+    steps: [
+      "Open the registration and select Close deal.",
+      "Choose why it is closing and type a reason.",
+      "Select Close deal in the box.",
+    ],
+    expected:
+      "The deal shows Closed and leaves the ranking. DBGI is told. Only DBGI can reopen it.",
+  },
   {
     title: "Request a repeat order",
     actor: "Company user",
@@ -122,6 +149,19 @@ const companyScenarios: PracticeScenario[] = [
 ];
 
 const adminScenarios: PracticeScenario[] = [
+  {
+    title: "Confirm a win and close the other deals",
+    actor: "DBGI administrator",
+    before: "Use a registration with a Won report waiting for DBGI.",
+    steps: [
+      "Open the registration, find Project outcome reports, and open the Notice of Award.",
+      "Select Confirm Won and write a note.",
+      "Issue the manufacturer certificate and the dealer certificate, then select Mark certificates issued.",
+      "Under Other companies' open deals, call each company and select Close with a note from the call.",
+    ],
+    expected:
+      "The winner sees Won by your company and the others see Awarded to another company. To undo a close, open the closed deal and select Reopen deal.",
+  },
   {
     title: "Decide a repeat order",
     actor: "DBGI administrator",

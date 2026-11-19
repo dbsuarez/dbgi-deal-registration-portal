@@ -1001,7 +1001,7 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
         )
 
     def has_change_permission(self, request, obj=None):
-        if obj and obj.registration.status == Registration.Status.WITHDRAWN:
+        if obj and obj.registration.status == Registration.Status.CLOSED:
             return False
         return super().has_change_permission(request, obj)
 
