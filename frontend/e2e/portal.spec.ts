@@ -2324,6 +2324,10 @@ test("DBGI puts a project on hold from the deal page", async ({ page }) => {
     name: "Change the project status",
   });
   await expect(dialog.getByText(/keep their place for 60 days/)).toBeVisible();
+  await expect(dialog.getByLabel(/Reason/)).toHaveAttribute(
+    "placeholder",
+    "For example: The bidding was postponed.",
+  );
   await dialog.getByRole("combobox", { name: /Project status/ }).click();
   await page.getByRole("option", { name: "On hold" }).click();
   await dialog.getByLabel(/Reason/).fill("The bidding was postponed.");

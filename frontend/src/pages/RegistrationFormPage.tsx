@@ -81,6 +81,7 @@ import {
   uploadAttachment,
 } from "../api";
 import { useSession } from "../session";
+import { example } from "./exampleText";
 import IsoDateField from "./IsoDateField";
 
 type MainFields = Omit<
@@ -844,6 +845,7 @@ export default function RegistrationFormPage() {
                 fullWidth
                 required
                 label="Project opportunity title"
+                {...example("20 laser printers for the Mayor's Office")}
                 value={main.project_title}
                 onChange={(e) => updateMain("project_title", e.target.value)}
               />
@@ -1047,6 +1049,9 @@ export default function RegistrationFormPage() {
                 multiline
                 rows={4}
                 label="Attachment description"
+                {...example(
+                  "Request for quotation from the Mayor's Office, sent by the Records Officer.",
+                )}
                 value={main.evidence_description}
                 onChange={(e) =>
                   updateMain("evidence_description", e.target.value)
@@ -1483,6 +1488,7 @@ function CompetitorDialog({
               multiline
               rows={2}
               label="Remarks"
+              {...example("They offered this price at the pre-bid meeting.")}
               value={value.remarks}
               onChange={(e) => onChange({ ...value, remarks: e.target.value })}
             />
@@ -1570,6 +1576,7 @@ function ItemDialog({
                 fullWidth
                 required
                 label="Non-catalog product description"
+                {...example("High-speed document scanner, 60 pages per minute")}
                 value={value.non_catalog_name}
                 onChange={(e) =>
                   onChange({ ...value, non_catalog_name: e.target.value })
@@ -1611,6 +1618,7 @@ function ItemDialog({
               multiline
               rows={2}
               label="Justification"
+              {...example("The competitor offered 9,300 to the same office.")}
               value={value.justification}
               onChange={(e) =>
                 onChange({ ...value, justification: e.target.value })

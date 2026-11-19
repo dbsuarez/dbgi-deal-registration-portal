@@ -17,6 +17,7 @@ import {
   getRegistration,
   type RegistrationDetail,
 } from "../api";
+import { example } from "./exampleText";
 
 const STATUSES = [
   { value: "upcoming", label: "Upcoming" },
@@ -120,6 +121,7 @@ export default function ProjectStatusDialog({
             minRows={3}
             label="Reason"
             helperText="At least 5 characters. It is saved in each deal's Activity."
+            {...example("The bidding was postponed.")}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />

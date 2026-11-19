@@ -24,6 +24,7 @@ import {
   type CategoryApproval,
   type RegistrationDetail,
 } from "../api";
+import { example } from "./exampleText";
 import IsoDateField from "./IsoDateField";
 
 const moneyCell = {
@@ -269,6 +270,15 @@ export default function PriceDecisionDialog({
               minRows={3}
               label="Reason"
               helperText="At least 5 characters. The partner can read it."
+              {...example(
+                status === "approved"
+                  ? "Within the allowed discount."
+                  : status === "partially_approved"
+                    ? "Approved the printers only. The scanner needs a new quotation."
+                    : status === "changes_requested"
+                      ? "Please send the competitor's quotation."
+                      : "The requested price is below the allowed discount.",
+              )}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />

@@ -34,6 +34,7 @@ import {
   type RankingEntry,
 } from "../api";
 import { useSession } from "../session";
+import { example } from "./exampleText";
 import MergeProjectDialog from "./MergeProjectDialog";
 
 type RankingRow = RankingEntry & {
@@ -424,6 +425,7 @@ export default function OpportunityRankingsPage() {
             minRows={3}
             label="Reason for this order"
             helperText="At least 5 characters. Only DBGI sees this."
+            {...example("This company sent its complete papers first.")}
             value={tieReason}
             onChange={(event) => setTieReason(event.target.value)}
           />

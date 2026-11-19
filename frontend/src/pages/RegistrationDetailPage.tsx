@@ -63,6 +63,7 @@ import {
 } from "../api";
 import { useSession } from "../session";
 import { getStatusColor, getStatusExplanation } from "../status";
+import { example } from "./exampleText";
 import { companyNextStep } from "./registrationReview";
 import PriceDecisionDialog from "./PriceDecisionDialog";
 import ProjectStatusDialog from "./ProjectStatusDialog";
@@ -721,6 +722,7 @@ export default function RegistrationDetailPage() {
                 multiline
                 required
                 minRows={2}
+                {...example("Checking the end-user and the attachment.")}
                 label="Review reason"
                 value={rationale}
                 onChange={(event) => setRationale(event.target.value)}
@@ -835,6 +837,15 @@ export default function RegistrationDetailPage() {
                 value={rationale}
                 onChange={(event) => setRationale(event.target.value)}
                 helperText="Required for the audit history."
+                {...example(
+                  finalDecision === "link_existing"
+                    ? "Same office and same products as the existing project."
+                    : finalDecision === "request_changes"
+                      ? "Please add the name of the person who sent you the request for quotation."
+                      : finalDecision === "reject"
+                        ? "The office confirmed it has no plan to buy this year."
+                        : "First registration for this project.",
+                )}
                 sx={{ mt: 2 }}
               />
               <Button
@@ -1465,6 +1476,7 @@ export default function RegistrationDetailPage() {
             minRows={2}
             label="Reason"
             helperText="At least 5 characters."
+            {...example("This product is now part of our product line.")}
             value={catalogReason}
             onChange={(event) => setCatalogReason(event.target.value)}
           />
@@ -1524,6 +1536,13 @@ export default function RegistrationDetailPage() {
             minRows={3}
             label="Reason"
             helperText="At least 5 characters."
+            {...example(
+              renewal?.action === "request"
+                ? "The office moved the bid date to next month."
+                : renewal?.action === "approve"
+                  ? "The new bid date is confirmed."
+                  : "The bid date has not changed, so the current end date is enough.",
+            )}
             value={renewalReason}
             onChange={(event) => setRenewalReason(event.target.value)}
           />
@@ -1585,6 +1604,7 @@ export default function RegistrationDetailPage() {
           )}
           <TextField
             label="Reason for repricing"
+            {...example("The list price changed before the review started.")}
             value={repriceReason}
             onChange={(event) => setRepriceReason(event.target.value)}
             helperText="At least 5 characters."
@@ -1645,6 +1665,13 @@ export default function RegistrationDetailPage() {
           </FormControl>
           <TextField
             label="What happened"
+            {...example(
+              outcomeChoice === "won"
+                ? "The office awarded the project to us. We got the notice of award today."
+                : outcomeChoice === "lost"
+                  ? "The office awarded the project to another bidder."
+                  : "The office cancelled the bidding.",
+            )}
             value={outcomeNote}
             onChange={(event) => setOutcomeNote(event.target.value)}
             helperText="For example, the notice of award you received. At least 5 characters."
@@ -1695,6 +1722,11 @@ export default function RegistrationDetailPage() {
           )}
           <TextField
             label="Note for the company"
+            {...example(
+              decision?.confirm
+                ? "We checked the notice of award."
+                : "Please send the notice of award so we can confirm it.",
+            )}
             value={decisionNote}
             onChange={(event) => setDecisionNote(event.target.value)}
             helperText="At least 5 characters."
@@ -1738,6 +1770,7 @@ export default function RegistrationDetailPage() {
           )}
           <TextField
             label="Reason for withdrawing"
+            {...example("The office cancelled its plan to buy.")}
             value={withdrawReason}
             onChange={(event) => setWithdrawReason(event.target.value)}
             helperText="DBGI sees this reason. At least 5 characters."

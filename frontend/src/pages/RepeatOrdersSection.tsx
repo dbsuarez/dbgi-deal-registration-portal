@@ -29,6 +29,7 @@ import {
   type RegistrationDetail,
   type RepeatOrder,
 } from "../api";
+import { example } from "./exampleText";
 
 const moneyCell = {
   textAlign: "right" as const,
@@ -343,6 +344,7 @@ export default function RepeatOrdersSection({
               multiline
               minRows={2}
               label="Note (optional)"
+              {...example("Five more printers for the same office.")}
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
@@ -387,6 +389,11 @@ export default function RepeatOrdersSection({
             minRows={3}
             label="Reason"
             helperText="At least 5 characters."
+            {...example(
+              decision?.accept
+                ? "Both letters say it is a repeat order."
+                : "The letters do not say it is a repeat order. Please register a new deal.",
+            )}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />

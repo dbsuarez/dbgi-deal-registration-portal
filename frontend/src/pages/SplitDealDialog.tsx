@@ -26,6 +26,7 @@ import {
   type OpportunityScope,
   type RegistrationDetail,
 } from "../api";
+import { example } from "./exampleText";
 
 type Props = {
   open: boolean;
@@ -199,6 +200,7 @@ export default function SplitDealDialog({
             minRows={3}
             label="Reason"
             helperText="At least 5 characters. Only DBGI sees this."
+            {...example("The tender has two separate lots.")}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />

@@ -32,6 +32,7 @@ import {
   type MergePreviewRow,
   type OpportunityScope,
 } from "../api";
+import { example } from "./exampleText";
 
 type Props = {
   source: { scope_id: number; label: string } | null;
@@ -251,6 +252,7 @@ export default function MergeProjectDialog({
                 minRows={3}
                 label="Reason"
                 helperText="At least 5 characters. Only DBGI sees this."
+                {...example("DBGI learned these are the same tender.")}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />
