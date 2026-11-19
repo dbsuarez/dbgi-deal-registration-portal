@@ -145,7 +145,8 @@ CASES = [
         [
             (
                 "Other company",
-                "Register a new deal for your pair's end-user: product **DEMO-001**, quantity 1, price **100**.",
+                "Register a new deal for your pair's end-user. For the product, choose **Not in catalog** and type "
+                "**Office chairs**. Quantity 1, price **100**. It says **Submitted**.",
                 "9 to 12",
             ),
             (
@@ -253,8 +254,9 @@ CASES = [
             (
                 "DBGI",
                 "Open the deal and click **Confirm Won**. Click **Mark certificates issued**. Under **Other "
-                "companies' open deals**, click **Close** on the other company's deal. Type a note from the call "
-                "(for example: called them, they will not continue) and click **Close deal**.",
+                "companies' open deals**, the other company has two deals (its first deal and the presenter deal). "
+                "Click **Close** on each, type a note from the call (for example: called them, they will not "
+                "continue), and click **Close deal**.",
                 "34, 36",
             ),
             (
@@ -270,8 +272,8 @@ CASES = [
         [
             (
                 "DBGI",
-                "Open the other company's closed deal and click **Reopen deal**. Type a reason (for example: the "
-                "winner was disqualified) and click **Reopen deal**.",
+                "Open the other company's first deal (now closed) and click **Reopen deal**. Type a reason (for "
+                "example: the winner was disqualified) and click **Reopen deal**.",
                 "34",
             ),
             (
