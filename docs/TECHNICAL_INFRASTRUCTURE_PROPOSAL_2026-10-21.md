@@ -30,7 +30,9 @@ Test server rules:
   `DOCKER_BUILDKIT=0 nice -n 19 docker build --memory=512m --memory-swap=512m --cpu-quota=50000 -t dbgi-portal-web .`,
   `docker compose -f docker-compose.test-server.yml up -d`, and
   `docker compose -f docker-compose.test-server.yml exec web python manage.py migrate`.
-- The daily `process_deadlines` job is not scheduled here, so reminders do not run on the test server.
+- The daily `process_deadlines` job runs here since 2026-11-19: `/etc/cron.d/dbgi-portal` calls
+  `deploy/dbgi-portal-daily.sh` at 22:00 UTC (06:00 Asia/Manila), and the log is `logs/deadlines.log` in the portal
+  folder. Both files are in the repository, so a new server only needs the install line in `deploy/cron.d/dbgi-portal`.
 
 ## 2. Architecture decision
 
@@ -146,7 +148,9 @@ Before implementation, approve event types, recipients, sender domain, provider,
 
 `python manage.py process_deadlines` applies the 60-day rules (decisions B6 and B7, 2026-10-30): a 7-day reminder to the company, then a return to DBGI review, for registrations DBGI has not confirmed and for projects on hold. It records each step, so running it twice in a day changes nothing, and a missed day is caught up on the next run. It needs no extra service: schedule it once a day with the server's own scheduler, at a quiet hour such as 06:00 Asia/Manila.
 
-Production (Linux VPS with Docker Compose), as a cron entry for the deployment user:
+Production (Linux VPS with Docker Compose): use the repository's `deploy/dbgi-portal-daily.sh` and
+`deploy/cron.d/dbgi-portal` (installed on the test server on 2026-11-19), set `COMPOSE_FILE` and the folder for the
+real deployment, or use a plain cron entry like this one:
 
 ```
 0 6 * * * cd /srv/registration-portal && docker compose exec -T web python manage.py process_deadlines >> /var/log/registration-portal/deadlines.log 2>&1

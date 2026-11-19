@@ -1,0 +1,5 @@
+# DBGI portal: daily deadline job (deploy/dbgi-portal-daily.sh).
+# 22:00 UTC is 06:00 Asia/Manila. If the server clock is set to Asia/Manila, use 0 6 instead of 0 22.
+# Install: install -m 644 deploy/cron.d/dbgi-portal /etc/cron.d/dbgi-portal
+# Change the folder if the portal lives somewhere other than /opt/dbgi-portal.
+0 22 * * * root /opt/dbgi-portal/deploy/dbgi-portal-daily.sh

@@ -222,9 +222,9 @@ All counts are calendar days, starting from the server's recorded time.
   - Its linked registrations keep their place for the hold limit (default 60 days).
   - The same reminder comes first; at the limit the registrations go back to DBGI review.
   - Setting the project to any other status ends the hold; a new hold starts the count again.
-- **Live:** these rules run through a daily job (`python manage.py process_deadlines`). **It must be scheduled once
-  a day on the server** (cron or Task Scheduler; see the infrastructure proposal, section 8). Until it is
-  scheduled, no reminders are sent and nothing returns to review.
+- **Live:** these rules run through a daily job (`python manage.py process_deadlines`), scheduled on the test server
+  since 2026-11-19 at 06:00 Asia/Manila (`deploy/cron.d/dbgi-portal`; see the infrastructure proposal, section 8). Any
+  new server needs the same schedule; without it, no reminders are sent and nothing returns to review.
 
 ## 11. Pricing
 

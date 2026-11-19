@@ -4,6 +4,10 @@ Company-scoped project registration portal built with Django Ninja, Django Unfol
 
 ## Run locally
 
+Quick start on Windows, after the first-time setup below: double-click `run-backend.cmd`, then
+`run-frontend.cmd`, each in its own window, and open http://localhost:5173. Developer mode is on, and emails are
+printed in the backend window instead of sent.
+
 Requires Python 3.13 and Node.js 24 for the selected starter-kit stack.
 
 `DEBUG` defaults to off. Set it explicitly for local work:
