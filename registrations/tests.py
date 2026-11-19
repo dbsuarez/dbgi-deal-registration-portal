@@ -444,6 +444,32 @@ class RegistrationApiTests(TestCase):
         )
 
     @override_settings(DEBUG=True)
+    def test_a_late_deal_for_a_won_project_is_suggested_but_not_matched(self):
+        call_command("seed_development_accounts", stdout=StringIO())
+        call_command("seed_sample_matching_scenario", stdout=StringIO())
+        first = Registration.objects.get(company__name="IT Avenue")
+        late = Registration.objects.get(company__name="Lexmark")
+        Opportunity.objects.filter(pk=first.opportunity_scope.opportunity_id).update(
+            project_status=Opportunity.ProjectStatus.WON
+        )
+        Registration.objects.filter(pk=late.pk).update(
+            status=Registration.Status.SUBMITTED, opportunity_scope=None
+        )
+        late.refresh_from_db()
+
+        suggestion = generate_matching_suggestion(late)
+
+        late.refresh_from_db()
+        self.assertEqual(late.status, Registration.Status.SUBMITTED)
+        self.assertIsNone(late.opportunity_scope_id)
+        self.assertEqual(suggestion.candidate_scope_id, first.opportunity_scope_id)
+        self.assertIn("This project is already Won.", " ".join(suggestion.conflicting_factors))
+        self.client.force_login(self.admin)
+        scopes = self.client.get("/api/v1/review/opportunity-scopes").json()
+        won = next(scope for scope in scopes if scope["id"] == first.opportunity_scope_id)
+        self.assertTrue(won["label"].endswith("(Won)"))
+
+    @override_settings(DEBUG=True)
     def test_automatic_matching_stops_when_two_scopes_match_exactly(self):
         call_command("seed_development_accounts", stdout=StringIO())
         call_command("seed_sample_matching_scenario", stdout=StringIO())
@@ -2227,6 +2253,49 @@ class RegistrationApiTests(TestCase):
         self.client.force_login(self.user_a)
         closed = self.report_outcome(self.registration_a, outcome="lost")
         self.assertEqual(closed.status_code, 400, closed.content)
+
+    def test_partners_see_who_won_and_only_the_reporter_reads_the_note(self):
+        opportunity = self.link_to_project(self.registration_a, self.registration_b)
+        self.client.force_login(self.user_a)
+        self.report_outcome(self.registration_a)
+        report = ProjectOutcomeReport.objects.get()
+        self.client.force_login(self.admin)
+        self.decide_outcome(report, note="Checked your notice of award.")
+        opportunity.refresh_from_db()
+        self.assertEqual(opportunity.won_by_company_id, self.registration_a.company_id)
+        dbgi_view = self.client.get(f"/api/v1/registrations/{self.registration_b.pk}").json()
+        self.assertEqual(dbgi_view["project_status_label"], "Won")
+
+        self.client.force_login(self.user_a)
+        winner = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertEqual(winner["project_status_label"], "Won by your company")
+        self.assertEqual(winner["project_status_view"], "won_by_you")
+        self.client.force_login(self.user_b)
+        other = self.client.get(f"/api/v1/registrations/{self.registration_b.pk}").json()
+        self.assertEqual(other["project_status_label"], "Awarded to another company")
+        self.assertEqual(other["project_status_view"], "awarded_to_other")
+        listed = self.client.get("/api/v1/registrations").json()["items"]
+        self.assertEqual(listed[0]["project_status_label"], "Awarded to another company")
+        other_event = self.registration_b.events.get(event_type="Project status changed")
+        self.assertIn("another company", other_event.details)
+        self.assertNotIn("Checked your notice", other_event.details)
+        winner_event = self.registration_a.events.get(event_type="Project status changed")
+        self.assertIn("Checked your notice", winner_event.details)
+
+        # Set by hand, DBGI has not said who won: the winner is forgotten, partners read "Awarded".
+        self.client.force_login(self.admin)
+        for status in ("active", "won"):
+            changed = self.client.post(
+                f"/api/v1/review/opportunities/{opportunity.pk}/project-status",
+                data=json.dumps({"status": status, "reason": "Corrected by DBGI."}),
+                content_type="application/json",
+            )
+            self.assertEqual(changed.status_code, 200, changed.content)
+        opportunity.refresh_from_db()
+        self.assertIsNone(opportunity.won_by_company_id)
+        self.client.force_login(self.user_a)
+        winner = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
+        self.assertEqual(winner["project_status_label"], "Awarded")
 
     def test_declined_outcome_keeps_the_project_status(self):
         opportunity = self.link_to_project(self.registration_a)

@@ -405,6 +405,15 @@ class Opportunity(models.Model):
     on_hold_since = models.DateTimeField(null=True, blank=True, editable=False)
     hold_reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
     hold_limit_reached_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Set when DBGI confirms a company's Won report; cleared by any other status change.
+    won_by_company = models.ForeignKey(
+        "Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="+",
+    )
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="opportunities")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -545,6 +554,38 @@ class Registration(models.Model):
         if not self.opportunity_scope_id:
             return "Not linked"
         return self.opportunity_scope.opportunity.get_project_status_display()
+
+    PARTNER_WON_VIEWS = {
+        "won_by_you": "Won by your company",
+        "awarded_to_other": "Awarded to another company",
+        "awarded": "Awarded",
+    }
+
+    def project_status_view(self, user):
+        """The project status as this viewer should read it.
+
+        A plain "Won" on every linked deal could make a losing company think it won, so partners see
+        whether their own company won ("won_by_you"), another company did ("awarded_to_other"), or
+        DBGI set Won without saying who ("awarded"). DBGI sees the plain status.
+        """
+        if not self.opportunity_scope_id:
+            return None
+        opportunity = self.opportunity_scope.opportunity
+        if (
+            opportunity.project_status != Opportunity.ProjectStatus.WON
+            or user is None
+            or user.is_dbgi_admin
+        ):
+            return opportunity.project_status
+        if not opportunity.won_by_company_id:
+            return "awarded"
+        return (
+            "won_by_you" if opportunity.won_by_company_id == self.company_id else "awarded_to_other"
+        )
+
+    def project_status_label_for(self, user):
+        view = self.project_status_view(user)
+        return self.PARTNER_WON_VIEWS.get(view) or self.project_status_label
 
     @property
     def price_status(self):

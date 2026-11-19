@@ -215,6 +215,7 @@ class RegistrationListItem(Schema):
     status_label: str
     project_status: str | None
     project_status_label: str
+    project_status_view: str | None = None
     price_status: str
     price_status_label: str
     total_requested_value: Decimal
@@ -861,7 +862,7 @@ def _registration_queryset(user):
     return queryset
 
 
-def _serialize_registration(registration):
+def _serialize_registration(registration, user=None):
     total_requested_value = sum(
         (item.requested_total for item in registration.items.all()), Decimal("0.00")
     )
@@ -879,7 +880,8 @@ def _serialize_registration(registration):
         "status": registration.status,
         "status_label": registration.get_status_display(),
         "project_status": registration.project_status,
-        "project_status_label": registration.project_status_label,
+        "project_status_label": registration.project_status_label_for(user),
+        "project_status_view": registration.project_status_view(user),
         "price_status": registration.price_status,
         "price_status_label": registration.price_status_label,
         "total_requested_value": total_requested_value,
@@ -1046,35 +1048,53 @@ def _serialize_outcome_report(report):
     }
 
 
-def _set_project_status(opportunity, status, actor, reason):
-    """Change a project's status and record it on every registration linked to the project."""
+def _set_project_status(opportunity, status, actor, reason, report=None):
+    """Change a project's status and record it on every registration linked to the project.
+
+    With `report` (a confirmed outcome report), DBGI's note goes only on the reporting deal;
+    the other companies' deals get a plain line, and a Won project records the winning company.
+    """
     old_label = opportunity.get_project_status_display()
     previous_status = opportunity.project_status
     opportunity.project_status = status
+    opportunity.won_by_company_id = (
+        report.registration.company_id
+        if report is not None and status == Opportunity.ProjectStatus.WON
+        else None
+    )
     opportunity.update_hold_clock(previous_status)
     opportunity.save(
         update_fields=[
             "project_status",
+            "won_by_company",
             "on_hold_since",
             "hold_reminder_sent_at",
             "hold_limit_reached_at",
         ]
     )
+    new_label = opportunity.get_project_status_display()
     for registration in Registration.objects.filter(opportunity_scope__opportunity=opportunity):
+        if report is None or registration.pk == report.registration_id:
+            details = f"Project status changed from {old_label} to {new_label}: {reason}"
+        elif status == Opportunity.ProjectStatus.WON:
+            details = f"Project status changed from {old_label} to Awarded" + (
+                " (won by this company)."
+                if registration.company_id == opportunity.won_by_company_id
+                else " to another company."
+            )
+        else:
+            details = f"Project status changed from {old_label} to {new_label}."
         RegistrationEvent.objects.create(
             registration=registration,
             actor=actor,
             event_type="Project status changed",
-            details=(
-                f"Project status changed from {old_label} to "
-                f"{opportunity.get_project_status_display()}: {reason}"
-            ),
+            details=details,
             snapshot=registration_snapshot(registration),
         )
 
 
 def _serialize_registration_detail(registration, user):
-    detail = _serialize_registration(registration)
+    detail = _serialize_registration(registration, user)
     serialized_events = [
         _serialize_registration_event(event, include_internal_details=user.is_dbgi_admin)
         for event in registration.events.select_related("actor").all()
@@ -1546,7 +1566,7 @@ def list_registrations(
     start = (page - 1) * page_size
     records = queryset.order_by(sort)[start : start + page_size]
     return {
-        "items": [_serialize_registration(record) for record in records],
+        "items": [_serialize_registration(record, request.user) for record in records],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -1858,7 +1878,7 @@ def create_registration(request, payload: RegistrationInput):
         notify_submission(registration)
         notify_dbgi_review_needed(registration, "new registration submitted")
         generate_matching_suggestion(registration)
-    return Status(201, _serialize_registration(registration))
+    return Status(201, _serialize_registration(registration, request.user))
 
 
 @api.put(
@@ -1989,7 +2009,7 @@ def update_registration(request, registration_id: int, payload: RegistrationUpda
         )
         if changes or registration.status != previous_status:
             generate_matching_suggestion(registration)
-    return _serialize_registration(registration)
+    return _serialize_registration(registration, request.user)
 
 
 @api.get(
@@ -2425,6 +2445,8 @@ def list_opportunity_scopes(request):
     scopes = OpportunityScope.objects.filter(
         is_active=True, opportunity__is_active=True
     ).select_related("opportunity")
+    # Closed projects stay linkable (DBGI may still need one), but are marked so nobody
+    # picks one by mistake.
     return [
         {
             "id": scope.pk,
@@ -2432,7 +2454,11 @@ def list_opportunity_scopes(request):
             "opportunity_title": scope.opportunity.title,
             "name": scope.name,
             "scope_type": scope.scope_type,
-            "label": str(scope),
+            "label": (
+                str(scope)
+                if scope.opportunity.project_status in OPEN_PROJECT_STATUSES
+                else f"{scope} ({scope.opportunity.get_project_status_display()})"
+            ),
         }
         for scope in scopes
     ]
@@ -2852,7 +2878,11 @@ def decide_outcome_report(request, report_id: int, payload: OutcomeDecisionInput
         if payload.confirm:
             opportunity = Opportunity.objects.select_for_update().get(pk=report.opportunity_id)
             _set_project_status(
-                opportunity, report.outcome, request.user, f"Confirmed the reported outcome. {note}"
+                opportunity,
+                report.outcome,
+                request.user,
+                f"Confirmed the reported outcome. {note}",
+                report=report,
             )
         else:
             RegistrationEvent.objects.create(
@@ -3339,7 +3369,7 @@ def finalize_registration(request, registration_id: int, payload: RegistrationFi
             ),
             snapshot=prior_snapshot,
         )
-    return _serialize_registration(registration)
+    return _serialize_registration(registration, request.user)
 
 
 @api.post(

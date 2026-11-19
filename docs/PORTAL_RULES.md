@@ -117,6 +117,10 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 - **Live:** the portal suggests matches and explains why (supporting and conflicting factors). It matches
   automatically only when it is safe; otherwise a person decides. A notice tells the partner when the system made
   the latest match.
+- **Live (2026-11-19):** a deal is never matched automatically to a project that is already **Won, Lost, or
+  Cancelled**. The suggestion still shows that project, with the warning "This project is already Won", so DBGI does
+  not create a duplicate. DBGI usually rejects such a late deal ("This project was already awarded"). DBGI can still
+  link it on purpose: closed projects are marked, for example "(Won)", in the list.
 - **Live (B3):** DBGI decides merges and splits case by case, with a written reason. Every merge and split is kept
   permanently (Administration, Merges and splits). Companies read a plain notice; the reason is for DBGI only.
   - **Merge:** on the Rankings page, **Merge** moves a project's open deals into another project, when DBGI learns they
@@ -159,6 +163,12 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
     linked registration) or **do not accept** it, with a note either way.
   - The partner is notified of the decision and sees it under "Project outcome reports". After a declined report,
     the partner can report again.
+- **Live (2026-11-19):** a plain "Won" on every linked deal could make a losing company think it won, so partners see:
+  - **Won by your company**, when DBGI confirmed that company's Won report.
+  - **Awarded to another company**, on the other companies' deals. The winner is not named.
+  - **Awarded**, when DBGI set Won with Change project status, without a report saying who won.
+  - DBGI still sees **Won**. DBGI's confirmation note goes only on the reporting company's deal; the others get a
+    plain line in their Activity.
 
 ## 9. Withdrawal
 

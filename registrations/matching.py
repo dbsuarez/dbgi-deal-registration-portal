@@ -8,6 +8,7 @@ from .audit import registration_snapshot
 from .models import (
     EndUser,
     MatchingSuggestion,
+    Opportunity,
     OpportunityScope,
     Registration,
     RegistrationEvent,
@@ -25,6 +26,14 @@ AUTO_MATCHABLE_STATUSES = {
     Registration.Status.SUBMITTED,
     Registration.Status.RESUBMITTED,
     Registration.Status.REVIEW_REQUIRED,
+}
+
+
+# Projects that can still take new deals. Won, Lost, and Cancelled are over.
+OPEN_PROJECT_STATUSES = {
+    Opportunity.ProjectStatus.UPCOMING,
+    Opportunity.ProjectStatus.ACTIVE,
+    Opportunity.ProjectStatus.ON_HOLD,
 }
 
 
@@ -144,6 +153,14 @@ def generate_matching_suggestion(registration):
             factors.append("One or more requested catalog products overlap.")
         else:
             conflicts.append("No requested catalog product overlap was found.")
+        # A Won, Lost, or Cancelled project is over. Show it, so DBGI does not create a duplicate
+        # project, but never match a new deal to it automatically (any conflict stops that).
+        closed = candidate_scope.opportunity
+        if closed.project_status not in OPEN_PROJECT_STATUSES:
+            conflicts.append(
+                f"This project is already {closed.get_project_status_display()}. "
+                "A new deal for it is usually rejected."
+            )
 
         if len(tied_candidates) > 1:
             outcome = MatchingSuggestion.Outcome.CLARIFY

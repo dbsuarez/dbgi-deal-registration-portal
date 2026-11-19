@@ -704,7 +704,7 @@ export default function HelpPage() {
           <ListItem disableGutters>
             <ListItemText
               primary="Project status"
-              secondary="What is happening to the procurement project, such as upcoming, active, won, lost, cancelled, or on hold."
+              secondary="What is happening to the procurement project, such as upcoming, active, won, lost, cancelled, or on hold. When a project is won, you see Won by your company, or Awarded to another company."
             />
           </ListItem>
           <ListItem disableGutters>

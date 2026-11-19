@@ -31,6 +31,8 @@ export type RegistrationListItem = {
   status_label: string;
   project_status: string | null;
   project_status_label: string;
+  // Partners: won_by_you, awarded_to_other, or awarded instead of won. Use it for color and help text.
+  project_status_view?: string | null;
   price_status: string;
   price_status_label: string;
   total_requested_value: string;

@@ -17,6 +17,9 @@ const STATUS_COLORS: Record<StatusKind, Record<string, ChipProps["color"]>> = {
     upcoming: "info",
     active: "primary",
     won: "success",
+    won_by_you: "success",
+    awarded_to_other: "default",
+    awarded: "default",
     lost: "error",
     cancelled: "default",
     on_hold: "warning",
@@ -60,6 +63,11 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
     upcoming: "The linked project is expected but has not started yet.",
     active: "The linked project is currently active.",
     won: "The linked project was recorded as won.",
+    won_by_you: "DBGI confirmed that your company won this project.",
+    awarded_to_other:
+      "The project was awarded to another company. Your deal stays on record.",
+    awarded:
+      "The project was awarded. DBGI has not recorded which company won it.",
     lost: "The linked project was recorded as lost.",
     cancelled: "The linked project was cancelled.",
     on_hold: "Work on the linked project is temporarily on hold.",

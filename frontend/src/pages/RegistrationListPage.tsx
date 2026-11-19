@@ -294,7 +294,10 @@ export default function RegistrationListPage() {
                 label={value}
                 size="small"
                 variant="filled"
-                color={getStatusColor("project", row.project_status)}
+                color={getStatusColor(
+                  "project",
+                  row.project_status_view ?? row.project_status,
+                )}
               />
             </Tooltip>
           ),

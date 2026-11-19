@@ -331,7 +331,7 @@ PAGES = [
         "pics": [("confirmed-top", "The Registered label and the project label")],
         "tip": (
             "Sometimes the portal does this by itself. It happens only when the end-user's name and address "
-            "and all the products exactly match one project. The partner gets a message."
+            "and all the products exactly match one open project. The partner gets a message."
         ),
     },
     # Part 7
@@ -520,7 +520,10 @@ PAGES = [
             "Click **Confirm** or **Do not accept**, and add a note.",
         ],
         "pics": [("out-dbgi", "The report waiting for your decision")],
-        "tip": "Confirming changes the project's status for every deal linked to it. The partner gets a message.",
+        "tip": (
+            "Confirming changes the project's status for every deal linked to it. If it is Won, the winner sees "
+            "**Won by your company**, and the others see **Awarded to another company**."
+        ),
     },
     # Part 12
     {

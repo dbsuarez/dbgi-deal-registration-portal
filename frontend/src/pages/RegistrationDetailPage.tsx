@@ -484,7 +484,7 @@ export default function RegistrationDetailPage() {
               enterDelay={300}
               title={getStatusExplanation(
                 "project",
-                registration.project_status,
+                registration.project_status_view ?? registration.project_status,
               )}
             >
               <Chip
@@ -492,7 +492,11 @@ export default function RegistrationDetailPage() {
                 size="small"
                 label={`Project: ${registration.project_status_label}`}
                 variant="filled"
-                color={getStatusColor("project", registration.project_status)}
+                color={getStatusColor(
+                  "project",
+                  registration.project_status_view ??
+                    registration.project_status,
+                )}
               />
             </Tooltip>
             <Tooltip
