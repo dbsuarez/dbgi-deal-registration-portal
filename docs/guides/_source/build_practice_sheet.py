@@ -62,7 +62,9 @@ STEPS = [
     ),
     (
         "Your company, then DBGI",
-        "Click **Report project outcome**, choose **Won**, and send it. As DBGI, open the deal and confirm it.",
+        "Click **Report project outcome** and choose **Won**. Attach any made-up PDF as the **Notice of Award**, "
+        "and send it. As DBGI, open the deal, open the Notice of Award, and click **Confirm Won**. Then click "
+        "**Mark certificates issued**.",
         "35, 36",
     ),
 ]

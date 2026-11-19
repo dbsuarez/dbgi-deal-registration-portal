@@ -23,7 +23,7 @@ PARTS = {
     7: "Approve the price",
     8: "See the result",
     9: "Change a deal",
-    10: "Withdraw a deal",
+    10: "Close a deal",
     11: "Report the result",
     12: "Time limits",
     13: "Other DBGI tasks",
@@ -215,7 +215,7 @@ PAGES = [
                 "DBGI checks again. Your rank stays.",
             ],
             ["Rejected", "DBGI said no. The reason is in Activity.", "This is final"],
-            ["Withdrawn", "You took the deal back", "This is final"],
+            ["Closed", "You or DBGI closed the deal", "Only DBGI can reopen it"],
         ],
         "widths": [3, 5, 4],
     },
@@ -426,7 +426,7 @@ PAGES = [
         "part": 9,
         "title": "How to change a deal",
         "role": "partner",
-        "intro": "You can edit your deal any time until you withdraw it. Some parts lock during review.",
+        "intro": "You can edit your deal any time until it is closed. Some parts lock during review.",
         "steps": [
             "Open the deal and click **Edit registration**.",
             "Make your change and click **Save changes**.",
@@ -478,19 +478,22 @@ PAGES = [
     # Part 10
     {
         "part": 10,
-        "title": "Withdraw a deal",
-        "role": "partner",
-        "intro": "Do this if your company will not go on with the deal.",
+        "title": "Close a deal",
+        "role": "both",
+        "intro": "Do this if your company will not go on with the deal, for example when another company won.",
         "steps": [
-            "Open the deal and click **Withdraw registration**.",
-            "Type your reason.",
-            "Click **Withdraw registration** in the box.",
+            "Open the deal and click **Close deal**.",
+            "Choose why it is closing, and type a reason.",
+            "Click **Close deal** in the box.",
         ],
         "pics": [
-            ("withdraw", "Confirming the withdrawal"),
-            ("withdrawn-top", "The deal is now Withdrawn"),
+            ("withdraw", "Closing the deal"),
+            ("withdrawn-top", "The deal is now Closed"),
         ],
-        "warn": "This cannot be undone. The deal leaves the ranking. If the project comes back, register a new deal.",
+        "warn": (
+            "The deal leaves the ranking and cannot change. DBGI can also close it for you after a call. "
+            "Only DBGI can reopen it, for example if the winner is disqualified."
+        ),
     },
     # Part 11
     {
@@ -501,7 +504,8 @@ PAGES = [
         "steps": [
             "Click **Report project outcome**.",
             "Choose **Won**, **Lost**, or **Cancelled**.",
-            "Say what happened, like the notice of award you received.",
+            "Say what happened.",
+            "For **Won**, attach the **Notice of Award**. A project is won when you receive it.",
             "Click **Send report**.",
         ],
         "pics": [
@@ -516,8 +520,10 @@ PAGES = [
         "role": "dbgi",
         "steps": [
             "You get a message and an email.",
-            "Open the deal and find **Project outcome reports**.",
+            "Open the deal and find **Project outcome reports**. Open the **Notice of Award**.",
             "Click **Confirm** or **Do not accept**, and add a note.",
+            "If it is Won: issue the manufacturer and dealer certificates, then click **Mark certificates "
+            "issued**. Call the other companies and **Close** their deals from the list on the deal page.",
         ],
         "pics": [("out-dbgi", "The report waiting for your decision")],
         "tip": (
@@ -734,7 +740,7 @@ PAGES = [
             "**A requested price is not an approved price.** Wait for DBGI.",
             "**Read Activity.** DBGI's reasons and instructions are there.",
             "**Do not upload private papers** or other companies' prices.",
-            "**Withdrawing is final.** You would need to register a new deal.",
+            "**A closed deal cannot change.** Only DBGI can reopen it.",
         ],
     },
     {
@@ -751,7 +757,7 @@ PAGES = [
             ["See my place on a project", "Rankings"],
             ["Use my approved price again", "Open the deal, then Request repeat order"],
             ["Tell DBGI I won or lost", "Open the deal, then Report project outcome"],
-            ["Stop a deal", "Open the deal, then Withdraw registration"],
+            ["Stop a deal", "Open the deal, then Close deal"],
         ],
         "widths": [2, 3],
     },

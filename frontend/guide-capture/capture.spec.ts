@@ -308,17 +308,17 @@ test("capture the guide screenshots", async ({ browser }) => {
     "after-approvals",
   );
 
-  // Part 10: withdraw a deal
+  // Part 10: close a deal
   await openDeal(partner, "Printers for the Lucena City Library");
-  await partner.getByRole("button", { name: "Withdraw registration" }).click();
+  await partner.getByRole("button", { name: "Close deal" }).click();
   await partner
     .getByRole("dialog")
-    .getByLabel(/Reason for withdrawing/)
+    .getByLabel(/Reason/)
     .fill("The library cancelled its plan to buy printers.");
   await dialog(partner, "withdraw");
   await partner
     .getByRole("dialog")
-    .getByRole("button", { name: "Withdraw registration" })
+    .getByRole("button", { name: "Close deal" })
     .click();
   await settle(partner);
   await partner.screenshot({
@@ -337,6 +337,14 @@ test("capture the guide screenshots", async ({ browser }) => {
     .fill(
       "The office awarded the project to us. We got the award notice today.",
     );
+  await partner
+    .getByRole("dialog")
+    .getByLabel("Notice of Award file")
+    .setInputFiles({
+      name: "notice-of-award.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4 sample notice of award"),
+    });
   await dialog(partner, "outcome");
   await partner.getByRole("button", { name: "Send report" }).click();
   await settle(partner);

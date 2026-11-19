@@ -17,7 +17,7 @@ OUT = os.path.normpath(
 TITLE = "Practice More Cases"
 CASE_DEAL = "Case practice: printers and scanners"
 # WordCraft does not keep a heading with the table after it, so these cases start a new page.
-NEW_PAGE = {"2", "5", "8"}
+NEW_PAGE = {"2", "5", "8", "11"}
 
 CASES = [
     (
@@ -242,18 +242,64 @@ CASES = [
         ],
     ),
     (
-        "11. Withdraw a deal",
+        "11. DBGI closes a deal after the win",
         [
             (
-                "Other company",
-                "Open your deal from the first sheet and click **Withdraw registration**. Type a reason and confirm. "
-                "This is final: there is no undo.",
-                "34",
+                "Your company",
+                "Open your deal from the first sheet. Click **Report project outcome**, choose **Won**, attach any "
+                "made-up PDF as the **Notice of Award**, and send it.",
+                "35",
             ),
             (
                 "DBGI",
-                "Click **Rankings**. The other company is no longer on your pair's project.",
-                "30, 34",
+                "Open the deal and click **Confirm Won**. Click **Mark certificates issued**. Under **Other "
+                "companies' open deals**, click **Close** on the other company's deal. Type a note from the call "
+                "(for example: called them, they will not continue) and click **Close deal**.",
+                "34, 36",
+            ),
+            (
+                "Other company",
+                "Open your deal. It says **Closed**, and the project says **Awarded to another company**. Read "
+                "DBGI's note under **Activity**.",
+                "34",
+            ),
+        ],
+    ),
+    (
+        "12. DBGI reopens a closed deal",
+        [
+            (
+                "DBGI",
+                "Open the other company's closed deal and click **Reopen deal**. Type a reason (for example: the "
+                "winner was disqualified) and click **Reopen deal**.",
+                "34",
+            ),
+            (
+                "Other company",
+                "Open the deal. It is **Registered** again. Click **Rankings**: you are back in your old place.",
+                "30",
+            ),
+        ],
+    ),
+    (
+        "13. A late deal for a won project",
+        [
+            (
+                "Other company",
+                "Register the same project again: your pair's end-user, product **M1820W**, quantity 5, price 9500.",
+                "9 to 12",
+            ),
+            (
+                "Other company",
+                "Open the new deal. It says **Rejected** right away, because the project was already won. The reason "
+                "is under **Activity**.",
+                "15",
+            ),
+            (
+                "Other company",
+                "Open your first deal and click **Close deal**. Choose **Another company won**, type a reason, and "
+                "click **Close deal**. Only DBGI can reopen it.",
+                "34",
             ),
         ],
     ),
@@ -315,7 +361,9 @@ def build():
             f"Sign in the same way: open **{ADDRESS}** and use **your pair's** cards, and **DBGI Practice** for DBGI. "
             "If a password is asked for, it is **testpass123**.",
             "Do the cases **in order**, and stay with **your pair's end-user**.",
-            "Cases 1 to 4 use one new deal, called the **case deal**. Cases 7 to 11 use the deals from the first sheet.",
+            "Cases 1 to 4 use one new deal, called the **case deal**. Cases 7 to 13 use the deals from the first sheet.",
+            "Not here: changing a **list price** and **Apply current list prices** (slides 39 and 40). Every pair "
+            "shares the catalog, so a price change would affect everyone.",
         ]
     )
     for title, steps in CASES:
@@ -323,10 +371,6 @@ def build():
             doc.c("text.pageBreak")
         doc.h2(title)
         case_table(doc, title.split(".")[0], steps)
-    doc.callout(
-        "Not on this test copy: changing a **list price** and **Apply current list prices** (slides 39 and 40). The "
-        "catalog is shared by every pair, so a price change would affect everyone."
-    )
     doc.h2("Tell us what you think")
     doc.para("Please fill this in, save the file, and send it back to the person who shared it.")
     feedback_table(doc)
