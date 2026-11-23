@@ -33,6 +33,10 @@ function money(value: string | number) {
   });
 }
 
+function percent(value: string | null, empty: string) {
+  return value === null ? empty : `${Number(value).toFixed(2)}%`;
+}
+
 function Stat({
   label,
   value,
@@ -160,32 +164,50 @@ export default function OwnerOverviewPage() {
         {month.label} so far, compared with last month
       </Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <Stat
             label="New deals"
             value={String(month.new_deals)}
             detail={`Last month: ${month.new_deals_last_month}`}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <Stat
             label="Projects won"
             value={`${month.won} | ${money(month.won_value)}`}
             detail={`Last month: ${month.won_last_month} | ${money(month.won_value_last_month)}`}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <Stat
             label="Lost or cancelled"
             value={String(month.lost_or_cancelled)}
             detail={`Last month: ${month.lost_or_cancelled_last_month}`}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <Stat
             label="Pipeline (open deals)"
             value={money(month.pipeline_value)}
             detail={`${month.pipeline_deals} open deal${month.pipeline_deals === 1 ? "" : "s"}`}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Stat
+            label="Average discount approved"
+            value={percent(data.average_discount.this_month, "None yet")}
+            detail={`Last month: ${percent(data.average_discount.last_month, "none")}`}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Stat
+            label={`Win rate, ${data.quarter_label}`}
+            value={
+              data.win_rate.percent === null
+                ? "No results yet"
+                : `${data.win_rate.percent}%`
+            }
+            detail={`${data.win_rate.won} won, ${data.win_rate.lost} lost (cancelled not counted)`}
           />
         </Grid>
       </Grid>
@@ -254,6 +276,94 @@ export default function OwnerOverviewPage() {
         </Section>
 
         <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Section
+              title={`Thin margins (less than ${Number(data.thin_margin_percent)}% above landed cost)`}
+              empty={data.thin_margins.length ? null : "No thin margins."}
+            >
+              <TableContainer>
+                <Table size="small" aria-label="Thin margins">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Company</TableCell>
+                      <TableCell>Product</TableCell>
+                      <TableCell sx={moneyCell}>Price</TableCell>
+                      <TableCell sx={moneyCell}>Landed cost</TableCell>
+                      <TableCell sx={moneyCell}>Margin</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {data.thin_margins.map((row) => (
+                      <TableRow key={`${row.registration_id}-${row.product}`}>
+                        <TableCell>
+                          <DealLink id={row.registration_id}>
+                            {row.company_name}
+                          </DealLink>
+                        </TableCell>
+                        <TableCell>{row.product}</TableCell>
+                        <TableCell sx={moneyCell}>
+                          {money(row.approved_price)}
+                        </TableCell>
+                        <TableCell sx={moneyCell}>
+                          {money(row.landed_cost)}
+                        </TableCell>
+                        <TableCell sx={moneyCell}>
+                          {percent(row.margin_percent, "-")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {data.thin_margins_more > 0 && (
+                <Typography variant="caption" color="text.secondary">
+                  And {data.thin_margins_more} more.
+                </Typography>
+              )}
+            </Section>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Section
+              title="Prices ending soon, still bidding"
+              empty={
+                data.prices_ending.length
+                  ? null
+                  : "No approved prices end in the next 14 days."
+              }
+            >
+              <TableContainer>
+                <Table size="small" aria-label="Prices ending soon">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Price ends</TableCell>
+                      <TableCell>Company</TableCell>
+                      <TableCell>Products</TableCell>
+                      <TableCell>Bid date</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {data.prices_ending.map((row) => (
+                      <TableRow key={`${row.registration_id}-${row.category}`}>
+                        <TableCell>{row.valid_until}</TableCell>
+                        <TableCell>
+                          <DealLink id={row.registration_id}>
+                            {row.company_name}
+                          </DealLink>
+                        </TableCell>
+                        <TableCell>{row.category}</TableCell>
+                        <TableCell>{row.bid_date}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {data.prices_ending_more > 0 && (
+                <Typography variant="caption" color="text.secondary">
+                  And {data.prices_ending_more} more.
+                </Typography>
+              )}
+            </Section>
+          </Grid>
           <Grid size={{ xs: 12, md: 7 }}>
             <Section
               title="Recent wins"

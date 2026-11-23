@@ -12,15 +12,23 @@ from django.utils import timezone
 
 from .models import (
     Opportunity,
+    Product,
     ProjectOutcomeReport,
     Registration,
     RegistrationCategoryApproval,
+    RegistrationItemApproval,
 )
 
 LIST_SIZE = 5
 UPCOMING_DAYS = 14
 STUCK_REVIEW_DAYS = 7
 STUCK_OWNER_DAYS = 2
+THIN_MARGIN_PERCENT = Decimal("5")
+ENDING_DAYS = 14
+ACTIVE_PRICES = {
+    RegistrationCategoryApproval.Status.APPROVED,
+    RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+}
 OPEN_STATUSES = set(Registration.Status) - {
     Registration.Status.CLOSED,
     Registration.Status.REJECTED,
@@ -86,6 +94,63 @@ def _outcomes(outcomes, start, end):
         outcome__in=outcomes,
         **_between("decided_at", start, end),
     )
+
+
+def _average_discount(start, end):
+    """The discount from the list price on prices approved between `start` and `end`, weighted by
+    value (a big order counts more). None when nothing was approved."""
+    rows = RegistrationItemApproval.objects.filter(
+        approved_unit_price__isnull=False,
+        category_approval__status__in=ACTIVE_PRICES,
+        **_between("category_approval__reviewed_at", start, end),
+    ).select_related("registration_item")
+    listed = approved = Decimal("0")
+    for row in rows:
+        item = row.registration_item
+        if item.list_unit_price_snapshot > 0:
+            listed += item.list_unit_price_snapshot * item.quantity
+            approved += row.approved_unit_price * item.quantity
+    return round((listed - approved) * 100 / listed, 2) if listed else None
+
+
+def _thin_margins(today):
+    """Approved prices less than THIN_MARGIN_PERCENT above the landed cost, on open deals."""
+    rows = (
+        RegistrationItemApproval.objects.filter(
+            approved_unit_price__isnull=False,
+            category_approval__status__in=ACTIVE_PRICES,
+            registration_item__product__isnull=False,
+            registration_item__registration__status__in=OPEN_STATUSES,
+        )
+        .exclude(category_approval__valid_until__lt=today)
+        .select_related("registration_item__product", "registration_item__registration__company")
+    )
+    costs = dict(
+        Product.objects.filter(pk__in=[row.registration_item.product_id for row in rows])
+        .with_landed_cost()
+        .values_list("pk", "landed_cost")
+    )
+    thin = []
+    for row in rows:
+        item = row.registration_item
+        cost = costs.get(item.product_id)
+        if not cost:
+            continue
+        margin = (row.approved_unit_price - cost) * 100 / cost
+        if margin < THIN_MARGIN_PERCENT:
+            deal = item.registration
+            thin.append(
+                {
+                    "registration_id": deal.pk,
+                    "reference": deal.reference,
+                    "company_name": deal.company.name,
+                    "product": item.display_name,
+                    "approved_price": row.approved_unit_price,
+                    "landed_cost": Decimal(cost).quantize(Decimal("0.01")),
+                    "margin_percent": round(margin, 2),
+                }
+            )
+    return sorted(thin, key=lambda row: row["margin_percent"])
 
 
 def owner_overview(today=None):
@@ -161,6 +226,23 @@ def owner_overview(today=None):
     }
 
     quarter = _quarter_start(today)
+    quarter_reports = ProjectOutcomeReport.objects.filter(
+        status=ProjectOutcomeReport.Status.CONFIRMED, decided_at__date__gte=quarter
+    )
+    quarter_won = quarter_reports.filter(outcome=ProjectOutcomeReport.Outcome.WON).count()
+    quarter_lost = quarter_reports.filter(outcome=ProjectOutcomeReport.Outcome.LOST).count()
+    thin = _thin_margins(today)
+    ending = list(
+        RegistrationCategoryApproval.objects.filter(
+            status__in=ACTIVE_PRICES,
+            valid_until__gte=today,
+            valid_until__lte=today + timedelta(days=ENDING_DAYS),
+            registration__status__in=OPEN_STATUSES,
+            registration__bid_date__gte=today,
+        )
+        .select_related("registration__company")
+        .order_by("valid_until", "id")
+    )
     partners = {}
     for deal in _deals().filter(status__in=OPEN_STATUSES, created_at__date__gte=quarter):
         name = deal.company.name
@@ -237,6 +319,33 @@ def owner_overview(today=None):
             for name, (count, value) in top_partners
         ],
         "quarter_label": f"Q{(quarter.month - 1) // 3 + 1} {quarter.year}",
+        # Won out of won and lost this quarter; cancelled projects are not counted.
+        "win_rate": {
+            "won": quarter_won,
+            "lost": quarter_lost,
+            "percent": (
+                round(Decimal(quarter_won) * 100 / (quarter_won + quarter_lost), 1)
+                if quarter_won + quarter_lost
+                else None
+            ),
+        },
+        "average_discount": {
+            "this_month": _average_discount(this_month, next_month),
+            "last_month": _average_discount(last_month, this_month),
+        },
+        "thin_margins": thin[:LIST_SIZE],
+        "thin_margins_more": max(len(thin) - LIST_SIZE, 0),
+        "thin_margin_percent": THIN_MARGIN_PERCENT,
+        "prices_ending": [
+            deal_row(
+                approval.registration,
+                category=approval.category,
+                valid_until=approval.valid_until,
+                bid_date=approval.registration.bid_date,
+            )
+            for approval in ending[:LIST_SIZE]
+        ],
+        "prices_ending_more": max(len(ending) - LIST_SIZE, 0),
     }
 
 
@@ -269,6 +378,38 @@ def summary_text(overview):
         lines.append(
             f"- {row['bid_date']:%Y-%m-%d} {row['company_name']}: {row['project_title']}{note}"
         )
+    rate = overview["win_rate"]
+    discount = overview["average_discount"]
+    lines += [
+        "",
+        f"Win rate, {overview['quarter_label']}: "
+        + (
+            f"{rate['percent']}% ({rate['won']} won, {rate['lost']} lost)"
+            if rate["percent"] is not None
+            else "no won or lost projects yet"
+        ),
+        "Average discount approved: "
+        + (f"{discount['this_month']}%" if discount["this_month"] is not None else "none yet")
+        + " this month, "
+        + (f"{discount['last_month']}%" if discount["last_month"] is not None else "none")
+        + " last month",
+    ]
+    if overview["thin_margins"]:
+        lines += [
+            "",
+            f"Thin margins (less than {overview['thin_margin_percent']}% above landed cost):",
+        ]
+        lines += [
+            f"- {row['company_name']}, {row['product']}: {money(row['approved_price'])} "
+            f"(landed cost {money(row['landed_cost'])})"
+            for row in overview["thin_margins"]
+        ]
+    if overview["prices_ending"]:
+        lines += ["", f"Prices ending in the next {ENDING_DAYS} days, still bidding:"]
+        lines += [
+            f"- {row['valid_until']:%Y-%m-%d} {row['company_name']}: {row['category']}"
+            for row in overview["prices_ending"]
+        ]
     if overview["stuck"]:
         lines += ["", "Stuck:"]
         lines += [

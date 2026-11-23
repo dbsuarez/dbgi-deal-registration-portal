@@ -462,6 +462,22 @@ export type OwnerOverview = {
   })[];
   top_partners: { company_name: string; deals: number; value: string }[];
   quarter_label: string;
+  win_rate: { won: number; lost: number; percent: string | null };
+  average_discount: { this_month: string | null; last_month: string | null };
+  thin_margins: (OverviewDeal & {
+    product: string;
+    approved_price: string;
+    landed_cost: string;
+    margin_percent: string;
+  })[];
+  thin_margins_more: number;
+  thin_margin_percent: string;
+  prices_ending: (OverviewDeal & {
+    category: string;
+    valid_until: string;
+    bid_date: string;
+  })[];
+  prices_ending_more: number;
 };
 
 export function getOwnerOverview(signal?: AbortSignal) {

@@ -2454,6 +2454,24 @@ test("the owner approves a bigger discount on Owner approvals", async ({
           { company_name: "North Dealer", deals: 3, value: "900000.00" },
         ],
         quarter_label: "Q4 2026",
+        win_rate: { won: 2, lost: 1, percent: "66.7" },
+        average_discount: { this_month: "12.50", last_month: "9.00" },
+        thin_margins: [
+          {
+            registration_id: 15,
+            reference: "DBGI-000015",
+            company_name: "North Dealer",
+            project_title: "Repeat project",
+            product: "Printer",
+            approved_price: "7100.00",
+            landed_cost: "7000.00",
+            margin_percent: "1.43",
+          },
+        ],
+        thin_margins_more: 0,
+        thin_margin_percent: "5",
+        prices_ending: [],
+        prices_ending_more: 0,
       },
     }),
   );
@@ -2464,6 +2482,12 @@ test("the owner approves a bigger discount on Owner approvals", async ({
   await expect(page.getByText("2,450,000.00")).toBeVisible();
   await expect(page.getByText("Not decided")).toBeVisible();
   await expect(page.getByText("Nothing is stuck.")).toBeVisible();
+  await expect(page.getByText("66.7%")).toBeVisible();
+  await expect(page.getByText("12.50%")).toBeVisible();
+  await expect(page.getByText("1.43%")).toBeVisible();
+  await expect(
+    page.getByText("No approved prices end in the next 14 days."),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Administration" })).toHaveCount(
     0,
   );

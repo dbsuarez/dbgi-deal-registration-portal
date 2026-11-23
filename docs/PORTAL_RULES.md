@@ -273,6 +273,10 @@ All counts are calendar days, starting from the server's recorded time.
   - Bids in the next 14 days, each marked Decided or Not decided; anything stuck (a deal waiting for DBGI review
     more than 7 days, or a price waiting for him more than 2 days); the last 5 wins, with whether the certificates
     were issued; and the top 5 partners of the quarter by registered value.
+  - Since 2026-11-23 it also shows: the **average discount** approved this month and last month (from the list price,
+    weighted by value); the **win rate** this quarter (won out of won and lost; cancelled projects are not counted);
+    **thin margins** (approved prices less than 5% above the landed cost, on open deals); and **prices ending soon**
+    (approved prices ending in the next 14 days on deals whose bid date has not passed).
   - Every list shows at most 5 rows. **All deals** opens the full deal list (also at /deals/).
 - **Live (setting, 2026-11-23):** every Monday at 07:00 Asia/Manila the owner gets an email with the same numbers
   (`send_owner_summary`, scheduled with the daily job in `deploy/cron.d/dbgi-portal`). A superuser can switch it off

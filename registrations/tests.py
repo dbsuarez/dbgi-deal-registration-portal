@@ -64,6 +64,7 @@ from .models import (
     RepeatOrder,
     User,
 )
+from .owner import owner_overview, summary_text
 from .snapshots import (
     SnapshotError,
     import_backup,
@@ -2530,6 +2531,43 @@ class RegistrationApiTests(TestCase):
             )
             call_command("send_owner_summary", stdout=StringIO())
             self.assertEqual(len(mail.outbox), 1)
+
+    def test_owner_overview_watches_margins_discounts_win_rate_and_ending_prices(self):
+        self.set_price("10000.00")
+        self.set_landed_cost("7000.00")
+        deal = self.register_deal()
+        Registration.objects.filter(pk=deal.pk).update(
+            bid_date=timezone.localdate() + timedelta(days=20)
+        )
+        self.make_owner()
+        self.client.force_login(self.admin)
+        decided = self.decide(
+            deal.category_approvals.get(),
+            "7100.00",
+            valid_until=str(timezone.localdate() + timedelta(days=10)),
+        )
+        self.assertEqual(decided.status_code, 200, decided.content)
+        for outcome in ("won", "won", "lost", "cancelled"):
+            ProjectOutcomeReport.objects.create(
+                registration=self.registration_b,
+                opportunity=self.link_to_project(self.registration_b),
+                outcome=outcome,
+                note="Test",
+                reported_by=self.user_b,
+                status=ProjectOutcomeReport.Status.CONFIRMED,
+                decided_at=timezone.now(),
+            )
+
+        body = self.client.get("/api/v1/owner/overview").json()
+        thin = body["thin_margins"][0]
+        self.assertEqual((thin["approved_price"], thin["landed_cost"]), ("7100.00", "7000.00"))
+        self.assertEqual(thin["margin_percent"], "1.43")
+        self.assertEqual(body["average_discount"]["this_month"], "29.00")
+        self.assertEqual(body["win_rate"], {"won": 2, "lost": 1, "percent": "66.7"})
+        self.assertEqual(body["prices_ending"][0]["reference"], deal.reference)
+        text = summary_text(owner_overview())
+        self.assertIn("Win rate", text)
+        self.assertIn("Thin margins", text)
 
     def test_declined_outcome_keeps_the_project_status(self):
         opportunity = self.link_to_project(self.registration_a)
