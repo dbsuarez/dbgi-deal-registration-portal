@@ -3,6 +3,8 @@
 ## Source of truth
 This package is for projects that explicitly select **Django + Django Ninja**. It does not supersede or modify the separate FastAPI standards package.
 
+Start every session with `docs/HANDOFF.md` (current state, next steps, pitfalls), and update it at the end of each finished task.
+
 Read `TECH_STACK.md` first, then the relevant standards for the task:
 - Frontend and user experience: `UI_STANDARDS.md`
 - Backend APIs: `API_STANDARDS.md`
