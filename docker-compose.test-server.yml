@@ -1,23 +1,25 @@
-# Fake-data test install on a shared server, over plain HTTP. Not for a real launch.
-# Every service has a memory limit, and only port 8081 is published, so the server's other
-# services keep their memory and their web ports.
+# DBGI portal on the Hostinger KVM4 server (4 CPUs, 16 GB), its permanent home since 2026-11-23.
+# Still in test mode (DJANGO_DEBUG=true) while employees test it.
+# The server is shared: Traefik (not ours) owns ports 80 and 443 and serves https://deals.dbgi.ph to our
+# nginx through the labels below, with a free Let's Encrypt certificate. Port 8081 stays as a direct way in.
+# Every service keeps a memory cap so the server's other services always keep their memory.
 name: dbgi-portal
 
 services:
   cache:
     image: redis:8.0-alpine
     restart: unless-stopped
-    mem_limit: 32m
+    mem_limit: 256m
     command:
-      ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "16mb"]
+      ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb"]
     networks:
       - backend
 
   db:
     image: postgres:17-alpine
     restart: unless-stopped
-    mem_limit: 160m
-    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=20"]
+    mem_limit: 2g
+    command: ["postgres", "-c", "shared_buffers=512MB", "-c", "max_connections=50"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
@@ -35,7 +37,7 @@ services:
   web:
     image: dbgi-portal-web
     restart: unless-stopped
-    mem_limit: 320m
+    mem_limit: 2g
     env_file:
       - .env
     environment:
@@ -47,7 +49,7 @@ services:
       - -c
       - >-
         python manage.py collectstatic --noinput &&
-        exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2
+        exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
         --access-logfile - --error-logfile -
     depends_on:
       cache:
@@ -63,9 +65,16 @@ services:
   nginx:
     image: nginx:1.29-alpine
     restart: unless-stopped
-    mem_limit: 32m
+    mem_limit: 128m
     depends_on:
       - web
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dbgi-portal_edge
+      traefik.http.routers.dbgi-portal.rule: Host(`deals.dbgi.ph`)
+      traefik.http.routers.dbgi-portal.entrypoints: websecure
+      traefik.http.routers.dbgi-portal.tls.certresolver: letsencrypt
+      traefik.http.services.dbgi-portal.loadbalancer.server.port: "80"
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/dist:/usr/share/nginx/html:ro

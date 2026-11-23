@@ -5,3 +5,5 @@
 0 22 * * * root /opt/dbgi-portal/deploy/dbgi-portal-daily.sh
 # Monday 07:00 Asia/Manila (Sunday 23:00 UTC): the owner's summary email (deploy/dbgi-portal-weekly.sh).
 0 23 * * 0 root /opt/dbgi-portal/deploy/dbgi-portal-weekly.sh
+# 21:30 UTC is 05:30 Asia/Manila: the daily backup (deploy/dbgi-portal-backup.sh), before the deadline job.
+30 21 * * * root /opt/dbgi-portal/deploy/dbgi-portal-backup.sh

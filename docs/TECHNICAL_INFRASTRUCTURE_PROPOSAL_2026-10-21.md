@@ -15,6 +15,21 @@ Treat the current application as an internal beta until the launch gates in this
 **Update, 2026-11-05:** the Hostinger VPS DBGI has access to is shared with another person's services, and whoever has
 root there can read everything. So it is a **fake-data test server only**, and the real launch needs a separate server.
 
+**Update, 2026-11-23:** the server was upgraded to Hostinger KVM4 (4 CPUs, 16 GB memory, 193 GB disk) and is now the
+portal's **permanent home**. It is still shared with the other person's services, and DBGI co-owns the plan. The portal
+stays in test mode (debug on, practice data) while employees test it; the rules below still apply until go-live.
+
+- Address: `https://deals.dbgi.ph`, served by the server's existing Traefik (ports 80 and 443) through labels on our
+  nginx container in `docker-compose.test-server.yml`. Traefik gets and renews the Let's Encrypt certificate. Port
+  8081 stays as a direct way in. Traefik's own settings are not ours; do not change them.
+- Real email is on (SMTP through MXroute, sent as support@dbgi.ph), so practice sends real emails.
+- Daily backup at 21:30 UTC (05:30 Asia/Manila): `deploy/dbgi-portal-backup.sh` saves the database and uploaded files
+  to `backups/YYYY-MM-DD/` in the portal folder and keeps 14 days. The log is `logs/backup.log`. A copy off the server
+  is still to be set up.
+- Before go-live: set `DJANGO_DEBUG=false`, remove `DJANGO_ALLOW_HTTP_COOKIES`, set `PORTAL_BASE_URL`, new secret key and
+  strong passwords, clean data, and decide whether to keep a separate practice copy. Whoever has root on the server can
+  read the portal's data, so real data there means trusting the other person with it.
+
 Test server rules:
 
 - Address: `http://187.127.124.78:8081`, in `/opt/dbgi-portal`, using `docker-compose.test-server.yml`. Plain HTTP, so
@@ -24,10 +39,7 @@ Test server rules:
   without a password. Treat every account and all data there as public. A real launch must keep debug off.
 - Do not touch the other person's services: his Pterodactyl panel, game servers, Traefik, or anything in `/docker`. No
   OS reinstall, server-wide snapshot restore, or server-wide Docker cleanup. Port 80 is not available.
-- The server has 1 CPU and little free memory. Do not run heavy builds there: build the frontend elsewhere and copy
-  `frontend/dist`. Every container keeps its memory limit.
-- To update it: copy the changed files, then run
-  `DOCKER_BUILDKIT=0 nice -n 19 docker build --memory=512m --memory-swap=512m --cpu-quota=50000 -t dbgi-portal-web .`,
+- To update it: copy the changed files, then run `docker build -t dbgi-portal-web .`,
   `docker compose -f docker-compose.test-server.yml up -d`, and
   `docker compose -f docker-compose.test-server.yml exec web python manage.py migrate`.
 - The daily `process_deadlines` job runs here since 2026-11-19: `/etc/cron.d/dbgi-portal` calls
