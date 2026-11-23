@@ -813,9 +813,9 @@ PAGES = [
         "role": "dbgi",
         "intro": "The owner's home page shows what is happening, without reading every deal.",
         "steps": [
-            "This month so far: new deals, projects won, lost or cancelled, and the pipeline.",
+            "This month so far: new deals, wins, lost or cancelled, the pipeline, the average discount, and the win rate.",
             "Bids in the next 14 days, and whether each price is decided.",
-            "Anything stuck, the recent wins and their certificates, and the top partners.",
+            "Anything stuck, thin margins, prices ending soon, recent wins, and the top partners.",
             "Every Monday morning, the same numbers come by email.",
         ],
         "pics": [("owner-overview", "The Overview: a few numbers and short lists")],
