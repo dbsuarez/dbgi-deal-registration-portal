@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from devtools.scenarios import ensure_landed_cost
 from registrations.audit import registration_snapshot
 from registrations.matching import generate_matching_suggestion
 from registrations.models import (
@@ -42,6 +43,7 @@ class Command(BaseCommand):
                 "category": "Laser Printers",
             },
         )
+        ensure_landed_cost(product)
         it_avenue = self._company_user("IT Avenue", "deals@itavenue.ph")
         lexmark = self._company_user("Lexmark", "deals@lexmark.com")
 

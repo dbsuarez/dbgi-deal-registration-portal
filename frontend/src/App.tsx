@@ -29,6 +29,8 @@ const OpportunityRankingsPage = lazy(
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
+const OwnerApprovalsPage = lazy(() => import("./pages/OwnerApprovalsPage"));
+const OwnerOverviewPage = lazy(() => import("./pages/OwnerOverviewPage"));
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -122,9 +124,22 @@ function App() {
                   DBGI Project Registration
                 </Typography>
                 <Typography sx={{ mr: 2 }}>{session.display_name}</Typography>
+                {session.is_owner && (
+                  <Button color="inherit" href="/">
+                    Overview
+                  </Button>
+                )}
                 <Button color="inherit" href="/rankings/">
                   Rankings
                 </Button>
+                {session.is_dbgi_admin && (
+                  <Button color="inherit" href="/owner-approvals/">
+                    Owner approvals
+                    {session.is_owner && session.owner_waiting_count
+                      ? ` (${session.owner_waiting_count})`
+                      : ""}
+                  </Button>
+                )}
                 <Button
                   color="inherit"
                   href="/notifications/"
@@ -165,7 +180,8 @@ function App() {
                     Open in new window
                   </MenuItem>
                 </Menu>
-                {session.is_dbgi_admin && (
+                {/* The owner only approves prices in the portal; Django Admin is not for him. */}
+                {session.is_dbgi_admin && !session.is_owner && (
                   <Button color="inherit" href="/admin/">
                     Administration
                   </Button>
@@ -191,7 +207,18 @@ function App() {
               }
             >
               <Routes>
-                <Route path="/" element={<RegistrationListPage />} />
+                {/* The owner's home is his Overview; the full deal list is always at /deals/. */}
+                <Route
+                  path="/"
+                  element={
+                    session.is_owner ? (
+                      <OwnerOverviewPage />
+                    ) : (
+                      <RegistrationListPage />
+                    )
+                  }
+                />
+                <Route path="/deals/" element={<RegistrationListPage />} />
                 <Route
                   path="/registrations/new/"
                   element={<RegistrationFormPage />}
@@ -210,6 +237,10 @@ function App() {
                 />
                 <Route path="/notifications/" element={<NotificationsPage />} />
                 <Route path="/help/" element={<HelpPage />} />
+                <Route
+                  path="/owner-approvals/"
+                  element={<OwnerApprovalsPage />}
+                />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>

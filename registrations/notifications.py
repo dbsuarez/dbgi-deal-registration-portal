@@ -143,6 +143,59 @@ def notify_dbgi_admins(*, registration, event_type, event_key, title, message, e
     )
 
 
+def notify_owner_approval_needed(approval):
+    """An admin approved a discount above their limit: every owner gets a message and an email."""
+    registration = approval.registration
+    owners = User.objects.filter(
+        Q(is_superuser=True) | Q(is_staff=True, role=User.Role.DBGI_ADMIN),
+        is_owner=True,
+        is_active=True,
+    ).only("id", "email")
+    _notify(
+        owners,
+        registration=registration,
+        event_type=RegistrationNotification.EventType.OWNER_APPROVAL_NEEDED,
+        event_key=f"category-approval:{approval.pk}:owner:v{approval.version}",
+        title="Discount needs your approval",
+        message=(
+            f"{approval.proposed_by.get_full_name() or approval.proposed_by.username} approved a "
+            f"{approval.category} price for {registration.reference} ({registration.company.name}, "
+            f"{registration.project_title}) with a discount above the admin limit. Open Owner "
+            "approvals in the portal (top menu) to approve or decline it."
+        ),
+        emailed=lambda user: True,
+    )
+
+
+def notify_company_cannot_supply(registration, item):
+    notify_company_users(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.PRICE_DECISION,
+        event_key=f"registration-item:{item.pk}:cannot-supply",
+        title="Product not available",
+        message=(
+            f"DBGI cannot supply {item.non_catalog_name} on {registration.reference}. "
+            "Open the registration to read the reason."
+        ),
+    )
+
+
+def notify_dbgi_price_deadline(registration, days_left):
+    """A deal's price is still undecided shortly before its bid date."""
+    notify_dbgi_admins(
+        registration=registration,
+        event_type=RegistrationNotification.EventType.PRICE_DEADLINE,
+        event_key=f"registration:{registration.pk}:price-deadline:{registration.bid_date}",
+        title="Price due before bidding",
+        message=(
+            f"{registration.reference} ({registration.company.name}, {registration.project_title}) "
+            f"is bid on {registration.bid_date:%Y-%m-%d}, in {days_left} days, and its price is "
+            "not decided yet. Open the registration and click Decide price."
+        ),
+        email=True,
+    )
+
+
 def notify_dbgi_review_needed(registration, reason):
     """A registration waits for DBGI review: new, resubmitted, or edited after confirmation."""
     notify_dbgi_admins(
@@ -209,9 +262,9 @@ def notify_dbgi_closed(registration, reason_label, note):
         registration=registration,
         event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
         event_key=f"registration:{registration.pk}:closed:{registration.version}",
-        title="Deal closed by the company",
+        title="Deal cancelled by the company",
         message=(
-            f"{registration.company.name} closed {registration.reference} "
+            f"{registration.company.name} cancelled {registration.reference} "
             f"({registration.project_title}). Reason: {reason_label}. {note}"
         ),
     )
@@ -222,9 +275,9 @@ def notify_company_closed_by_dbgi(registration):
         registration=registration,
         event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
         event_key=f"registration:{registration.pk}:closed:{registration.version}",
-        title="Deal closed by DBGI",
+        title="Deal cancelled by DBGI",
         message=(
-            f"DBGI closed {registration.reference} ({registration.project_title}). "
+            f"DBGI cancelled {registration.reference} ({registration.project_title}). "
             "Open the registration to read DBGI's note."
         ),
     )

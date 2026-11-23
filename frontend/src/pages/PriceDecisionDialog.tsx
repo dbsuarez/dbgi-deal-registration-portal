@@ -2,6 +2,8 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
+  FormControlLabel,
   Dialog,
   DialogActions,
   DialogContent,
@@ -19,6 +21,7 @@ import {
 import { useState } from "react";
 
 import {
+  RequestError,
   decideCategoryPrice,
   getRegistration,
   type CategoryApproval,
@@ -73,7 +76,9 @@ export default function PriceDecisionDialog({
   // The parent gives this box a new key for each approval, so these start fresh
   // each time it opens and survive the deal page reloading after a save.
   const [status, setStatus] = useState(
-    !approval || approval.status === "pending" ? "approved" : approval.status,
+    !approval || ["pending", "owner_review"].includes(approval.status)
+      ? "approved"
+      : approval.status,
   );
   const [reason, setReason] = useState(approval?.rationale ?? "");
   const [validUntil, setValidUntil] = useState(approval?.valid_until ?? "");
@@ -87,6 +92,31 @@ export default function PriceDecisionDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [savedNote, setSavedNote] = useState("");
+  // Shown by the server before saving: confirm them, or change the price.
+  const [rankWarnings, setRankWarnings] = useState<string[]>([]);
+  const [rankConfirmed, setRankConfirmed] = useState(false);
+  const [costWarnings, setCostWarnings] = useState<string[]>([]);
+  const [costConfirmed, setCostConfirmed] = useState(false);
+  const isOwner = Boolean(approval?.is_owner);
+  const limit = Number(approval?.discount_limit_percent ?? 0);
+  const costs = Object.fromEntries(
+    (approval?.item_costs ?? []).map((row) => [row.item_id, row]),
+  );
+  const changePrice = (itemId: number, value: string) => {
+    setPrices((current) => ({ ...current, [itemId]: value }));
+    // A new price needs a new check.
+    setRankWarnings([]);
+    setRankConfirmed(false);
+    setCostWarnings([]);
+    setCostConfirmed(false);
+  };
+  const discount = (itemId: number, list: unknown) => {
+    const price = Number(prices[itemId]);
+    const listPrice = Number(list);
+    if (!prices[itemId]?.trim() || !listPrice) return null;
+    return ((listPrice - price) * 100) / listPrice;
+  };
 
   const items = registration.items.filter(
     (item) => item.id !== undefined && approval?.item_ids?.includes(item.id),
@@ -99,7 +129,19 @@ export default function PriceDecisionDialog({
     (status === "approved"
       ? filled.length === items.length
       : filled.length > 0);
-  const canSave = reason.trim().length >= 5 && pricesReady && !saving;
+  const overLimit =
+    priced &&
+    !isOwner &&
+    items.some(
+      (item) =>
+        (discount(item.id as number, item.list_unit_price) ?? 0) > limit,
+    );
+  const canSave =
+    reason.trim().length >= 5 &&
+    pricesReady &&
+    !saving &&
+    (rankWarnings.length === 0 || rankConfirmed) &&
+    (costWarnings.length === 0 || costConfirmed);
 
   const save = async () => {
     if (!approval) return;
@@ -121,18 +163,46 @@ export default function PriceDecisionDialog({
                 ]),
               )
             : {},
+          rank_exception_confirmed: rankConfirmed,
+          below_cost_confirmed: costConfirmed,
         },
         csrfToken,
       );
       onSaved(await getRegistration(registration.id));
-      if (result.price_warnings?.length) setWarnings(result.price_warnings);
-      else onClose();
+      if (result.status === "owner_review") {
+        setSavedNote(
+          "Sent to the owner for approval, because the discount is above the admin limit. The partner still sees the price as pending.",
+        );
+      } else if (result.price_warnings?.length) {
+        setWarnings(result.price_warnings);
+        setSavedNote(
+          "The price decision is saved, as an exception you confirmed.",
+        );
+      } else onClose();
     } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "The price decision could not be saved.",
-      );
+      const messages =
+        failure instanceof RequestError
+          ? (failure.details ?? []).map((detail) => detail.message)
+          : [];
+      if (
+        failure instanceof RequestError &&
+        failure.code === "rank_rule_needs_confirmation"
+      ) {
+        setRankWarnings(messages);
+        setError("");
+      } else if (
+        failure instanceof RequestError &&
+        failure.code === "below_cost_needs_confirmation"
+      ) {
+        setCostWarnings(messages);
+        setError("");
+      } else {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "The price decision could not be saved.",
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -147,19 +217,14 @@ export default function PriceDecisionDialog({
     >
       <DialogTitle>Decide the {approval?.category} price</DialogTitle>
       <DialogContent>
-        {warnings.length > 0 ? (
+        {savedNote ? (
           <Stack spacing={1} sx={{ mt: 1 }}>
-            <Alert severity="success">The price decision is saved.</Alert>
+            <Alert severity="success">{savedNote}</Alert>
             {warnings.map((warning) => (
               <Alert severity="warning" key={warning}>
                 {warning}
               </Alert>
             ))}
-            <Typography variant="body2" color="text.secondary">
-              Rank 1 gets the best price, and everyone after rank 1 gets the
-              same price. If this is an exception, you can leave it. Otherwise,
-              open the decision again and change the price.
-            </Typography>
           </Stack>
         ) : (
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -194,6 +259,16 @@ export default function PriceDecisionDialog({
                 price.
               </Typography>
             </Box>
+            {approval?.status === "owner_review" && (
+              <Alert severity="info">
+                Waiting for the owner. {approval.proposed_by_name ?? "An admin"}{" "}
+                proposed: {approval.proposed_status_label}, with a discount
+                above the admin limit of {limit}%.
+                {isOwner
+                  ? " You can approve it, change the price, or choose another decision."
+                  : ""}
+              </Alert>
+            )}
             {error && <Alert severity="error">{error}</Alert>}
             <TextField
               select
@@ -217,7 +292,9 @@ export default function PriceDecisionDialog({
                       <TableCell sx={moneyCell}>Quantity</TableCell>
                       <TableCell sx={moneyCell}>List price</TableCell>
                       <TableCell sx={moneyCell}>Requested price</TableCell>
+                      <TableCell sx={moneyCell}>Landed cost</TableCell>
                       <TableCell sx={moneyCell}>Approved price</TableCell>
+                      <TableCell sx={moneyCell}>Discount</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -232,15 +309,23 @@ export default function PriceDecisionDialog({
                           {money(item.requested_unit_price)}
                         </TableCell>
                         <TableCell sx={moneyCell}>
+                          {costs[item.id as number]?.landed_cost
+                            ? money(costs[item.id as number]?.landed_cost)
+                            : "Not entered"}
+                        </TableCell>
+                        <TableCell sx={moneyCell}>
                           <TextField
                             size="small"
                             type="number"
                             value={prices[item.id as number] ?? ""}
+                            error={
+                              Boolean(costs[item.id as number]?.landed_cost) &&
+                              Boolean(prices[item.id as number]?.trim()) &&
+                              Number(prices[item.id as number]) <
+                                Number(costs[item.id as number]?.landed_cost)
+                            }
                             onChange={(event) =>
-                              setPrices((current) => ({
-                                ...current,
-                                [item.id as number]: event.target.value,
-                              }))
+                              changePrice(item.id as number, event.target.value)
                             }
                             slotProps={{
                               htmlInput: {
@@ -252,10 +337,63 @@ export default function PriceDecisionDialog({
                             }}
                           />
                         </TableCell>
+                        <TableCell sx={moneyCell}>
+                          {discount(item.id as number, item.list_unit_price) ===
+                          null
+                            ? "-"
+                            : `${(discount(item.id as number, item.list_unit_price) ?? 0).toFixed(2)}%`}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                <Typography variant="caption" color="text.secondary">
+                  Discount is from the list price. Admins can approve up to{" "}
+                  {limit}%; a bigger discount goes to the owner. No price can go
+                  below the landed cost.
+                </Typography>
+                {overLimit && (
+                  <Alert severity="info">
+                    The discount is above {limit}%, so saving sends it to the
+                    owner for approval.
+                  </Alert>
+                )}
+                {costWarnings.length > 0 && (
+                  <Alert severity="error">
+                    {costWarnings.map((warning) => (
+                      <div key={warning}>{warning}</div>
+                    ))}
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={costConfirmed}
+                          onChange={(event) =>
+                            setCostConfirmed(event.target.checked)
+                          }
+                        />
+                      }
+                      label="This is not a typo. I approve selling below the landed cost."
+                    />
+                  </Alert>
+                )}
+                {rankWarnings.length > 0 && (
+                  <Alert severity="warning">
+                    {rankWarnings.map((warning) => (
+                      <div key={warning}>{warning}</div>
+                    ))}
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={rankConfirmed}
+                          onChange={(event) =>
+                            setRankConfirmed(event.target.checked)
+                          }
+                        />
+                      }
+                      label="I confirm this exception to the rank rule."
+                    />
+                  </Alert>
+                )}
                 <IsoDateField
                   label="Valid until"
                   value={validUntil}
@@ -316,7 +454,7 @@ export default function PriceDecisionDialog({
         )}
       </DialogContent>
       <DialogActions>
-        {warnings.length > 0 ? (
+        {savedNote ? (
           <Button variant="contained" onClick={onClose}>
             Close
           </Button>

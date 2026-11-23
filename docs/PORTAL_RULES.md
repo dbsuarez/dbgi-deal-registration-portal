@@ -45,11 +45,23 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 - **Live:** contact details are prefilled from the user's profile.
 - **Live:** the end-user is chosen from a DBGI-maintained directory. A partner can propose a new end-user; it is
   marked pending until DBGI verifies it. Duplicate end-users are refused.
+- **Live (setting, 2026-11-23):** a new end-user's street address is optional unless a superuser switches on "Street
+  address is required for a new end-user" in Portal settings, under Forms (default: off).
 - **Live:** competitor items record the competitor brand and model; known brands are suggested, and aliases resolve
   (for example "Hewlett Packard" becomes HP).
+- **Live (setting, 2026-11-23):** competitor items are optional unless a superuser switches on "Competitor items are
+  required" in Portal settings, under Forms (default: off).
 - **Live:** products are chosen from the catalog, or typed in as a non-catalog product. Each has a quantity and a
   requested unit price. The catalog list price is captured when the deal is submitted, and the discount and line
   total are calculated.
+- **Live (setting, 2026-11-23):** a product DBGI does not list (typed in as Not in catalog) is only worth sourcing from
+  the supplier for a big order: its quantity times requested price must be at least **1,000,000**, or the
+  registration is refused with a clear message. A superuser changes the amount in Portal settings, under Forms
+  (0 turns the rule off).
+- **Live (2026-11-23):** DBGI checks a typed-in product with the supplier. If it can be sourced, DBGI uses **Add to
+  catalog** (section 11). If not, DBGI uses **Can't supply** on that product line, with a reason: the line is marked
+  **Not available**, left out of pricing and the catalog, and the company gets a message and reads the reason. Only
+  that line stops; if it was the deal's only product, DBGI rejects the deal as usual.
 - **Live:** each line total is rounded to 2 decimals (C3 keeps this).
 - **Live:** screens call this section "Attachment" (it was "Evidence" until 2026-10-30).
 - **Live:** evidence needs a description and a confirmation that the partner may share it; files are private and
@@ -70,7 +82,7 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 | Registered                 | DBGI confirmed it belongs to a project; it is ranked         | Pricing, outcome report, or closing  |
 | Review required after edit | The partner edited a Registered deal                         | DBGI reviews again; the rank is kept |
 | Rejected                   | DBGI rejected it; the reason is in the Activity              | Final                                |
-| Closed                     | The company or DBGI closed it; the reason is in the Activity | Only DBGI can reopen it              |
+| Cancelled                  | The company or DBGI cancelled it; the reason is in Activity  | Only DBGI can reopen it              |
 
 - **Live:** a registration shows three separate badges: registration status, project status, and pricing status.
 - **Live (2026-11-05):** a deal stays Registered after its price is approved, and its Pricing label shows the approval.
@@ -149,9 +161,9 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
 - **Live:** a vague first claim cannot gain an earlier place later by adding details.
 - **Live (common rule, 2026-11-05):** rank 1 gets the best price, and every other company on the project gets the same
   price as each other. DBGI still types each price by hand, in the **Decide price** box on the deal page (Commercial approvals).
-  The box shows the deal's rank and the other approved prices for the project. When DBGI saves a price that breaks this rule, the portal
-  shows a warning but still saves it, so DBGI can decide an exception. Tied companies at rank 1 all count as rank 1:
-  they get the same best price.
+  The box shows the deal's rank and the other approved prices for the project. **Since 2026-11-23**, a price that breaks
+  this rule is not saved until DBGI ticks "I confirm this exception to the rank rule", so an exception is always on
+  purpose. Tied companies at rank 1 all count as rank 1: they get the same best price.
 - **Live:** a partner sees only its own rank; DBGI sees the full ranking.
 - **Live (head's answer, 2026-11-11):** exact ties (the same submission time) keep the same rank, shown as "Tied".
   The next company skips a place: after a tie for 1st comes 3rd. Since only rank 1 gets the best price, the number of
@@ -191,20 +203,22 @@ answers are in [DECISION_RESPONSES_2026-10-30.md](DECISION_RESPONSES_2026-10-30.
   - The winning deal lists the other companies' deals still open on the project, each with **Close**, so DBGI can
     call each company and close its deal.
 
-## 9. Closing and reopening a deal
+## 9. Cancelling and reopening a deal
 
-- **Live (2026-11-19):** **Close deal** replaced Withdraw. A deal can be closed at any time before it is rejected:
-  - **The company** closes its own deal. Every DBGI administrator gets an in-portal notice with the reason.
-  - **Any DBGI administrator** closes it for the company, usually after a phone call when another company won, with
+- **Live (2026-11-19, renamed 2026-11-23):** **Cancel deal** replaced Withdraw. It was first called "Close deal",
+  which could be read as "done" or "won", so the button is **Cancel deal** and the status is **Cancelled**. A deal can
+  be cancelled at any time before it is rejected:
+  - **The company** cancels its own deal. Every DBGI administrator gets an in-portal notice with the reason.
+  - **Any DBGI administrator** cancels it for the company, usually after a phone call when another company won, with
     a note from the call. The company is told and can read the note.
   - A reason is chosen (another company won, the project was cancelled, the company stopped pursuing it, or other),
     and a note of at least 5 characters is required.
-  - A closed deal leaves the ranking, can no longer be edited, reviewed, renewed, or priced, gets no repeat orders,
+  - A cancelled deal leaves the ranking, can no longer be edited, reviewed, renewed, or priced, gets no repeat orders,
     and leaves DBGI's queues. It stays on record.
-- **Live (2026-11-19):** **any DBGI administrator can reopen** a closed deal, with a reason (for example, the winner
-  was disqualified). It returns to the status it had before it was closed, keeps its original submission time and
+- **Live (2026-11-19):** **any DBGI administrator can reopen** a cancelled deal, with a reason (for example, the
+  winner was disqualified). It returns to the status it had before it was cancelled, keeps its original submission time and
   its place in the ranking, and the company is told. Companies cannot reopen a deal.
-- Deals withdrawn before 2026-11-19 became Closed, with the reason "Withdrawn by the company".
+- Deals withdrawn before 2026-11-19 became Cancelled, with the reason "Withdrawn by the company".
 
 ## 10. 60-day limits
 
@@ -233,9 +247,39 @@ All counts are calendar days, starting from the server's recorded time.
   Expired. The registration shows one overall pricing badge.
 - **Live:** a requested price is a proposal, never an approved price.
 - **Live:** DBGI types the validity date when approving. After that date the price shows as Expired automatically.
-- **Live (C1):** if DBGI leaves the validity date empty when approving, it is set to **90 days** from today. This
-  also applies when DBGI approves in Django Admin, which is where prices are decided today. A price on a closed
-  deal cannot be decided there.
+- **Live (C1):** if DBGI leaves the validity date empty when approving, it is set to **90 days** from today.
+- **Live (2026-11-23):** prices are decided only with **Decide price** on the deal page. The old price page in Django
+  Admin is view only, because it could not apply the rules below.
+- **Live (2026-11-23), landed cost:** each product has a **landed cost** (what one unit costs DBGI once it arrives),
+  kept as a dated history in Administration, Products, beside the list price. Only DBGI sees it.
+  - A product with no landed cost **cannot be priced** until someone enters it.
+  - **No approved price can go below the landed cost.** An admin is refused. The owner can do it only after a red
+    warning and ticking "This is not a typo. I approve selling below the landed cost."
+- **Live (2026-11-23), discount limit:** an admin can approve a discount of up to **5%** from the list price (a Portal
+  setting, under Pricing). A bigger discount goes to the **owner**:
+  - The price becomes "Waiting for owner approval". The partner still sees it as Pending, with no amount.
+  - The owner (a DBGI admin with Owner switched on, in Administration, Users) gets an email and a portal message. His
+    home page shows how many prices are waiting, and the top menu shows **Owner approvals (2)**.
+  - The owner decides everything on that one page, without Django Admin (the Administration link is hidden for
+    him): each waiting price shows the list price, landed cost, proposed price, and discount. He can change the price,
+    writes a short note, and clicks **Approve** or **Decline**. A price below the landed cost needs his confirmation,
+    as above. The partner is then told. The owner can also use Decide price on the deal page.
+- **Live (2026-11-23), the owner's Overview:** the owner's home page is a short **Overview**, so he sees what is
+  happening without reading every deal:
+  - Prices waiting for his approval (only when there are any).
+  - This month so far, compared with last month: new deals, projects won and their value, projects lost or
+    cancelled, and the pipeline (the value of open deals). Won, lost, and cancelled count the outcome reports DBGI
+    confirmed. Values use approved prices where there are any, and requested prices otherwise.
+  - Bids in the next 14 days, each marked Decided or Not decided; anything stuck (a deal waiting for DBGI review
+    more than 7 days, or a price waiting for him more than 2 days); the last 5 wins, with whether the certificates
+    were issued; and the top 5 partners of the quarter by registered value.
+  - Every list shows at most 5 rows. **All deals** opens the full deal list (also at /deals/).
+- **Live (setting, 2026-11-23):** every Monday at 07:00 Asia/Manila the owner gets an email with the same numbers
+  (`send_owner_summary`, scheduled with the daily job in `deploy/cron.d/dbgi-portal`). A superuser can switch it off
+  in Portal settings, under Pricing (default: on).
+- **Live (2026-11-23), price deadline:** prices must be decided **7 days before the bid date** (a Portal setting,
+  under Pricing). If a deal's price is still undecided by then, every DBGI admin gets a portal message and an email,
+  once per bid date, from the daily job.
 - **Live (C1):** the company gets a reminder **14 days** before an approved price expires (sent by the daily
   `process_deadlines` job; a new date or an approved renewal allows a new reminder).
 - **Live:** a partner can request a renewal of an approved or partly approved price, one request at a time. If DBGI

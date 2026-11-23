@@ -14,7 +14,7 @@ export function companyNextStep(status: string) {
     rejected:
       "Review DBGI's explanation below. This registration will not proceed.",
     closed:
-      "This deal is closed. Nothing more can be done with it. If the project comes back, DBGI can reopen it.",
+      "This deal is cancelled. Nothing more can be done with it. If the project comes back, DBGI can reopen it.",
   };
   return (
     messages[status] ??

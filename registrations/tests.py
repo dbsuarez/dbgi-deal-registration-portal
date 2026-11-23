@@ -48,6 +48,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProductLandedCost,
     ProductPrice,
     ProjectOutcomeReport,
     PublicHoliday,
@@ -1595,6 +1596,8 @@ class RegistrationApiTests(TestCase):
 
     def test_admin_can_approve_category_prices_with_expiry(self):
         self.set_price("125.00")
+        self.set_landed_cost("80.00")
+        self.make_owner()  # 95 is a 24% discount, above the admin limit
         self.client.force_login(self.user_a)
         created = self.client.post(
             "/api/v1/registrations",
@@ -2119,7 +2122,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         body = response.json()
         self.assertEqual(body["status"], Registration.Status.CLOSED)
-        self.assertEqual(body["status_label"], "Closed")
+        self.assertEqual(body["status_label"], "Cancelled")
         self.assertEqual(body["close_reason_label"], "The company stopped pursuing it")
         self.assertFalse(body["can_edit"])
         self.assertFalse(body["can_close"])
@@ -2128,9 +2131,9 @@ class RegistrationApiTests(TestCase):
         self.assertIsNotNone(self.registration_a.closed_at)
         self.assertEqual(self.registration_a.closed_by, self.user_a)
         self.assertEqual(self.registration_a.status_before_close, Registration.Status.SUBMITTED)
-        event = self.registration_a.events.get(event_type="Closed")
+        event = self.registration_a.events.get(event_type="Cancelled")
         self.assertEqual(event.actor, self.user_a)
-        self.assertIn("The company closed this deal", event.details)
+        self.assertIn("The company cancelled this deal", event.details)
         self.assertIn("The end-user cancelled this purchase.", event.details)
         notification = RegistrationNotification.objects.get(
             event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED
@@ -2153,14 +2156,14 @@ class RegistrationApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         self.assertTrue(response.json()["can_reopen"])
-        event = self.registration_a.events.get(event_type="Closed")
-        self.assertIn("DBGI closed this deal for the company", event.details)
+        event = self.registration_a.events.get(event_type="Cancelled")
+        self.assertIn("DBGI cancelled this deal for the company", event.details)
         self.assertIn("Another company won", event.details)
         notice = RegistrationNotification.objects.get(
             recipient=self.user_a,
             event_type=RegistrationNotification.EventType.REGISTRATION_CLOSED,
         )
-        self.assertEqual(notice.title, "Deal closed by DBGI")
+        self.assertEqual(notice.title, "Deal cancelled by DBGI")
         self.client.force_login(self.user_a)
         partner_view = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
         self.assertIn("Called the company", partner_view["events"][0]["details"])
@@ -2480,6 +2483,54 @@ class RegistrationApiTests(TestCase):
         winner = self.client.get(f"/api/v1/registrations/{self.registration_a.pk}").json()
         self.assertEqual(winner["project_status_label"], "Awarded")
 
+    def test_owner_overview_shows_the_month_what_is_coming_and_the_wins(self):
+        owner = self.make_owner(
+            User.objects.create_user(
+                "overview-owner",
+                password="example-password",
+                email="owner@example.invalid",
+                role=User.Role.DBGI_ADMIN,
+                is_staff=True,
+            )
+        )
+        self.client.force_login(self.user_a)
+        self.assertEqual(self.client.get("/api/v1/owner/overview").status_code, 403)
+        plain_admin = User.objects.create_user(
+            "plain-admin", password="example-password", role=User.Role.DBGI_ADMIN, is_staff=True
+        )
+        self.client.force_login(plain_admin)
+        self.assertEqual(self.client.get("/api/v1/owner/overview").status_code, 403)
+
+        self.link_to_project(self.registration_a, self.registration_b)
+        Registration.objects.filter(pk=self.registration_b.pk).update(
+            bid_date=timezone.localdate() + timedelta(days=3)
+        )
+        self.client.force_login(self.user_a)
+        self.report_outcome(self.registration_a)
+        self.client.force_login(self.admin)
+        self.decide_outcome(ProjectOutcomeReport.objects.get())
+
+        self.client.force_login(owner)
+        body = self.client.get("/api/v1/owner/overview").json()
+        self.assertEqual(body["waiting_for_owner"], 0)
+        self.assertGreaterEqual(body["month"]["new_deals"], 2)
+        self.assertEqual(body["month"]["won"], 1)
+        self.assertEqual(len(body["recent_wins"]), 1)
+        self.assertFalse(body["recent_wins"][0]["certificates_issued"])
+        self.assertEqual(body["recent_wins"][0]["company_name"], self.registration_a.company.name)
+        self.assertLessEqual(len(body["top_partners"]), 5)
+
+        with self.settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend"):
+            call_command("send_owner_summary", stdout=StringIO())
+            self.assertEqual(len(mail.outbox), 1)
+            self.assertEqual(mail.outbox[0].to, ["owner@example.invalid"])
+            self.assertIn("Won: 1", mail.outbox[0].body)
+            PortalSetting.objects.update_or_create(
+                key="portal", defaults={"owner_weekly_summary": False}
+            )
+            call_command("send_owner_summary", stdout=StringIO())
+            self.assertEqual(len(mail.outbox), 1)
+
     def test_declined_outcome_keeps_the_project_status(self):
         opportunity = self.link_to_project(self.registration_a)
         self.client.force_login(self.user_a)
@@ -2680,6 +2731,37 @@ class RegistrationApiTests(TestCase):
             product=self.product, unit_price=amount, reason="Test price", **fields
         )
 
+    def set_landed_cost(self, amount, product=None):
+        return ProductLandedCost.objects.create(
+            product=product or self.product,
+            unit_cost=amount,
+            reason="Test cost",
+            effective_from=timezone.now() - timedelta(minutes=1),
+        )
+
+    def make_owner(self, user=None):
+        user = user or self.admin
+        user.is_owner = True
+        user.save(update_fields=["is_owner"])
+        return user
+
+    def decide(self, approval, price, **extra):
+        approval.refresh_from_db()
+        item = approval.registration.items.get()
+        return self.client.post(
+            f"/api/v1/review/category-approvals/{approval.pk}/decision",
+            data=json.dumps(
+                {
+                    "version": approval.version,
+                    "status": "approved",
+                    "rationale": "Within the allowed discount.",
+                    "approved_prices": {str(item.pk): price},
+                    **extra,
+                }
+            ),
+            content_type="application/json",
+        )
+
     def register_deal(self):
         self.client.force_login(self.user_a)
         response = self.client.post(
@@ -2761,12 +2843,22 @@ class RegistrationApiTests(TestCase):
                 "prices-0-effective_from_0": start.strftime("%Y-%m-%d"),
                 "prices-0-effective_from_1": start.strftime("%H:%M:%S"),
                 "prices-0-reason": "Supplier increase",
+                "landed_costs-TOTAL_FORMS": "1",
+                "landed_costs-INITIAL_FORMS": "0",
+                "landed_costs-MIN_NUM_FORMS": "0",
+                "landed_costs-MAX_NUM_FORMS": "1000",
+                "landed_costs-0-unit_cost": "90.00",
+                "landed_costs-0-effective_from_0": start.strftime("%Y-%m-%d"),
+                "landed_costs-0-effective_from_1": start.strftime("%H:%M:%S"),
+                "landed_costs-0-reason": "Supplier invoice",
             },
         )
         self.assertEqual(response.status_code, 302, response.content[:2000])
         price = ProductPrice.objects.get(product=self.product)
         self.assertEqual(price.created_by, self.admin)
         self.assertEqual(str(price.unit_price), "130.00")
+        cost = ProductLandedCost.objects.get(product=self.product)
+        self.assertEqual((cost.created_by, str(cost.unit_cost)), (self.admin, "90.00"))
         self.assertEqual(self.client.get(url).status_code, 200)
 
     def edit_deal(self, registration, **changes):
@@ -3031,7 +3123,42 @@ class RegistrationApiTests(TestCase):
         "name": "Scanner",
         "category": "Scanners",
         "list_price": "80.00",
+        "landed_cost": "60.00",
     }
+
+    def test_dbgi_marks_a_typed_in_product_it_cannot_supply(self):
+        registration, line = self.non_catalog_deal()
+        url = f"/api/v1/review/registration-items/{line.pk}/cannot-supply"
+        body = {"version": registration.version, "reason": "Our supplier does not carry it."}
+        self.client.force_login(self.user_a)
+        self.assertEqual(
+            self.client.post(url, json.dumps(body), content_type="application/json").status_code,
+            403,
+        )
+        self.client.force_login(self.admin)
+        marked = self.client.post(url, json.dumps(body), content_type="application/json")
+        self.assertEqual(marked.status_code, 200, marked.content)
+        item = marked.json()["items"][0]
+        self.assertTrue(item["supply_declined"])
+        self.assertEqual(item["supply_decline_reason"], "Our supplier does not carry it.")
+        self.assertTrue(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, title="Product not available"
+            ).exists()
+        )
+        registration.refresh_from_db()
+        again = self.client.post(
+            url,
+            json.dumps({**body, "version": registration.version}),
+            content_type="application/json",
+        )
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(
+            self.add_to_catalog(registration, line, product_id=self.product.pk).status_code, 400
+        )
+        self.client.force_login(self.user_a)
+        partner = self.client.get(f"/api/v1/registrations/{registration.pk}").json()
+        self.assertIn("Our supplier does not carry it.", partner["events"][0]["details"])
 
     def test_dbgi_adds_a_new_product_and_its_price_review_opens(self):
         registration, line = self.non_catalog_deal()
@@ -3045,6 +3172,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         line.refresh_from_db()
         product = Product.objects.get(code="SCAN-1")
+        self.assertEqual(str(product.landed_costs.get().unit_cost), "60.00")
         self.assertEqual(line.product, product)
         self.assertEqual(line.non_catalog_name, "")
         self.assertEqual(str(line.list_unit_price_snapshot), "80.00")
@@ -3313,19 +3441,205 @@ class RegistrationApiTests(TestCase):
             },
         )
 
-    def test_price_approved_in_django_admin_defaults_to_90_days(self):
+    def test_a_discount_within_the_admin_limit_is_approved_directly(self):
+        self.set_price("10000.00")
+        self.set_landed_cost("7000.00")
+        approval = self.register_deal().category_approvals.get()
+        self.client.force_login(self.admin)
+        response = self.decide(approval, "9600.00")  # 4%
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["status"], "approved")
+
+    def test_a_bigger_discount_waits_for_the_owner_who_can_change_it(self):
+        self.set_price("10000.00")
+        self.set_landed_cost("7000.00")
+        deal = self.register_deal()
+        approval = deal.category_approvals.get()
+        owner = self.make_owner(
+            User.objects.create_user(
+                "the-owner",
+                password="example-password",
+                email="owner@example.invalid",
+                role=User.Role.DBGI_ADMIN,
+                is_staff=True,
+            )
+        )
+        NotificationEventSetting.objects.update_or_create(
+            event_type="owner_approval_needed", defaults={"email_enabled": True}
+        )
+        self.client.force_login(self.admin)
+        response = self.decide(approval, "9000.00")  # 10%, above the 5% limit
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertEqual(body["status"], "owner_review")
+        self.assertEqual(body["proposed_status_label"], "Approved")
+        notice = RegistrationNotification.objects.get(recipient=owner)
+        self.assertEqual(notice.title, "Discount needs your approval")
+        self.assertEqual(notice.email_status, RegistrationNotification.EmailStatus.PENDING)
+        listed = self.client.get("/api/v1/review/owner-approvals").json()
+        self.assertEqual(listed[0]["items"][0]["proposed_price"], "9000.00")
+        self.assertEqual(listed[0]["items"][0]["discount_percent"], "10.00")
+        self.assertEqual(listed[0]["items"][0]["landed_cost"], "7000.00")
+        self.assertEqual(listed[0]["proposed_status"], "approved")
+        self.assertEqual(listed[0]["version"], approval.version + 1)
+        self.client.force_login(owner)
+        self.assertEqual(self.client.get("/api/v1/session").json()["owner_waiting_count"], 1)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get("/api/v1/session").json()["owner_waiting_count"], 0)
+
+        # The partner still sees a pending price, with no amount and no hint of the owner.
+        self.client.force_login(self.user_a)
+        partner = self.client.get(f"/api/v1/registrations/{deal.pk}").json()
+        self.assertEqual(partner["price_status_label"], "Pending")
+        self.assertEqual(partner["category_approvals"][0]["status"], "pending")
+        self.assertEqual(partner["category_approvals"][0]["rationale"], "")
+        self.assertIsNone(partner["items"][0]["approved_unit_price"])
+        self.assertNotIn("Sent to the owner", [event["event_type"] for event in partner["events"]])
+        self.assertFalse(
+            RegistrationNotification.objects.filter(
+                recipient=self.user_a, event_type="price_decision"
+            ).exists()
+        )
+
+        # The owner changes the price and approves it; the partner then sees it.
+        self.client.force_login(owner)
+        decided = self.decide(approval, "9200.00", rationale="The owner approved a smaller cut.")
+        self.assertEqual(decided.status_code, 200, decided.content)
+        self.assertEqual(decided.json()["status"], "approved")
+        self.assertEqual(self.client.get("/api/v1/review/owner-approvals").json(), [])
+        event = deal.events.filter(event_type="Commercial decision").latest("id")
+        self.assertTrue(event.details.startswith("The owner marked the"))
+        self.client.force_login(self.user_a)
+        partner = self.client.get(f"/api/v1/registrations/{deal.pk}").json()
+        self.assertEqual(partner["items"][0]["approved_unit_price"], "9200.00")
+        self.assertEqual(partner["price_status_label"], "Approved")
+
+    def test_no_price_without_a_landed_cost_or_below_it(self):
+        self.set_price("10000.00")
+        approval = self.register_deal().category_approvals.get()
+        self.client.force_login(self.admin)
+        missing = self.decide(approval, "9800.00")
+        self.assertEqual(missing.json()["code"], "landed_cost_missing")
+        self.assertIn(self.product.code, missing.json()["message"])
+
+        self.set_landed_cost("9900.00")
+        below = self.decide(approval, "9800.00")
+        self.assertEqual(below.status_code, 400)
+        self.assertEqual(below.json()["code"], "below_landed_cost")
+
+        self.make_owner()
+        warned = self.decide(approval, "9800.00")
+        self.assertEqual(warned.json()["code"], "below_cost_needs_confirmation")
+        self.assertIn("below the landed cost of 9,900.00", warned.json()["details"][0]["message"])
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+        confirmed = self.decide(approval, "9800.00", below_cost_confirmed=True)
+        self.assertEqual(confirmed.status_code, 200, confirmed.content)
+
+    def test_dbgi_only_sees_landed_costs(self):
+        self.set_price("10000.00")
+        self.set_landed_cost("7000.00")
+        deal = self.register_deal()
+        self.client.force_login(self.user_a)
+        row = self.client.get(f"/api/v1/registrations/{deal.pk}").json()["category_approvals"][0]
+        self.assertEqual(row["item_costs"], [])
+        self.assertIsNone(row["discount_limit_percent"])
+        self.client.force_login(self.admin)
+        row = self.client.get(f"/api/v1/registrations/{deal.pk}").json()["category_approvals"][0]
+        self.assertEqual(row["item_costs"][0]["landed_cost"], "7000.00")
+        self.assertEqual(row["discount_limit_percent"], "5.00")
+        self.assertFalse(row["is_owner"])
+
+    def test_form_rules_follow_the_portal_settings(self):
+        self.client.force_login(self.user_a)
+        rules = self.client.get("/api/v1/session").json()["form_rules"]
+        self.assertEqual(
+            rules,
+            {
+                "street_address_required": False,
+                "competitor_items_required": False,
+                "unlisted_product_minimum_value": "1000000.00",
+            },
+        )
+        no_competitor = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload(competitor_items=[])),
+            content_type="application/json",
+        )
+        self.assertEqual(no_competitor.status_code, 201, no_competitor.content)
+
+        small = {
+            "product_id": None,
+            "non_catalog_name": "Projector",
+            "quantity": 10,
+            "requested_unit_price": "25000.00",
+            "justification": "",
+        }
+        refused = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload(items=[small])),
+            content_type="application/json",
+        )
+        self.assertEqual(refused.status_code, 400, refused.content)
+        self.assertIn("at least 1,000,000.00", refused.json()["details"][0]["message"])
+        big = {**small, "quantity": 1000}
+        accepted = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload(items=[big])),
+            content_type="application/json",
+        )
+        self.assertEqual(accepted.status_code, 201, accepted.content)
+
+        PortalSetting.objects.update_or_create(
+            key="portal", defaults={"competitor_items_required": True}
+        )
+        required = self.client.post(
+            "/api/v1/registrations",
+            data=json.dumps(self.payload(competitor_items=[])),
+            content_type="application/json",
+        )
+        self.assertEqual(required.status_code, 400)
+
+    def test_street_address_is_optional_unless_the_setting_asks(self):
+        self.client.force_login(self.user_a)
+        proposal = {"official_name": "New Office", "city_municipality": "Lucena City"}
+        created = self.client.post(
+            "/api/v1/end-users", data=json.dumps(proposal), content_type="application/json"
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        PortalSetting.objects.update_or_create(
+            key="portal", defaults={"street_address_required": True}
+        )
+        refused = self.client.post(
+            "/api/v1/end-users",
+            data=json.dumps({**proposal, "official_name": "Another Office"}),
+            content_type="application/json",
+        )
+        self.assertEqual(refused.status_code, 400, refused.content)
+        self.assertEqual(refused.json()["details"][0]["field"], "street_address")
+
+    def test_dbgi_is_reminded_when_a_price_is_undecided_before_bidding(self):
+        self.set_price("100.00")
+        deal = self.register_deal()
+        Registration.objects.filter(pk=deal.pk).update(
+            bid_date=timezone.localdate() + timedelta(days=5)
+        )
+        self.assertEqual(process_deadlines().price_deadlines, 1)
+        notice = RegistrationNotification.objects.get(
+            recipient=self.admin, event_type="price_deadline"
+        )
+        self.assertIn("in 5 days", notice.message)
+        self.assertEqual(process_deadlines().price_deadlines, 0)  # once per bid date
+
+    def test_price_page_in_django_admin_is_view_only(self):
         self.set_price("100.00")
         approval = self.register_deal().category_approvals.get()
         self.client.force_login(self.admin)
-        response = self.approve_in_admin(approval)
-        self.assertEqual(response.status_code, 302, response.content[:1500])
+        url = reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk])
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.approve_in_admin(approval).status_code, 403)
         approval.refresh_from_db()
-        self.assertEqual(approval.valid_until, timezone.localdate() + timedelta(days=90))
-
-        response = self.approve_in_admin(approval, "2027-06-30")
-        self.assertEqual(response.status_code, 302, response.content[:1500])
-        approval.refresh_from_db()
-        self.assertEqual(approval.valid_until, date(2027, 6, 30))
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
 
     def test_price_of_a_withdrawn_deal_cannot_be_decided_in_django_admin(self):
         self.set_price("100.00")
@@ -3769,29 +4083,23 @@ class RegistrationApiTests(TestCase):
         return deals
 
     def approve_with_warnings(self, deal, price):
+        """Decide the price as the owner (no discount limit). A broken rank rule is refused until
+        the box is ticked: returns the rule's warnings, after saving with the box ticked."""
+        self.make_owner()
+        if not ProductLandedCost.objects.filter(product=self.product).exists():
+            self.set_landed_cost("1000.00")
         approval = deal.category_approvals.get()
-        item = deal.items.get()
         self.client.force_login(self.admin)
-        response = self.client.post(
-            reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk]),
-            {
-                "registration": deal.pk,
-                "category": approval.category,
-                "status": RegistrationCategoryApproval.Status.APPROVED,
-                "rationale": "Within the allowed discount.",
-                "valid_until": "",
-                "item_approvals-TOTAL_FORMS": "1",
-                "item_approvals-INITIAL_FORMS": "0",
-                "item_approvals-MIN_NUM_FORMS": "0",
-                "item_approvals-MAX_NUM_FORMS": "1000",
-                "item_approvals-0-registration_item": item.pk,
-                "item_approvals-0-approved_unit_price": price,
-            },
-            follow=True,
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(RegistrationItemApproval.objects.filter(registration_item=item).exists())
-        return [str(message) for message in response.context["messages"]]
+        first = self.decide(approval, price)
+        if first.status_code == 200:
+            return first.json()["price_warnings"]
+        self.assertEqual(first.json()["code"], "rank_rule_needs_confirmation", first.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
+        warnings = [detail["message"] for detail in first.json()["details"]]
+        second = self.decide(approval, price, rank_exception_confirmed=True)
+        self.assertEqual(second.status_code, 200, second.content)
+        return warnings
 
     def test_price_form_shows_the_rank_and_the_project_prices(self):
         first, second, _ = self.ranked_deals()
@@ -3812,7 +4120,7 @@ class RegistrationApiTests(TestCase):
         self.assertFalse(self.rule_warnings(self.approve_with_warnings(second, "9000.00")))
         self.assertFalse(self.rule_warnings(self.approve_with_warnings(third, "9000.00")))
 
-    def test_breaking_the_price_rule_warns_but_still_saves(self):
+    def test_breaking_the_price_rule_needs_the_box_ticked_then_saves(self):
         first, second, third = self.ranked_deals()
         self.approve_with_warnings(first, "8000.00")
         same_as_first = self.rule_warnings(self.approve_with_warnings(second, "8000.00"))
@@ -4086,44 +4394,24 @@ class RegistrationApiTests(TestCase):
                     call_command("restore_portal", str(backup), yes=True, stdout=StringIO())
                 self.assertFalse(User.objects.filter(username="added-after-backup").exists())
 
-    def test_admin_price_decision_note_is_plain_for_partners(self):
+    def test_price_decision_note_is_plain_for_partners(self):
         self.set_price("100.00")
+        self.set_landed_cost("50.00")
         approval = self.register_deal().category_approvals.get()
         self.client.force_login(self.admin)
-        self.approve_in_admin(approval)
+        self.assertEqual(self.decide(approval, "100.00").status_code, 200)
         event = RegistrationEvent.objects.filter(event_type="Commercial decision").latest("id")
-        self.assertNotIn("Django", event.details)
         self.assertEqual(
             event.details,
             f"DBGI marked the {approval.category} price Approved. Within the allowed discount.",
         )
-        form = self.client.get(
-            reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk])
-        )
-        self.assertContains(form, "Reason")
-        self.assertNotContains(form, "Rationale")
 
-    def test_admin_price_decision_needs_a_reason(self):
+    def test_price_decision_needs_a_reason(self):
         self.set_price("100.00")
+        self.set_landed_cost("50.00")
         approval = self.register_deal().category_approvals.get()
         self.client.force_login(self.admin)
-        url = reverse("admin:registrations_registrationcategoryapproval_change", args=[approval.pk])
-        response = self.client.post(
-            url,
-            {
-                "registration": approval.registration_id,
-                "category": approval.category,
-                "status": RegistrationCategoryApproval.Status.APPROVED,
-                "rationale": "",
-                "valid_until": "",
-                "item_approvals-TOTAL_FORMS": "0",
-                "item_approvals-INITIAL_FORMS": "0",
-                "item_approvals-MIN_NUM_FORMS": "0",
-                "item_approvals-MAX_NUM_FORMS": "1000",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Write the reason")
+        self.assertEqual(self.decide(approval, "100.00", rationale="").status_code, 422)
         approval.refresh_from_db()
         self.assertEqual(approval.status, RegistrationCategoryApproval.Status.PENDING)
 
@@ -4213,7 +4501,7 @@ class RegistrationApiTests(TestCase):
         setting, _ = PortalSetting.objects.get_or_create(key="portal")
         url = reverse("admin:registrations_portalsetting_change", args=[setting.pk])
         page = self.client.get(url)
-        for group in ("Time limits", "Repeat orders", "Emails and alerts to DBGI"):
+        for group in ("Time limits", "Repeat orders", "Emails and alerts to DBGI", "Pricing"):
             self.assertContains(page, group)
         response = self.client.post(
             url,
@@ -4224,6 +4512,9 @@ class RegistrationApiTests(TestCase):
                 "repeat_order_valid_days": 365,
                 "alert_dbgi_on_attachment_change": "on",
                 "show_end_user_field_help": "on",
+                "admin_discount_limit_percent": "5.00",
+                "price_deadline_days": 7,
+                "unlisted_product_minimum_value": "1000000.00",
             },
         )
         self.assertEqual(response.status_code, 302, response.content[:800])
@@ -4234,6 +4525,8 @@ class RegistrationApiTests(TestCase):
     def test_dbgi_decides_a_price_on_the_deal_page_with_rank_context(self):
         first, second, _ = self.ranked_deals()
         self.approve_price(first, unit_price="8000.00")
+        self.set_landed_cost("7000.00")
+        self.make_owner()
         approval = second.category_approvals.get()
         item = second.items.get()
         self.client.force_login(self.user_b)
@@ -4257,6 +4550,7 @@ class RegistrationApiTests(TestCase):
                     "status": "approved",
                     "rationale": "Same as rank 1 for testing.",
                     "approved_prices": {str(item.pk): "8000.00"},
+                    "rank_exception_confirmed": True,
                 }
             ),
             content_type="application/json",

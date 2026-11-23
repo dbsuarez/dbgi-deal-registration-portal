@@ -54,6 +54,7 @@ import {
   reportProjectOutcome,
   requestPriceRenewal,
   reviewRegistration,
+  markCannotSupply,
   markCertificatesIssued,
   type OpportunityScope,
   type CategoryApproval,
@@ -132,6 +133,13 @@ export default function RegistrationDetailPage() {
   const [certificatesSaving, setCertificatesSaving] = useState(false);
   const [certificatesError, setCertificatesError] = useState("");
   const [outcomeFile, setOutcomeFile] = useState<File | null>(null);
+  // A typed-in product DBGI's supplier cannot provide.
+  const [noSupplyItem, setNoSupplyItem] = useState<
+    RegistrationDetail["items"][number] | null
+  >(null);
+  const [noSupplyReason, setNoSupplyReason] = useState("");
+  const [noSupplySaving, setNoSupplySaving] = useState(false);
+  const [noSupplyError, setNoSupplyError] = useState("");
   const [catalogItem, setCatalogItem] = useState<
     RegistrationDetail["items"][number] | null
   >(null);
@@ -142,6 +150,7 @@ export default function RegistrationDetailPage() {
   const [catalogName, setCatalogName] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
   const [catalogPrice, setCatalogPrice] = useState("");
+  const [catalogCost, setCatalogCost] = useState("");
   const [catalogReason, setCatalogReason] = useState("");
   const [cataloging, setCataloging] = useState(false);
   const [catalogError, setCatalogError] = useState("");
@@ -291,6 +300,7 @@ export default function RegistrationDetailPage() {
     setCatalogName(item.non_catalog_name);
     setCatalogCategory("");
     setCatalogPrice("");
+    setCatalogCost("");
     setCatalogReason("");
     setCatalogError("");
     getProducts()
@@ -316,6 +326,7 @@ export default function RegistrationDetailPage() {
                   name: catalogName.trim(),
                   category: catalogCategory.trim(),
                   list_price: catalogPrice,
+                  landed_cost: catalogCost,
                 },
               }),
         },
@@ -400,6 +411,28 @@ export default function RegistrationDetailPage() {
         ? await getRegistration(registration.id)
         : updated,
     );
+  };
+
+  const handleCannotSupply = async () => {
+    if (!registration || !noSupplyItem?.id) return;
+    setNoSupplySaving(true);
+    setNoSupplyError("");
+    try {
+      setRegistration(
+        await markCannotSupply(
+          noSupplyItem.id,
+          { version: registration.version, reason: noSupplyReason.trim() },
+          session.csrf_token,
+        ),
+      );
+      setNoSupplyItem(null);
+    } catch (reason) {
+      setNoSupplyError(
+        reason instanceof Error ? reason.message : "That could not be saved.",
+      );
+    } finally {
+      setNoSupplySaving(false);
+    }
   };
 
   const handleCertificatesIssued = async () => {
@@ -599,7 +632,7 @@ export default function RegistrationDetailPage() {
                 })
               }
             >
-              Close deal
+              Cancel deal
             </Button>
           )}
           {registration.can_reopen && (
@@ -1190,7 +1223,17 @@ export default function RegistrationDetailPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     {item.display_name}
-                    {!item.product_id && (
+                    {!item.product_id && item.supply_declined && (
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        color="error"
+                      >
+                        Not available: DBGI cannot supply this product.{" "}
+                        {item.supply_decline_reason}
+                      </Typography>
+                    )}
+                    {!item.product_id && !item.supply_declined && (
                       <Typography
                         variant="caption"
                         display="block"
@@ -1201,6 +1244,25 @@ export default function RegistrationDetailPage() {
                       </Typography>
                     )}
                     {!item.product_id &&
+                      !item.supply_declined &&
+                      session.is_dbgi_admin &&
+                      registration.status !== "closed" &&
+                      registration.status !== "rejected" && (
+                        <Button
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            setNoSupplyItem(item);
+                            setNoSupplyReason("");
+                            setNoSupplyError("");
+                          }}
+                          sx={{ display: "block", px: 0 }}
+                        >
+                          Can&apos;t supply
+                        </Button>
+                      )}
+                    {!item.product_id &&
+                      !item.supply_declined &&
                       session.is_dbgi_admin &&
                       registration.status !== "closed" &&
                       registration.status !== "rejected" && (
@@ -1281,7 +1343,7 @@ export default function RegistrationDetailPage() {
 
       {registration.status === "closed" && (
         <Alert severity="info" sx={{ mt: 3 }}>
-          This deal is closed
+          This deal is cancelled
           {registration.close_reason_label
             ? `: ${registration.close_reason_label}`
             : ""}
@@ -1322,7 +1384,7 @@ export default function RegistrationDetailPage() {
               Other companies' open deals on this project
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              The project is won. Call each company, then close its deal with a
+              The project is won. Call each company, then cancel its deal with a
               note from the call.
             </Typography>
             <List disablePadding>
@@ -1344,7 +1406,7 @@ export default function RegistrationDetailPage() {
                         })
                       }
                     >
-                      Close
+                      Cancel deal
                     </Button>
                   }
                 >
@@ -1644,6 +1706,21 @@ export default function RegistrationDetailPage() {
                   },
                 }}
               />
+              <TextField
+                required
+                label="Landed cost (DBGI only)"
+                helperText="What one unit costs DBGI. No price can go below it."
+                type="number"
+                value={catalogCost}
+                onChange={(event) => setCatalogCost(event.target.value)}
+                slotProps={{
+                  htmlInput: {
+                    min: 0,
+                    step: "0.01",
+                    style: { textAlign: "right" },
+                  },
+                }}
+              />
             </Stack>
           )}
           <TextField
@@ -1680,7 +1757,8 @@ export default function RegistrationDetailPage() {
                 : !catalogCode.trim() ||
                   !catalogName.trim() ||
                   !catalogCategory.trim() ||
-                  !catalogPrice)
+                  !catalogPrice ||
+                  !catalogCost)
             }
             onClick={handleAddToCatalog}
           >
@@ -2023,6 +2101,62 @@ export default function RegistrationDetailPage() {
             onClick={handleDecideOutcome}
           >
             {decision?.confirm ? "Confirm outcome" : "Do not accept"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={noSupplyItem !== null}
+        onClose={() => !noSupplySaving && setNoSupplyItem(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>We can&apos;t supply this product</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {noSupplyItem?.display_name} is marked Not available and left out of
+            pricing. The rest of the deal goes on. The company is told and can
+            read your reason.
+          </Typography>
+          {noSupplyError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {noSupplyError}
+            </Alert>
+          )}
+          <TextField
+            required
+            fullWidth
+            multiline
+            minRows={3}
+            autoFocus
+            label="Reason"
+            helperText="At least 5 characters. The company can read it."
+            {...example("Our supplier does not carry this product.", {
+              debug: session.is_debug,
+              onFill: setNoSupplyReason,
+              more: [
+                "Our supplier does not carry this product.",
+                "The supplier cannot deliver before the bid date.",
+                "The supplier stopped making this model.",
+              ],
+            })}
+            value={noSupplyReason}
+            onChange={(event) => setNoSupplyReason(event.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setNoSupplyItem(null)}
+            disabled={noSupplySaving}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={noSupplySaving || noSupplyReason.trim().length < 5}
+            onClick={handleCannotSupply}
+          >
+            Mark not available
           </Button>
         </DialogActions>
       </Dialog>

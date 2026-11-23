@@ -32,6 +32,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProductLandedCost,
     ProductPrice,
     ProjectChange,
     PublicHoliday,
@@ -82,6 +83,7 @@ class PortalUserAdmin(BaseUserAdmin, ModelAdmin):
                 "fields": (
                     "company",
                     "role",
+                    "is_owner",
                     "designation",
                     "phone_number",
                     "show_end_user_field_help",
@@ -144,19 +146,49 @@ class ProductPriceInline(TabularInline):
         return False
 
 
+class ProductLandedCostInline(TabularInline):
+    """Add-only landed cost history (DBGI only). No approved price may go below it."""
+
+    model = ProductLandedCost
+    extra = 0
+    verbose_name = "landed cost"
+    verbose_name_plural = "landed costs (DBGI only; no approved price may go below it)"
+    fields = ("unit_cost", "effective_from", "reason", "created_by", "created_at")
+    readonly_fields = ("created_by", "created_at")
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ("code", "name", "category", "currency", "current_price", "is_active")
+    list_display = (
+        "code",
+        "name",
+        "category",
+        "currency",
+        "current_price",
+        "current_landed_cost",
+        "is_active",
+    )
     list_filter = ("category", "is_active")
     search_fields = ("code", "name", "category")
-    inlines = (ProductPriceInline,)
+    inlines = (ProductPriceInline, ProductLandedCostInline)
 
     def get_queryset(self, request):
-        return super().get_queryset(request).with_list_price()
+        return super().get_queryset(request).with_list_price().with_landed_cost()
 
     @admin.display(description="Current list price", ordering="list_price")
     def current_price(self, obj):
         return obj.list_price
+
+    @admin.display(description="Landed cost", ordering="landed_cost")
+    def current_landed_cost(self, obj):
+        # A product without one cannot be priced until it is entered.
+        return obj.landed_cost if obj.landed_cost is not None else "Not entered"
 
     def save_formset(self, request, form, formset, change):
         for price in formset.save(commit=False):
@@ -298,10 +330,32 @@ class PortalSettingAdmin(ModelAdmin):
             },
         ),
         (
+            "Pricing",
+            {
+                "description": (
+                    "Admins can approve a discount up to this limit, measured against the list "
+                    "price. A bigger discount goes to the owner (a DBGI admin with Owner switched "
+                    "on, in Users). No price can go below a product's landed cost, except by the "
+                    "owner after a warning. DBGI admins get a reminder when a price is still "
+                    "undecided shortly before bidding."
+                ),
+                "fields": (
+                    "admin_discount_limit_percent",
+                    "price_deadline_days",
+                    "owner_weekly_summary",
+                ),
+            },
+        ),
+        (
             "Forms",
             {
-                "description": "Help shown to partners while they fill in forms.",
-                "fields": ("show_end_user_field_help",),
+                "description": "What partners must fill in, and help shown while they do.",
+                "fields": (
+                    "competitor_items_required",
+                    "street_address_required",
+                    "unlisted_product_minimum_value",
+                    "show_end_user_field_help",
+                ),
             },
         ),
         ("Record", {"fields": ("updated_at",)}),
@@ -1000,10 +1054,16 @@ class RegistrationCategoryApprovalAdmin(ModelAdmin):
             ),
         )
 
+    # View only since 2026-11-23: prices are decided with Decide price on the deal page, where the
+    # landed cost floor, the admin discount limit, and the rank checkbox all apply.
+    def has_add_permission(self, request):
+        return False
+
     def has_change_permission(self, request, obj=None):
-        if obj and obj.registration.status == Registration.Status.CLOSED:
-            return False
-        return super().has_change_permission(request, obj)
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def save_model(self, request, obj, form, change):
         request.commercial_prior_snapshot = registration_snapshot(obj.registration)

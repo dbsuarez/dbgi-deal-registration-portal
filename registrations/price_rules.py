@@ -1,6 +1,7 @@
 """The price rule: rank 1 gets the best price, and everyone else gets the same price as each other.
 
-DBGI still decides each price, so a broken rule is a warning and never blocks the decision.
+DBGI still decides each price. A decision that breaks the rule is saved only after DBGI ticks
+"I confirm this exception" (2026-11-23), so it is never broken by accident.
 """
 
 from .models import (
@@ -81,16 +82,22 @@ def project_price_rows(registration):
     ]
 
 
-def price_warnings(approval):
-    """What breaks the price rule on this decision. Empty when nothing can be compared."""
+def price_warnings(approval, proposed=None, status=None):
+    """What breaks the price rule on this decision. Empty when nothing can be compared.
+
+    `proposed` ({product id: (price, product name)}) and `status` check a decision before it is
+    saved; without them, the saved decision is checked.
+    """
     registration = approval.registration
-    if approval.status not in ACTIVE_STATUSES or not registration.opportunity_scope_id:
+    if (status or approval.status) not in ACTIVE_STATUSES or not registration.opportunity_scope_id:
         return []
     entries = _entries(registration.opportunity_scope_id)
     own = next((entry for entry in entries if entry.registration.pk == registration.pk), None)
     if own is None:
         return []
     prices = _prices([entry.registration.pk for entry in entries])
+    if proposed is not None:
+        prices[registration.pk] = {**prices.get(registration.pk, {}), **proposed}
     warnings = []
     for product_id, (price, name) in prices.get(registration.pk, {}).items():
         for other in entries:

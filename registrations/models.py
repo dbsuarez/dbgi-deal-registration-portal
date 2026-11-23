@@ -69,6 +69,14 @@ class User(AbstractUser):
         COMPANY = "company", "Company user"
         DBGI_ADMIN = "dbgi_admin", "DBGI admin"
 
+    is_owner = models.BooleanField(
+        "owner (approves bigger discounts)",
+        default=False,
+        help_text=(
+            "For a DBGI admin: approves discounts above the admin limit, can change any price, "
+            "and can go below landed cost after a clear warning. Gets an email for each one."
+        ),
+    )
     company = models.ForeignKey(
         Company,
         on_delete=models.PROTECT,
@@ -85,6 +93,11 @@ class User(AbstractUser):
     def is_dbgi_admin(self):
         return self.is_superuser or (self.is_staff and self.role == self.Role.DBGI_ADMIN)
 
+    @property
+    def is_price_owner(self):
+        """The owner approves discounts above the admin limit, and may price below landed cost."""
+        return self.is_owner and self.is_dbgi_admin
+
     def clean(self):
         super().clean()
         if self.role == self.Role.COMPANY and not self.company_id and not self.is_superuser:
@@ -96,6 +109,14 @@ class User(AbstractUser):
 
 
 class ProductQuerySet(models.QuerySet):
+    def with_landed_cost(self, at=None):
+        """Annotate each product with landed_cost, the cost in effect `at` (default now).
+        None when no landed cost was entered yet: such a product cannot be priced."""
+        in_effect = ProductLandedCost.objects.filter(
+            product=models.OuterRef("pk"), effective_from__lte=at or timezone.now()
+        ).order_by("-effective_from", "-id")
+        return self.annotate(landed_cost=models.Subquery(in_effect.values("unit_cost")[:1]))
+
     def with_list_price(self, at=None):
         """Annotate each product with the price in effect `at` (default now): list_price, and
         list_price_id, the ProductPrice it came from. A product with no price yet shows 0.00."""
@@ -179,6 +200,51 @@ class ProductPrice(models.Model):
 
     def __str__(self):
         return f"{self.product.code}: {self.unit_price} from {self.effective_from:%Y-%m-%d}"
+
+
+class ProductLandedCost(models.Model):
+    """What one unit costs DBGI once it arrives (DBGI only). No approved price may go below it,
+    except by the owner with a clear warning. Add a new record to change it; never edit one."""
+
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="landed_costs")
+    unit_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    effective_from = models.DateTimeField(default=timezone.now)
+    reason = models.TextField()
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="product_landed_costs",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "effective_from"], name="unique_product_landed_cost_start"
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        if self._state.adding and self.effective_from:
+            if timezone.localtime(self.effective_from).date() < timezone.localdate():
+                raise ValidationError(
+                    {"effective_from": "A cost cannot start in the past. Use today or later."}
+                )
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("A saved cost cannot change. Add a new cost instead.")
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.product.code}: cost {self.unit_cost} from {self.effective_from:%Y-%m-%d}"
 
 
 def normalize_end_user_value(value):
@@ -306,7 +372,7 @@ class EndUser(models.Model):
     region = models.CharField(max_length=160, blank=True)
     province = models.CharField(max_length=160, blank=True)
     city_municipality = models.CharField(max_length=160)
-    street_address = models.TextField()
+    street_address = models.TextField(blank=True)
     postal_code = models.CharField(max_length=20, blank=True)
     philgeps_reference = models.CharField(max_length=120, blank=True)
     source_url = models.URLField(blank=True)
@@ -468,7 +534,7 @@ class Registration(models.Model):
         ELIGIBLE_MATCHED = "eligible_matched", "Registered"
         REVIEW_REQUIRED = "review_required", "Review required after edit"
         REJECTED = "rejected", "Rejected"
-        CLOSED = "closed", "Closed"
+        CLOSED = "closed", "Cancelled"
 
     class CloseReason(models.TextChoices):
         ANOTHER_COMPANY_WON = "another_company_won", "Another company won"
@@ -608,7 +674,13 @@ class Registration(models.Model):
         approvals = list(self.category_approvals.all())
         if not approvals:
             return "not_requested"
-        statuses = {approval.effective_status for approval in approvals}
+        # A price waiting for the owner is still pending for everyone outside DBGI.
+        statuses = {
+            RegistrationCategoryApproval.Status.PENDING
+            if approval.effective_status == RegistrationCategoryApproval.Status.OWNER_REVIEW
+            else approval.effective_status
+            for approval in approvals
+        }
         if statuses == {RegistrationCategoryApproval.Status.APPROVED}:
             return "approved"
         if statuses == {RegistrationCategoryApproval.Status.EXPIRED}:
@@ -883,6 +955,12 @@ class RegistrationItem(models.Model):
     )
     price_captured_at = models.DateTimeField(default=timezone.now, editable=False)
     justification = models.TextField(blank=True)
+    # A typed-in product DBGI's supplier cannot provide: left out of pricing, with the reason.
+    supply_declined_at = models.DateTimeField(null=True, blank=True, editable=False)
+    supply_decline_reason = models.TextField(blank=True, editable=False)
+    supply_declined_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True, editable=False, related_name="+"
+    )
 
     def clean(self):
         super().clean()
@@ -918,6 +996,8 @@ class RegistrationCategoryApproval(models.Model):
         PENDING = "pending", "Pending"
         # DBGI asks the company for a new price; the company can then change that category.
         CHANGES_REQUESTED = "changes_requested", "Needs a new price"
+        # An admin approved a discount above their limit; the owner decides it.
+        OWNER_REVIEW = "owner_review", "Waiting for owner approval"
         PARTIALLY_APPROVED = "partially_approved", "Partially approved"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
@@ -936,6 +1016,11 @@ class RegistrationCategoryApproval(models.Model):
     valid_until = models.DateField(null=True, blank=True)
     # Decision C1: the 14-day expiry reminder; cleared whenever valid_until changes
     expiry_reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # While waiting for the owner: what the admin proposed, and who.
+    proposed_status = models.CharField(max_length=30, blank=True)
+    proposed_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1114,6 +1199,8 @@ class RegistrationNotification(models.Model):
         REVIEW_NEEDED = "review_needed", "Registration needs review"
         RENEWAL_REQUESTED = "renewal_requested", "Price renewal requested"
         REPEAT_ORDER_REQUESTED = "repeat_order_requested", "Repeat order requested"
+        OWNER_APPROVAL_NEEDED = "owner_approval_needed", "Discount needs owner approval"
+        PRICE_DEADLINE = "price_deadline", "Price due before bidding"
         CERTIFICATES_DUE = "certificates_due", "Certificates to issue"
 
     class EmailStatus(models.TextChoices):
@@ -1214,6 +1301,57 @@ class PortalSetting(models.Model):
             "Off: companies that registered at the very same time keep the same rank, and rank 1 "
             "includes all of them. On: DBGI can put them in order on the Rankings page with "
             "Decide tie. Default: off (the head's answer of 2026-11-11)."
+        ),
+    )
+    street_address_required = models.BooleanField(
+        "street address is required for a new end-user",
+        default=False,
+        help_text="On: partners must type a street address in Add missing End-user. Default: off.",
+    )
+    competitor_items_required = models.BooleanField(
+        "competitor items are required",
+        default=False,
+        help_text="On: a registration needs at least one competitor item. Default: off.",
+    )
+    unlisted_product_minimum_value = models.DecimalField(
+        "minimum order value for a product we do not list",
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("1000000.00"),
+        validators=[MinValueValidator(0)],
+        help_text=(
+            "A typed-in product (Not in catalog) needs quantity times requested price of at "
+            "least this much, or the registration is refused. 0 turns the rule off. "
+            "Default: 1,000,000."
+        ),
+    )
+    admin_discount_limit_percent = models.DecimalField(
+        "biggest discount an admin can approve (%)",
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("5.00"),
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text=(
+            "Measured against the list price. A bigger discount goes to the owner for approval. "
+            "Default: 5."
+        ),
+    )
+    owner_weekly_summary = models.BooleanField(
+        "send the owner a Monday summary email",
+        default=True,
+        help_text=(
+            "Every Monday morning, the owner gets the same few numbers as his Overview page: "
+            "prices waiting for him, this month so far, bids coming up, and what is stuck. "
+            "Default: on."
+        ),
+    )
+    price_deadline_days = models.PositiveSmallIntegerField(
+        "days before bidding that prices must be decided",
+        default=7,
+        validators=[MinValueValidator(1), MaxValueValidator(60)],
+        help_text=(
+            "DBGI admins get a reminder when a deal's price is still undecided this many days "
+            "before its bid date. Default: 7."
         ),
     )
     repeat_order_valid_days = models.PositiveSmallIntegerField(

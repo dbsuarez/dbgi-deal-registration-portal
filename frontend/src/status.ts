@@ -29,6 +29,7 @@ const STATUS_COLORS: Record<StatusKind, Record<string, ChipProps["color"]>> = {
     pending: "warning",
     changes_requested: "warning",
     partially_approved: "info",
+    owner_review: "warning",
     approved: "success",
     rejected: "error",
     expired: "error",
@@ -55,7 +56,7 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
     rejected:
       "DBGI rejected this registration. Open the decision to read the reason.",
     closed:
-      "This deal is closed. It left the ranking and cannot change. Only DBGI can reopen it.",
+      "This deal is cancelled. It left the ranking and cannot change. Only DBGI can reopen it.",
   },
   project: {
     unlinked:
@@ -80,6 +81,8 @@ const STATUS_EXPLANATIONS: Record<StatusKind, Record<string, string>> = {
       "DBGI needs a new price from the company. The company edits the deal, changes the price, and saves.",
     partially_approved:
       "DBGI approved pricing for some requested items or categories, but not all of them.",
+    owner_review:
+      "The discount is above the admin limit, so the owner decides it. The partner sees it as pending.",
     approved:
       "DBGI approved the displayed prices until the stated validity date.",
     rejected: "DBGI did not approve the requested pricing.",

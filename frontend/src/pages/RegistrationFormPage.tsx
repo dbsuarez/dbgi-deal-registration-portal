@@ -648,8 +648,16 @@ export default function RegistrationFormPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!competitors.length || !items.length) {
-      setError("Add at least one competitor item and one requested product.");
+    // Competitor items are optional unless DBGI's Portal settings ask for them.
+    const competitorRequired = Boolean(
+      session.form_rules?.competitor_items_required,
+    );
+    if (!items.length || (competitorRequired && !competitors.length)) {
+      setError(
+        competitorRequired
+          ? "Add at least one competitor item and one requested product."
+          : "Add at least one requested product.",
+      );
       return;
     }
     setSaving(true);
@@ -1555,7 +1563,16 @@ function ItemDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const { is_debug: isDebug } = useSession();
+  const { is_debug: isDebug, form_rules: rules } = useSession();
+  // A product DBGI does not list is only worth sourcing for a big enough order.
+  const minimum = Number(rules?.unlisted_product_minimum_value ?? 0);
+  const orderValue =
+    Number(value.quantity || 0) * Number(value.requested_unit_price || 0);
+  const tooSmall =
+    !value.product_id &&
+    minimum > 0 &&
+    value.requested_unit_price !== "" &&
+    orderValue < minimum;
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Requested product</DialogTitle>
@@ -1674,6 +1691,16 @@ function ItemDialog({
             />
           </Grid>
         </Grid>
+        {!value.product_id && minimum > 0 && (
+          <Alert severity={tooSmall ? "warning" : "info"} sx={{ mt: 2 }}>
+            We do not list this product, so DBGI checks with the supplier first.
+            The order must be worth at least{" "}
+            {minimum.toLocaleString("en-PH", { minimumFractionDigits: 2 })}{" "}
+            (quantity times price).
+            {value.requested_unit_price !== "" &&
+              ` This one is ${orderValue.toLocaleString("en-PH", { minimumFractionDigits: 2 })}.`}
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
@@ -1683,7 +1710,8 @@ function ItemDialog({
           disabled={
             (!value.product_id && !value.non_catalog_name.trim()) ||
             value.quantity < 1 ||
-            value.requested_unit_price === ""
+            value.requested_unit_price === "" ||
+            tooSmall
           }
         >
           Save item
@@ -1716,6 +1744,9 @@ function EndUserDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const streetRequired = Boolean(
+    useSession().form_rules?.street_address_required,
+  );
   const governmentBranches = [
     "National government",
     "Local government",
@@ -2042,7 +2073,7 @@ function EndUserDialog({
           <Grid size={12}>
             <TextField
               fullWidth
-              required
+              required={streetRequired}
               multiline
               rows={2}
               label="Street address"

@@ -22,7 +22,7 @@ type Props = {
   onSaved: (updated: RegistrationDetail) => void;
 };
 
-// DBGI reopens a closed deal, for example when the winner was disqualified.
+// DBGI reopens a cancelled deal, for example when the winner was disqualified.
 export default function ReopenDealDialog({
   open,
   registration,
@@ -67,9 +67,9 @@ export default function ReopenDealDialog({
       <DialogTitle>Reopen this deal?</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          It goes back to the status it had before it was closed. It keeps its
-          original submission time, so it takes back its place in the ranking.
-          The company is told.
+          It goes back to the status it had before it was cancelled. It keeps
+          its original submission time, so it takes back its place in the
+          ranking. The company is told.
         </Typography>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>

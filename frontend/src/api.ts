@@ -11,7 +11,17 @@ export type Session = {
   designation: string;
   phone_number: string;
   is_dbgi_admin: boolean;
+  // A DBGI admin who approves discounts above the admin limit.
+  is_owner?: boolean;
+  // For the owner: prices waiting for his approval.
+  owner_waiting_count?: number;
   is_debug: boolean;
+  // Portal settings the forms follow.
+  form_rules?: {
+    street_address_required: boolean;
+    competitor_items_required: boolean;
+    unlisted_product_minimum_value: string;
+  };
   one_working_day_ends?: string;
   end_user_field_help_available: boolean;
   show_end_user_field_help: boolean;
@@ -134,6 +144,9 @@ export type RequestedItem = {
   requested_total?: string;
   approved_unit_price?: string | null;
   justification: string;
+  // A typed-in product DBGI's supplier cannot provide.
+  supply_declined?: boolean;
+  supply_decline_reason?: string;
 };
 
 export type Attachment = {
@@ -374,7 +387,90 @@ export type CategoryApproval = {
     price: string;
   }[];
   price_warnings?: string[];
+  // DBGI only.
+  discount_limit_percent?: string | null;
+  is_owner?: boolean;
+  item_costs?: {
+    item_id: number;
+    landed_cost: string | null;
+    list_price: string | null;
+  }[];
+  proposed_status_label?: string | null;
+  proposed_by_name?: string | null;
 };
+
+export type OwnerApproval = {
+  approval_id: number;
+  version: number;
+  proposed_status: string;
+  registration_id: number;
+  reference: string;
+  company_name: string;
+  project_title: string;
+  bid_date: string;
+  category: string;
+  proposed_status_label: string;
+  proposed_by_name: string | null;
+  rationale: string;
+  waiting_since: string | null;
+  items: {
+    item_id: number;
+    name: string;
+    quantity: number;
+    list_price: string | null;
+    requested_price: string;
+    proposed_price: string | null;
+    discount_percent: string | null;
+    landed_cost: string | null;
+  }[];
+};
+
+type OverviewDeal = {
+  registration_id: number;
+  reference: string;
+  company_name: string;
+  project_title: string;
+};
+
+// The owner's overview: what needs him, the month so far, and what is coming or stuck.
+export type OwnerOverview = {
+  today: string;
+  waiting_for_owner: number;
+  month: {
+    label: string;
+    new_deals: number;
+    new_deals_last_month: number;
+    won: number;
+    won_value: string;
+    won_last_month: number;
+    won_value_last_month: string;
+    lost_or_cancelled: number;
+    lost_or_cancelled_last_month: number;
+    pipeline_value: string;
+    pipeline_deals: number;
+  };
+  upcoming_bids: (OverviewDeal & {
+    bid_date: string;
+    price_decided: boolean;
+  })[];
+  upcoming_more: number;
+  stuck: (OverviewDeal & { reason: string })[];
+  recent_wins: (OverviewDeal & {
+    won_on: string | null;
+    value: string;
+    certificates_issued: boolean;
+  })[];
+  top_partners: { company_name: string; deals: number; value: string }[];
+  quarter_label: string;
+};
+
+export function getOwnerOverview(signal?: AbortSignal) {
+  return request<OwnerOverview>("/api/v1/owner/overview", signal);
+}
+
+export function getOwnerApprovals(signal?: AbortSignal) {
+  return request<OwnerApproval[]>("/api/v1/review/owner-approvals", signal);
+}
 
 export type RegistrationPayload = {
   version?: number;
@@ -783,6 +879,20 @@ export function reviewRegistration(
   );
 }
 
+export function markCannotSupply(
+  itemId: number,
+  payload: { version: number; reason: string },
+  csrfToken: string,
+) {
+  return mutation<RegistrationDetail>(
+    `/api/v1/review/registration-items/${itemId}/cannot-supply`,
+    "POST",
+    csrfToken,
+    JSON.stringify(payload),
+    "application/json",
+  );
+}
+
 export function addItemToCatalog(
   itemId: number,
   payload: {
@@ -794,6 +904,7 @@ export function addItemToCatalog(
       name: string;
       category: string;
       list_price: string;
+      landed_cost: string;
     };
   },
   csrfToken: string,
@@ -829,6 +940,9 @@ export function decideCategoryPrice(
     rationale: string;
     valid_until: string | null;
     approved_prices: Record<string, string>;
+    // Ticked after the portal showed a warning.
+    rank_exception_confirmed?: boolean;
+    below_cost_confirmed?: boolean;
   },
   csrfToken: string,
 ) {

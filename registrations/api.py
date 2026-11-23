@@ -34,6 +34,7 @@ from .models import (
     PortalSetting,
     PriceApprovalRenewal,
     Product,
+    ProductLandedCost,
     ProductPrice,
     ProjectOutcomeReport,
     RankingTieDecision,
@@ -50,6 +51,7 @@ from .models import (
     normalize_end_user_value,
 )
 from .notifications import (
+    notify_company_cannot_supply,
     notify_company_closed_by_dbgi,
     notify_company_reopened,
     notify_company_users,
@@ -61,11 +63,13 @@ from .notifications import (
     notify_dbgi_review_needed,
     notify_outcome_decision,
     notify_outcome_reported,
+    notify_owner_approval_needed,
     notify_price_decision,
     notify_registration_decision,
     notify_repeat_order_decision,
     notify_submission,
 )
+from .owner import owner_overview
 from .price_rules import price_warnings, project_price_rows, rank_text
 from .project_changes import (
     PROJECT_CHANGE_EVENTS,
@@ -159,6 +163,8 @@ class CatalogNewProductInput(Schema):
     name: str = Field(min_length=1, max_length=240)
     category: str = Field(min_length=1, max_length=120)
     list_price: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    # DBGI only: without it the new product could not be priced.
+    landed_cost: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
 
 
 class CatalogLinkInput(Schema):
@@ -267,6 +273,8 @@ class RegistrationItemOutput(RegistrationItemInput):
     requested_discount_percent: Decimal | None
     requested_total: Decimal
     approved_unit_price: Decimal | None
+    supply_declined: bool = False
+    supply_decline_reason: str = ""
 
 
 class CategoryApprovalOutput(Schema):
@@ -288,6 +296,13 @@ class CategoryApprovalOutput(Schema):
     rank_text: str | None = None
     project_prices: list[dict] = Field(default_factory=list)
     price_warnings: list[str] = Field(default_factory=list)
+    # DBGI only: the discount limit, whether this user is the owner, each product's landed cost,
+    # and the admin's proposal while it waits for the owner.
+    discount_limit_percent: Decimal | None = None
+    is_owner: bool = False
+    item_costs: list[dict] = Field(default_factory=list)
+    proposed_status_label: str | None = None
+    proposed_by_name: str | None = None
 
 
 class CategoryApprovalDecisionInput(Schema):
@@ -296,6 +311,10 @@ class CategoryApprovalDecisionInput(Schema):
     rationale: str = Field(min_length=5, max_length=2000)
     valid_until: date | None = None
     approved_prices: dict[int, Decimal] = Field(default_factory=dict)
+    # Ticked after the portal showed a warning: a price that breaks the rank rule, or (owner
+    # only) a price below landed cost.
+    rank_exception_confirmed: bool = False
+    below_cost_confirmed: bool = False
 
 
 class RenewalRequestInput(Schema):
@@ -530,7 +549,7 @@ class EndUserCreateInput(Schema):
     region: str = Field(default="", max_length=160)
     province: str = Field(default="", max_length=160)
     city_municipality: str = Field(min_length=2, max_length=160)
-    street_address: str = Field(min_length=2)
+    street_address: str = Field(default="", max_length=500)
     postal_code: str = Field(default="", max_length=20)
     philgeps_reference: str = Field(default="", max_length=120)
     source_url: str = ""
@@ -543,7 +562,10 @@ class SessionResponse(Schema):
     designation: str
     phone_number: str
     is_dbgi_admin: bool
+    is_owner: bool = False
+    owner_waiting_count: int = 0
     is_debug: bool
+    form_rules: dict = Field(default_factory=dict)
     one_working_day_ends: date
     end_user_field_help_available: bool
     show_end_user_field_help: bool
@@ -677,7 +699,19 @@ def session(request):
         "designation": request.user.designation,
         "phone_number": request.user.phone_number,
         "is_dbgi_admin": request.user.is_dbgi_admin,
+        "is_owner": request.user.is_price_owner,
+        # For the owner's menu and home page: prices waiting for his approval.
+        "owner_waiting_count": (
+            RegistrationCategoryApproval.objects.filter(
+                status=RegistrationCategoryApproval.Status.OWNER_REVIEW
+            )
+            .exclude(registration__status=Registration.Status.CLOSED)
+            .count()
+            if request.user.is_price_owner
+            else 0
+        ),
         "is_debug": settings.DEBUG,
+        "form_rules": _form_rules(),
         "one_working_day_ends": add_working_days(timezone.now(), 1),
         "end_user_field_help_available": help_available,
         "show_end_user_field_help": help_available and request.user.show_end_user_field_help,
@@ -918,6 +952,7 @@ def _serialize_registration_event(event, *, include_internal_details):
     if not include_internal_details and event.event_type in {
         "Start review",
         "Certificates issued",
+        "Sent to the owner",
     }:
         return None
     details = event.details
@@ -1259,9 +1294,16 @@ def _serialize_registration_detail(registration, user):
                     "approved_unit_price": (
                         item.price_approval.approved_unit_price
                         if hasattr(item, "price_approval")
+                        and (
+                            user.is_dbgi_admin
+                            or item.price_approval.category_approval.status
+                            != RegistrationCategoryApproval.Status.OWNER_REVIEW
+                        )
                         else None
                     ),
                     "justification": item.justification,
+                    "supply_declined": item.supply_declined_at is not None,
+                    "supply_decline_reason": item.supply_decline_reason,
                 }
                 for item in registration.items.all()
             ],
@@ -1337,8 +1379,64 @@ def _last_renewal_text(approval):
     return f"{outcome}: {renewal.decision_reason}" if renewal.decision_reason else outcome
 
 
+def _dbgi_price_context(approval, user):
+    """DBGI only: landed costs and list prices per product, the discount limit, and any proposal
+    waiting for the owner."""
+    if not (user and user.is_dbgi_admin):
+        return {}
+    items = list(
+        approval.registration.items.filter(product__category=approval.category).select_related(
+            "product"
+        )
+    )
+    costs = dict(
+        Product.objects.filter(pk__in=[item.product_id for item in items])
+        .with_landed_cost()
+        .values_list("pk", "landed_cost")
+    )
+    waiting = approval.status == RegistrationCategoryApproval.Status.OWNER_REVIEW
+    return {
+        "discount_limit_percent": PortalSetting.current().admin_discount_limit_percent,
+        "is_owner": user.is_price_owner,
+        "item_costs": [
+            {
+                "item_id": item.pk,
+                "landed_cost": _money(costs.get(item.product_id)),
+                "list_price": item.list_unit_price_snapshot,
+            }
+            for item in items
+        ],
+        "proposed_status_label": (
+            RegistrationCategoryApproval.Status(approval.proposed_status).label
+            if waiting and approval.proposed_status
+            else None
+        ),
+        "proposed_by_name": (
+            approval.proposed_by.get_full_name() or approval.proposed_by.username
+            if waiting and approval.proposed_by_id
+            else None
+        ),
+    }
+
+
+def _money(value):
+    """Two decimal places, as every other amount is shown; None stays None."""
+    return None if value is None else Decimal(value).quantize(Decimal("0.01"))
+
+
+def _discount_percent(list_price, price):
+    """The discount from the list price, in percent; None when there is no list price."""
+    if not list_price:
+        return None
+    return (list_price - price) * 100 / list_price
+
+
 def _serialize_category_approval(approval, user=None, warnings=None):
     """`user` adds DBGI's rank and price context; `warnings` comes from a decision just saved."""
+    hidden = (
+        not (user and user.is_dbgi_admin)
+        and approval.status == RegistrationCategoryApproval.Status.OWNER_REVIEW
+    )
     withdrawn = approval.registration.status == Registration.Status.CLOSED
     pending = (
         None
@@ -1368,11 +1466,17 @@ def _serialize_category_approval(approval, user=None, warnings=None):
             project_price_rows(approval.registration) if user and user.is_dbgi_admin else []
         ),
         "price_warnings": warnings or [],
+        **_dbgi_price_context(approval, user),
         "id": approval.pk,
         "category": approval.category,
-        "status": approval.effective_status,
-        "status_label": RegistrationCategoryApproval.Status(approval.effective_status).label,
-        "rationale": approval.rationale,
+        # Outside DBGI, a price waiting for the owner is simply still pending.
+        "status": (
+            RegistrationCategoryApproval.Status.PENDING if hidden else approval.effective_status
+        ),
+        "status_label": RegistrationCategoryApproval.Status(
+            RegistrationCategoryApproval.Status.PENDING if hidden else approval.effective_status
+        ).label,
+        "rationale": "" if hidden else approval.rationale,
         "reviewed_by": (
             approval.reviewed_by.get_full_name() or approval.reviewed_by.username
             if approval.reviewed_by_id
@@ -1381,6 +1485,16 @@ def _serialize_category_approval(approval, user=None, warnings=None):
         "reviewed_at": approval.reviewed_at,
         "valid_until": approval.valid_until,
         "version": approval.version,
+    }
+
+
+def _form_rules():
+    """Portal settings the registration form needs to know."""
+    current = PortalSetting.current()
+    return {
+        "street_address_required": current.street_address_required,
+        "competitor_items_required": current.competitor_items_required,
+        "unlisted_product_minimum_value": current.unlisted_product_minimum_value,
     }
 
 
@@ -1528,6 +1642,15 @@ def create_end_user(request, payload: EndUserCreateInput):
             {
                 "code": "invalid_government_branch",
                 "message": "Choose a government branch from the available list.",
+            },
+        )
+    if PortalSetting.current().street_address_required and len(payload.street_address.strip()) < 2:
+        return Status(
+            400,
+            {
+                "code": "validation_error",
+                "message": "Correct the highlighted fields.",
+                "details": [{"field": "street_address", "message": "Enter the street address."}],
             },
         )
     candidate = EndUser(
@@ -1733,7 +1856,8 @@ def _resolve_competitor_model(brand, name):
 
 def _validate_input(payload):
     details = []
-    if not payload.competitor_items:
+    settings_now = PortalSetting.current()
+    if settings_now.competitor_items_required and not payload.competitor_items:
         details.append(
             {"field": "competitor_items", "message": "Add at least one competitor item."}
         )
@@ -1756,6 +1880,20 @@ def _validate_input(payload):
                 {
                     "field": f"items.{index}",
                     "message": "Choose a catalog product or enter a product description.",
+                }
+            )
+        # A product DBGI does not list is only worth sourcing for a big enough order.
+        minimum = settings_now.unlisted_product_minimum_value
+        if not item.product_id and minimum and item.quantity * item.requested_unit_price < minimum:
+            details.append(
+                {
+                    "field": f"items.{index}",
+                    "message": (
+                        f"A product we do not list needs an order worth at least {minimum:,.2f} "
+                        f"(quantity times price). "
+                        f"{item.non_catalog_name.strip() or 'This product'} is "
+                        f"{item.quantity * item.requested_unit_price:,.2f}."
+                    ),
                 }
             )
     return details
@@ -2609,7 +2747,7 @@ def refresh_matching_suggestion(request, registration_id: int):
 
 CLOSED_ERROR = {
     "code": "registration_closed",
-    "message": "This deal is closed and can no longer change.",
+    "message": "This deal is cancelled and can no longer change.",
 }
 
 
@@ -2652,7 +2790,9 @@ def close_registration(request, registration_id: int, payload: RegistrationClose
     """
     note = payload.note.strip()
     if len(note) < 5:
-        return _validation_error("note", "Explain why the deal is closing (at least 5 characters).")
+        return _validation_error(
+            "note", "Explain why the deal is cancelled (at least 5 characters)."
+        )
     is_dbgi = request.user.is_dbgi_admin
     company_id = None if is_dbgi else _company_id(request.user)
     if not is_dbgi and company_id in (None, False):
@@ -2670,13 +2810,13 @@ def close_registration(request, registration_id: int, payload: RegistrationClose
                 409,
                 {
                     "code": "edit_conflict",
-                    "message": "This registration changed. Refresh before closing it.",
+                    "message": "This registration changed. Refresh before cancelling it.",
                 },
             )
         if registration.status not in Registration.CLOSABLE_STATUSES:
             return Status(
                 400,
-                {"code": "invalid_transition", "message": "This deal can no longer be closed."},
+                {"code": "invalid_transition", "message": "This deal can no longer be cancelled."},
             )
         prior_snapshot = registration_snapshot(registration)
         registration.status_before_close = registration.status
@@ -2688,11 +2828,15 @@ def close_registration(request, registration_id: int, payload: RegistrationClose
         registration.version += 1
         registration.save()
         reason_label = registration.get_close_reason_display()
-        who = "DBGI closed this deal for the company" if is_dbgi else "The company closed this deal"
+        who = (
+            "DBGI cancelled this deal for the company"
+            if is_dbgi
+            else "The company cancelled this deal"
+        )
         RegistrationEvent.objects.create(
             registration=registration,
             actor=request.user,
-            event_type="Closed",
+            event_type="Cancelled",
             details=f"{who}. Reason: {reason_label}. {note}",
             snapshot=prior_snapshot,
             resulting_snapshot=registration_snapshot(registration),
@@ -2746,7 +2890,7 @@ def reopen_registration(request, registration_id: int, payload: RegistrationReop
         if registration.status != Registration.Status.CLOSED:
             return Status(
                 400,
-                {"code": "invalid_transition", "message": "Only a closed deal can be reopened."},
+                {"code": "invalid_transition", "message": "Only a cancelled deal can be reopened."},
             )
         prior_snapshot = registration_snapshot(registration)
         registration.status = registration.status_before_close or (
@@ -2770,6 +2914,129 @@ def reopen_registration(request, registration_id: int, payload: RegistrationReop
         )
         notify_company_reopened(registration)
     return _fresh_detail(request, registration_id)
+
+
+@api.get(
+    "/owner/overview",
+    auth=django_auth,
+    response={200: dict, 403: ErrorResponse},
+)
+def get_owner_overview(request):
+    """The owner's overview page: a few numbers and short lists, never every step."""
+    if not (request.user.is_price_owner or request.user.is_superuser):
+        return Status(403, {"code": "owner_required", "message": "This page is for the owner."})
+    return owner_overview()
+
+
+class OwnerApprovalItem(Schema):
+    item_id: int
+    name: str
+    quantity: int
+    list_price: Decimal | None
+    requested_price: Decimal
+    proposed_price: Decimal | None
+    discount_percent: Decimal | None
+    landed_cost: Decimal | None
+
+
+class OwnerApprovalRow(Schema):
+    approval_id: int
+    version: int
+    proposed_status: str
+    registration_id: int
+    reference: str
+    company_name: str
+    project_title: str
+    bid_date: date
+    category: str
+    proposed_status_label: str
+    proposed_by_name: str | None
+    rationale: str
+    waiting_since: datetime | None
+    items: list[OwnerApprovalItem]
+
+
+@api.get(
+    "/review/owner-approvals",
+    auth=django_auth,
+    response={200: list[OwnerApprovalRow], 403: ErrorResponse},
+)
+def list_owner_approvals(request):
+    """Prices an admin approved with a discount above their limit, waiting for the owner.
+    Any DBGI admin can see the list; only the owner can decide them."""
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    approvals = (
+        RegistrationCategoryApproval.objects.filter(
+            status=RegistrationCategoryApproval.Status.OWNER_REVIEW
+        )
+        .exclude(registration__status=Registration.Status.CLOSED)
+        .select_related("registration__company", "proposed_by")
+        .order_by("registration__bid_date", "reviewed_at", "id")
+    )
+    rows = []
+    for approval in approvals:
+        items = list(
+            approval.registration.items.filter(product__category=approval.category)
+            .select_related("product")
+            .prefetch_related("price_approval")
+        )
+        costs = dict(
+            Product.objects.filter(pk__in=[item.product_id for item in items])
+            .with_landed_cost()
+            .values_list("pk", "landed_cost")
+        )
+        lines = []
+        for item in items:
+            proposed = getattr(getattr(item, "price_approval", None), "approved_unit_price", None)
+            discount = (
+                _discount_percent(item.list_unit_price_snapshot, proposed)
+                if proposed is not None
+                else None
+            )
+            lines.append(
+                {
+                    "item_id": item.pk,
+                    "name": item.display_name,
+                    "quantity": item.quantity,
+                    "list_price": item.list_unit_price_snapshot,
+                    "requested_price": item.requested_unit_price,
+                    "proposed_price": proposed,
+                    "discount_percent": round(discount, 2) if discount is not None else None,
+                    "landed_cost": _money(costs.get(item.product_id)),
+                }
+            )
+        registration = approval.registration
+        rows.append(
+            {
+                "approval_id": approval.pk,
+                "version": approval.version,
+                "proposed_status": approval.proposed_status
+                or RegistrationCategoryApproval.Status.APPROVED,
+                "registration_id": registration.pk,
+                "reference": registration.reference,
+                "company_name": registration.company.name,
+                "project_title": registration.project_title,
+                "bid_date": registration.bid_date,
+                "category": approval.category,
+                "proposed_status_label": (
+                    RegistrationCategoryApproval.Status(approval.proposed_status).label
+                    if approval.proposed_status
+                    else ""
+                ),
+                "proposed_by_name": (
+                    approval.proposed_by.get_full_name() or approval.proposed_by.username
+                    if approval.proposed_by_id
+                    else None
+                ),
+                "rationale": approval.rationale,
+                "waiting_since": approval.reviewed_at,
+                "items": lines,
+            }
+        )
+    return rows
 
 
 @api.post(
@@ -2911,6 +3178,76 @@ def report_project_outcome(
     return _detail_response(request, registration_id)
 
 
+class CannotSupplyInput(Schema):
+    version: int
+    reason: str = Field(min_length=5, max_length=1000)
+
+
+@api.post(
+    "/review/registration-items/{item_id}/cannot-supply",
+    auth=django_auth,
+    response={
+        200: RegistrationDetail,
+        400: ErrorResponse,
+        403: ErrorResponse,
+        404: ErrorResponse,
+        409: ErrorResponse,
+    },
+)
+def mark_item_cannot_supply(request, item_id: int, payload: CannotSupplyInput):
+    """DBGI checked with the supplier and cannot provide a typed-in product. Only that line stops:
+    it stays on the deal as Not available, left out of pricing, and the company reads why."""
+    if not _require_admin(request):
+        return Status(
+            403, {"code": "admin_required", "message": "DBGI administrator access is required."}
+        )
+    with transaction.atomic():
+        item = get_object_or_404(
+            RegistrationItem.objects.select_related("registration"), pk=item_id
+        )
+        registration = Registration.objects.select_for_update().get(pk=item.registration_id)
+        if registration.version != payload.version:
+            return Status(
+                409,
+                {
+                    "code": "edit_conflict",
+                    "message": "This registration changed. Refresh before saving.",
+                },
+            )
+        if (
+            item.product_id
+            or item.supply_declined_at
+            or registration.status in {Registration.Status.CLOSED, Registration.Status.REJECTED}
+        ):
+            return Status(
+                400,
+                {
+                    "code": "invalid_transition",
+                    "message": "Only a typed-in product that is still open can be marked.",
+                },
+            )
+        prior_snapshot = registration_snapshot(registration)
+        reason = payload.reason.strip()
+        item.supply_declined_at = timezone.now()
+        item.supply_decline_reason = reason
+        item.supply_declined_by = request.user
+        item.save(
+            update_fields=["supply_declined_at", "supply_decline_reason", "supply_declined_by"]
+        )
+        registration.version += 1
+        registration.save(update_fields=["version", "updated_at"])
+        RegistrationEvent.objects.create(
+            registration=registration,
+            actor=request.user,
+            event_type="Product not available",
+            details=f"DBGI cannot supply {item.non_catalog_name}. {reason}",
+            snapshot=prior_snapshot,
+            resulting_snapshot=registration_snapshot(registration),
+        )
+        notify_company_cannot_supply(registration, item)
+    return _fresh_detail(request, registration.pk)
+
+
 @api.post(
     "/review/registration-items/{item_id}/catalog",
     auth=django_auth,
@@ -2949,10 +3286,15 @@ def add_item_to_catalog(request, item_id: int, payload: CatalogLinkInput):
                     "message": "This registration changed. Refresh before updating the catalog.",
                 },
             )
-        if item.product_id or registration.status in {
-            Registration.Status.CLOSED,
-            Registration.Status.REJECTED,
-        }:
+        if (
+            item.product_id
+            or item.supply_declined_at
+            or registration.status
+            in {
+                Registration.Status.CLOSED,
+                Registration.Status.REJECTED,
+            }
+        ):
             return Status(
                 400,
                 {
@@ -3002,6 +3344,9 @@ def add_item_to_catalog(request, item_id: int, payload: CatalogLinkInput):
             )
             ProductPrice.objects.create(
                 product=created, unit_price=new.list_price, reason=reason, created_by=request.user
+            )
+            ProductLandedCost.objects.create(
+                product=created, unit_cost=new.landed_cost, reason=reason, created_by=request.user
             )
             product_id = created.pk
         else:
@@ -3073,7 +3418,7 @@ def reprice_registration(request, registration_id: int, payload: RegistrationRep
                 400,
                 {
                     "code": "invalid_transition",
-                    "message": "A closed or rejected registration cannot be repriced.",
+                    "message": "A cancelled or rejected registration cannot be repriced.",
                 },
             )
         if _commercial_review_started(registration):
@@ -3385,8 +3730,95 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
                         ),
                     },
                 )
+        priced = payload.status in {
+            RegistrationCategoryApproval.Status.APPROVED,
+            RegistrationCategoryApproval.Status.PARTIALLY_APPROVED,
+        }
+        is_owner = request.user.is_price_owner
+        escalate = False
+        if priced:
+            by_id = {item.pk: item for item in items}
+            chosen = [(by_id[item_id], price) for item_id, price in payload.approved_prices.items()]
+            costs = dict(
+                Product.objects.filter(pk__in=[item.product_id for item, _ in chosen])
+                .with_landed_cost()
+                .values_list("pk", "landed_cost")
+            )
+            missing = sorted(
+                item.product.code for item, _ in chosen if costs.get(item.product_id) is None
+            )
+            if missing:
+                return Status(
+                    400,
+                    {
+                        "code": "landed_cost_missing",
+                        "message": (
+                            f"Enter the landed cost of {', '.join(missing)} in Administration, "
+                            "Products, before deciding this price."
+                        ),
+                    },
+                )
+            below = [
+                (item, price, costs[item.product_id])
+                for item, price in chosen
+                if price < costs[item.product_id]
+            ]
+            if below:
+                lines = [
+                    f"{item.product.code}: {price:,.2f} is below the landed cost of {cost:,.2f}."
+                    for item, price, cost in below
+                ]
+                if not is_owner:
+                    return Status(
+                        400,
+                        {
+                            "code": "below_landed_cost",
+                            "message": "A price can never go below the landed cost. "
+                            + " ".join(lines),
+                        },
+                    )
+                if not payload.below_cost_confirmed:
+                    return Status(
+                        400,
+                        {
+                            "code": "below_cost_needs_confirmation",
+                            "message": "These prices are below the landed cost. Check for a "
+                            "typo, or confirm that you want to sell at a loss.",
+                            "details": [{"field": "below_cost", "message": line} for line in lines],
+                        },
+                    )
+            warnings = price_warnings(
+                approval,
+                proposed={item.product_id: (price, item.product.name) for item, price in chosen},
+                status=payload.status,
+            )
+            if warnings and not payload.rank_exception_confirmed:
+                return Status(
+                    400,
+                    {
+                        "code": "rank_rule_needs_confirmation",
+                        "message": "This price breaks the rank rule. Tick the box to confirm "
+                        "this exception, or change the price.",
+                        "details": [{"field": "rank", "message": warning} for warning in warnings],
+                    },
+                )
+            limit = PortalSetting.current().admin_discount_limit_percent
+            escalate = not is_owner and any(
+                (_discount_percent(item.list_unit_price_snapshot, price) or 0) > limit
+                for item, price in chosen
+            )
         prior_snapshot = registration_snapshot(approval.registration)
-        approval.status = payload.status
+        was_waiting = approval.status == RegistrationCategoryApproval.Status.OWNER_REVIEW
+        if escalate:
+            # Above the admin's limit: the owner decides. The proposal is kept, but the partner
+            # still sees the price as pending.
+            approval.status = RegistrationCategoryApproval.Status.OWNER_REVIEW
+            approval.proposed_status = payload.status
+            approval.proposed_by = request.user
+        else:
+            approval.status = payload.status
+            approval.proposed_status = ""
+            approval.proposed_by = None
         approval.rationale = payload.rationale.strip()
         approval.reviewed_by = request.user
         approval.reviewed_at = timezone.now()
@@ -3408,17 +3840,33 @@ def decide_category_approval(request, approval_id: int, payload: CategoryApprova
         )
         approval.registration.version += 1
         approval.registration.save(update_fields=["version", "updated_at"])
-        RegistrationEvent.objects.create(
-            registration=approval.registration,
-            actor=request.user,
-            event_type="Commercial decision",
-            details=(
-                f"DBGI marked the {approval.category} price {approval.get_status_display()}. "
-                f"{approval.rationale}"
-            ),
-            snapshot=prior_snapshot,
-        )
-        notify_price_decision(approval)
+        if escalate:
+            RegistrationEvent.objects.create(
+                registration=approval.registration,
+                actor=request.user,
+                event_type="Sent to the owner",
+                details=(
+                    f"The {approval.category} discount is above the admin limit, so the owner "
+                    f"decides it. Proposed: "
+                    f"{RegistrationCategoryApproval.Status(payload.status).label}. "
+                    f"{approval.rationale}"
+                ),
+                snapshot=prior_snapshot,
+            )
+            notify_owner_approval_needed(approval)
+        else:
+            RegistrationEvent.objects.create(
+                registration=approval.registration,
+                actor=request.user,
+                event_type="Commercial decision",
+                details=(
+                    f"{'The owner' if was_waiting and is_owner else 'DBGI'} marked the "
+                    f"{approval.category} price {approval.get_status_display()}. "
+                    f"{approval.rationale}"
+                ),
+                snapshot=prior_snapshot,
+            )
+            notify_price_decision(approval)
     return _serialize_category_approval(approval, request.user, warnings=price_warnings(approval))
 
 

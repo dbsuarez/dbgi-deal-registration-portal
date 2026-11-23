@@ -17,6 +17,7 @@ from registrations.models import (
     Opportunity,
     OpportunityScope,
     Product,
+    ProductLandedCost,
     Registration,
     RegistrationEvent,
     RegistrationItem,
@@ -100,7 +101,24 @@ def _product(code):
         code=code,
         defaults={"name": name, "category": category},
     )
+    ensure_landed_cost(product)
     return product
+
+
+# Sample landed costs, so sample deals can be priced (a product without one cannot be).
+SAMPLE_LANDED_COSTS = {"M1820W": "7000.00", "P1820W": "6500.00", "DEMO-001": "3500.00"}
+
+
+def ensure_landed_cost(product, amount=None):
+    """Give a sample product a landed cost if it has none yet."""
+    amount = amount or SAMPLE_LANDED_COSTS.get(product.code)
+    if amount and not ProductLandedCost.objects.filter(product=product).exists():
+        ProductLandedCost.objects.create(
+            product=product,
+            unit_cost=amount,
+            reason="Sample landed cost for testing",
+            effective_from=timezone.now() - timedelta(minutes=1),
+        )
 
 
 def _opportunity(actor, *, title, end_user_name, address, scope_name):

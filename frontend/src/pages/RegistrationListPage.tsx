@@ -427,6 +427,21 @@ export default function RegistrationListPage() {
             Project pipeline
           </Typography>
           <Typography variant="h1">Deal registrations</Typography>
+          {session.is_owner && Boolean(session.owner_waiting_count) && (
+            <Alert
+              severity="warning"
+              sx={{ mt: 1 }}
+              action={
+                <Button color="inherit" size="small" href="/owner-approvals/">
+                  Open Owner approvals
+                </Button>
+              }
+            >
+              {session.owner_waiting_count === 1
+                ? "1 price is waiting for your approval."
+                : `${session.owner_waiting_count} prices are waiting for your approval.`}
+            </Alert>
+          )}
           <Typography color="text.secondary">
             Review registrations and their current status.
           </Typography>
@@ -510,7 +525,7 @@ export default function RegistrationListPage() {
             Review required after edit
           </MenuItem>
           <MenuItem value="rejected">Rejected</MenuItem>
-          <MenuItem value="closed">Closed</MenuItem>
+          <MenuItem value="closed">Cancelled</MenuItem>
         </TextField>
         <Button
           variant="text"

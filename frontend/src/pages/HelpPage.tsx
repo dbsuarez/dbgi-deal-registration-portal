@@ -49,7 +49,7 @@ const registrationStatuses = [
     "A confirmed registration changed and must be reviewed again.",
   ],
   ["Rejected", "Open the registration to review DBGI's reason."],
-  ["Closed", "You or DBGI closed the deal. Only DBGI can reopen it."],
+  ["Cancelled", "You or DBGI cancelled the deal. Only DBGI can reopen it."],
 ];
 
 type PracticeScenario = {
@@ -75,17 +75,17 @@ const companyScenarios: PracticeScenario[] = [
       "The report shows Waiting for DBGI. When DBGI confirms it, the project shows Won by your company.",
   },
   {
-    title: "Close a deal",
+    title: "Cancel a deal",
     actor: "Company user",
     before:
       "Use this when your company will not go on with the deal, for example when another company won.",
     steps: [
-      "Open the registration and select Close deal.",
-      "Choose why it is closing and type a reason.",
-      "Select Close deal in the box.",
+      "Open the registration and select Cancel deal.",
+      "Choose why it is cancelled and type a reason.",
+      "Select Cancel deal in the box.",
     ],
     expected:
-      "The deal shows Closed and leaves the ranking. DBGI is told. Only DBGI can reopen it.",
+      "The deal shows Cancelled and leaves the ranking. DBGI is told. Only DBGI can reopen it.",
   },
   {
     title: "Request a repeat order",
@@ -150,17 +150,31 @@ const companyScenarios: PracticeScenario[] = [
 
 const adminScenarios: PracticeScenario[] = [
   {
-    title: "Confirm a win and close the other deals",
+    title: "Decide a price with a bigger discount",
+    actor: "DBGI administrator",
+    before:
+      "Every product needs a landed cost first (Administration, Products). No price can go below it.",
+    steps: [
+      "Open the registration and select Decide price.",
+      "Type the approved price. The box shows the landed cost and the discount from the list price.",
+      "Up to the admin limit (5%), the price is approved when you save.",
+      "Above the limit, saving sends it to the owner. The owner opens Owner approvals, then the deal, and decides it.",
+    ],
+    expected:
+      "The partner sees the price only after it is approved. If the price breaks the rank rule, tick the box to confirm the exception.",
+  },
+  {
+    title: "Confirm a win and cancel the other deals",
     actor: "DBGI administrator",
     before: "Use a registration with a Won report waiting for DBGI.",
     steps: [
       "Open the registration, find Project outcome reports, and open the Notice of Award.",
       "Select Confirm Won and write a note.",
       "Issue the manufacturer certificate and the dealer certificate, then select Mark certificates issued.",
-      "Under Other companies' open deals, call each company and select Close with a note from the call.",
+      "Under Other companies' open deals, call each company and select Cancel deal with a note from the call.",
     ],
     expected:
-      "The winner sees Won by your company and the others see Awarded to another company. To undo a close, open the closed deal and select Reopen deal.",
+      "The winner sees Won by your company and the others see Awarded to another company. To undo a cancel, open the cancelled deal and select Reopen deal.",
   },
   {
     title: "Decide a repeat order",

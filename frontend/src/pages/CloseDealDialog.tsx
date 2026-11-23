@@ -74,7 +74,7 @@ export default function CloseDealDialog({
       setError(
         failure instanceof Error
           ? failure.message
-          : "The deal could not be closed.",
+          : "The deal could not be cancelled.",
       );
     } finally {
       setSaving(false);
@@ -89,7 +89,7 @@ export default function CloseDealDialog({
       maxWidth="sm"
     >
       <DialogTitle>
-        Close {target?.companyName ? `${target.companyName}'s` : "this"} deal?
+        Cancel {target?.companyName ? `${target.companyName}'s` : "this"} deal?
       </DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -107,7 +107,7 @@ export default function CloseDealDialog({
           <TextField
             select
             required
-            label="Why is it closing?"
+            label="Why is it cancelled?"
             value={reason}
             onChange={(event) => setReason(event.target.value as CloseReason)}
           >
@@ -152,7 +152,7 @@ export default function CloseDealDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
-          Cancel
+          Keep the deal
         </Button>
         <Button
           variant="contained"
@@ -160,7 +160,7 @@ export default function CloseDealDialog({
           disabled={saving || note.trim().length < 5}
           onClick={save}
         >
-          Close deal
+          Cancel deal
         </Button>
       </DialogActions>
     </Dialog>

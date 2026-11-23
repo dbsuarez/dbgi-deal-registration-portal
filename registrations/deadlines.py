@@ -23,7 +23,7 @@ from .models import (
     RegistrationEvent,
     RegistrationNotification,
 )
-from .notifications import notify_company_users, notify_dbgi_admins
+from .notifications import notify_company_users, notify_dbgi_admins, notify_dbgi_price_deadline
 
 PRICE_REMINDER_DAYS_BEFORE = 14  # decision C1
 
@@ -43,6 +43,7 @@ class DeadlineSummary:
     hold_reminders: int = 0
     hold_limits_reached: int = 0
     price_reminders: int = 0
+    price_deadlines: int = 0
 
 
 def _flag_for_review(registration, now, title, details):
@@ -214,6 +215,27 @@ def process_deadlines(now=None):
                 ),
             )
             summary.price_reminders += 1
+    # 2026-11-23: prices must be decided a set number of days before the bid date.
+    undecided = (
+        Registration.objects.filter(
+            bid_date__gte=today,
+            bid_date__lte=today + timedelta(days=settings.price_deadline_days),
+            category_approvals__status__in=(
+                RegistrationCategoryApproval.Status.PENDING,
+                RegistrationCategoryApproval.Status.CHANGES_REQUESTED,
+                RegistrationCategoryApproval.Status.OWNER_REVIEW,
+            ),
+        )
+        .exclude(status__in=(Registration.Status.CLOSED, Registration.Status.REJECTED))
+        .select_related("company")
+        .distinct()
+    )
+    for registration in undecided:
+        key = f"registration:{registration.pk}:price-deadline:{registration.bid_date}"
+        if RegistrationNotification.objects.filter(event_key=key).exists():
+            continue
+        notify_dbgi_price_deadline(registration, (registration.bid_date - today).days)
+        summary.price_deadlines += 1
     return summary
 
 
