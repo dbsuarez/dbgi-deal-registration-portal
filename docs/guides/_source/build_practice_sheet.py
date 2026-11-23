@@ -28,9 +28,16 @@ STEPS = [
     ),
     (
         "DBGI",
-        "Open the deal. Under **Commercial approvals**, click **Decide price**. Leave Decision on **Approved**, "
-        "type **8000** as the approved price, type a reason, and click **Save decision**.",
+        "Open the deal. Under **Commercial approvals**, click **Decide price**. Type **6000** and a reason, and "
+        "save: it is refused, because it is below the landed cost. Type **8000** and save. That is 20% off, above "
+        "the 5% admin limit, so it goes to the owner.",
         "25, 26",
+    ),
+    (
+        "Owner",
+        "Sign in as **Owner Practice** (under DBGI administrators, click **Portal**). The Overview shows 1 price "
+        "waiting. Click **Open Owner approvals**, write a short note, and click **Approve**.",
+        "52, 53",
     ),
     (
         "Your company",
@@ -44,10 +51,10 @@ STEPS = [
         "9 to 12, 24",
     ),
     (
-        "DBGI",
-        "Approve the other company's price at **8000**, the same as rank 1. Read the warning. Then open it again and "
-        "change the price to **8500**.",
-        "26",
+        "DBGI, then owner",
+        "Decide the other company's price at **8000**, the same as rank 1. Read the rank warning, but do not tick "
+        "the box: change the price to **8500** and save. As the owner, approve it on **Owner approvals**.",
+        "26, 52",
     ),
     (
         "Other company",
@@ -149,7 +156,8 @@ def build():
     )
     doc.para(
         "Click a card to sign in as that company. For DBGI, find **DBGI Practice** and click **Portal** or **Django "
-        "admin**. If a password is asked for, it is **testpass123**. To change accounts, click **Log out**."
+        "admin**. For the owner, find **Owner Practice** and click **Portal**. If a password is asked for, it is "
+        "**testpass123**. To change accounts, click **Log out**."
     )
     doc.good(
         "**Stay with your pair's end-user,** and open only its deals. That keeps your test apart from the others."

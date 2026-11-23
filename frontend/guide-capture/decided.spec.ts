@@ -73,13 +73,17 @@ test("repeat order, merge, and split on the real server", async ({
 
   await dbgi.goto(dealUrl);
   await settle(dbgi);
+  // NOA opens a preview box; its Download link holds the file's address.
+  await dbgi.getByRole("button", { name: "NOA" }).click();
+  const preview = dbgi.getByRole("dialog");
   const letter = await dbgi.request.get(
-    await dbgi
-      .getByRole("link", { name: "NOA" })
+    await preview
+      .getByRole("link", { name: "Download" })
       .getAttribute("href")
       .then(String),
   );
   expect(letter.status()).toBe(200);
+  await preview.getByRole("button", { name: "Close" }).click();
   await dbgi.getByRole("button", { name: "Accept", exact: true }).click();
   await dbgi
     .getByRole("dialog")

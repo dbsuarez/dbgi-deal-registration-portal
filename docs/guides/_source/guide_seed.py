@@ -16,6 +16,7 @@ from registrations.models import (
     Opportunity,
     OpportunityScope,
     Product,
+    ProductLandedCost,
     ProductPrice,
     Registration,
     RegistrationCategoryApproval,
@@ -41,6 +42,16 @@ partner_user = User.objects.create_user(
 second_user = User.objects.create_user(
     "demo-partner-2", "demo-partner-2@example.invalid", PASSWORD, company=second
 )
+User.objects.create_user(
+    "demo-owner",
+    "demo-owner@example.invalid",
+    PASSWORD,
+    first_name="The",
+    last_name="Owner",
+    role=User.Role.DBGI_ADMIN,
+    is_staff=True,
+    is_owner=True,
+)
 admin = User.objects.create_superuser(
     "demo-dbgi",
     "demo-dbgi@example.invalid",
@@ -52,9 +63,12 @@ admin = User.objects.create_superuser(
 
 m1820w = Product.objects.get(code="M1820W")
 p1820w = Product.objects.get(code="P1820W")
-for product, amount in ((m1820w, "10000.00"), (p1820w, "9000.00")):
+for product, amount, cost in ((m1820w, "10000.00", "7000.00"), (p1820w, "9000.00", "6500.00")):
     ProductPrice.objects.create(
         product=product, unit_price=amount, reason="Starting list price", created_by=admin
+    )
+    ProductLandedCost.objects.create(
+        product=product, unit_cost=cost, reason="Supplier cost", created_by=admin
     )
 
 lucena = EndUser.objects.create(

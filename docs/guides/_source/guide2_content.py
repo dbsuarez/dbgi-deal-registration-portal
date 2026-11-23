@@ -23,12 +23,13 @@ PARTS = {
     7: "Approve the price",
     8: "See the result",
     9: "Change a deal",
-    10: "Close a deal",
+    10: "Cancel a deal",
     11: "Report the result",
     12: "Time limits",
     13: "Other DBGI tasks",
     14: "Repeat orders",
     15: "Quick help",
+    16: "For the owner",
 }
 
 PAGES = [
@@ -215,7 +216,7 @@ PAGES = [
                 "DBGI checks again. Your rank stays.",
             ],
             ["Rejected", "DBGI said no. The reason is in Activity.", "This is final"],
-            ["Closed", "You or DBGI closed the deal", "Only DBGI can reopen it"],
+            ["Cancelled", "You or DBGI cancelled the deal", "Only DBGI can reopen it"],
         ],
         "widths": [3, 5, 4],
     },
@@ -353,13 +354,16 @@ PAGES = [
         "intro": "Rank 1 gets the best price. Everyone after rank 1 gets the same price. The box shows the deal's rank and the prices already given on this project.",
         "steps": [
             "Leave **Decision** on Approved.",
-            "Type the approved price for each product.",
+            "Type the approved price for each product. The box shows the landed cost and the discount.",
             "**Valid until**: choose the end date. If you leave it empty, the price lasts 90 days.",
             "Type your reason in **Reason**. The partner can read it.",
-            "Click **Save decision**. A warning means the price breaks the rule. It still saves, so you can make an exception.",
+            "Click **Save decision**. Up to a 5% discount, it is approved. A bigger discount goes to the owner.",
         ],
-        "pics": [("price-decide", "The price box: rank, other prices, approved prices, and reason")],
-        "tip": "Save decision stays off until every product has a price and the reason is filled in.",
+        "pics": [("price-decide", "The price box: rank, landed cost, approved prices, and discount")],
+        "tip": (
+            "No price can go below the landed cost. If a price breaks the rank rule, tick the box to confirm "
+            "the exception, or change the price."
+        ),
     },
     # Part 8
     {
@@ -426,7 +430,7 @@ PAGES = [
         "part": 9,
         "title": "How to change a deal",
         "role": "partner",
-        "intro": "You can edit your deal any time until it is closed. Some parts lock during review.",
+        "intro": "You can edit your deal any time until it is cancelled. Some parts lock during review.",
         "steps": [
             "Open the deal and click **Edit registration**.",
             "Make your change and click **Save changes**.",
@@ -478,20 +482,20 @@ PAGES = [
     # Part 10
     {
         "part": 10,
-        "title": "Close a deal",
+        "title": "Cancel a deal",
         "role": "both",
         "intro": "Do this if your company will not go on with the deal, for example when another company won.",
         "steps": [
-            "Open the deal and click **Close deal**.",
-            "Choose why it is closing, and type a reason.",
-            "Click **Close deal** in the box.",
+            "Open the deal and click **Cancel deal**.",
+            "Choose why it is cancelled, and type a reason.",
+            "Click **Cancel deal** in the box.",
         ],
         "pics": [
-            ("withdraw", "Closing the deal"),
-            ("withdrawn-top", "The deal is now Closed"),
+            ("withdraw", "Cancelling the deal"),
+            ("withdrawn-top", "The deal is now Cancelled"),
         ],
         "warn": (
-            "The deal leaves the ranking and cannot change. DBGI can also close it for you after a call. "
+            "The deal leaves the ranking and cannot change. DBGI can also cancel it for you after a call. "
             "Only DBGI can reopen it, for example if the winner is disqualified."
         ),
     },
@@ -523,7 +527,7 @@ PAGES = [
             "Open the deal and find **Project outcome reports**. Open the **Notice of Award**.",
             "Click **Confirm** or **Do not accept**, and add a note.",
             "If it is Won: issue the manufacturer and dealer certificates, then click **Mark certificates "
-            "issued**. Call the other companies and **Close** their deals from the list on the deal page.",
+            "issued**. Call the other companies and cancel their deals from the list on the deal page.",
         ],
         "pics": [("out-dbgi", "The report waiting for your decision")],
         "tip": (
@@ -593,7 +597,10 @@ PAGES = [
             "Click **Save**.",
         ],
         "pics": [("price-add", "A product and its price history")],
-        "tip": "Old prices are never changed or deleted. A start date in the future schedules the change.",
+        "tip": (
+            "Old prices are never changed or deleted. Add the **landed cost** the same way, under Landed costs: "
+            "only DBGI sees it, and no price can go below it."
+        ),
     },
     {
         "part": 13,
@@ -619,7 +626,10 @@ PAGES = [
             "Click **Add to catalog**.",
         ],
         "pics": [("catalog", "Adding the product")],
-        "tip": "The product now has a list price, and its price review opens. The partner gets a message.",
+        "tip": (
+            "The price review opens, and the partner gets a message. If the supplier cannot provide it, click "
+            "**Can't supply** instead and type why."
+        ),
     },
     {
         "part": 13,
@@ -672,7 +682,7 @@ PAGES = [
         "intro": "Some rules are settings, so DBGI can change them without waiting for a new version.",
         "steps": [
             "Click **Administration**, then **Portal settings**.",
-            "Change a time limit, how long a repeat order stays valid, or which events email DBGI.",
+            "Change a time limit, the discount limit, what partners must fill in, or which events email DBGI.",
             "Each group explains what it does. Click **Save**.",
             "Holidays are separate: **Administration**, then **Public holidays**.",
         ],
@@ -740,7 +750,7 @@ PAGES = [
             "**A requested price is not an approved price.** Wait for DBGI.",
             "**Read Activity.** DBGI's reasons and instructions are there.",
             "**Do not upload private papers** or other companies' prices.",
-            "**A closed deal cannot change.** Only DBGI can reopen it.",
+            "**A cancelled deal cannot change.** Only DBGI can reopen it.",
         ],
     },
     {
@@ -757,7 +767,7 @@ PAGES = [
             ["See my place on a project", "Rankings"],
             ["Use my approved price again", "Open the deal, then Request repeat order"],
             ["Tell DBGI I won or lost", "Open the deal, then Report project outcome"],
-            ["Stop a deal", "Open the deal, then Close deal"],
+            ["Stop a deal", "Open the deal, then Cancel deal"],
         ],
         "widths": [2, 3],
     },
@@ -781,5 +791,34 @@ PAGES = [
             ["NOA and NTP", "The buyer's letters: Notice of Award, Notice to Proceed"],
         ],
         "widths": [2, 3],
+    },
+    # Part 16
+    {
+        "part": 16,
+        "title": "Approve bigger discounts",
+        "role": "dbgi",
+        "intro": "Admins can approve a discount up to 5% from the list price. A bigger one waits for the owner.",
+        "steps": [
+            "You get an email, and the menu shows **Owner approvals** with a number.",
+            "Each price shows the list price, the landed cost, the proposed price, and the discount.",
+            "Change the price if you want, and write a short note.",
+            "Click **Approve** or **Decline**. The company is told.",
+        ],
+        "pics": [("owner-approvals", "Owner approvals: decide each price on one page")],
+        "tip": "A price below the landed cost turns red, and you must confirm it is not a typo.",
+    },
+    {
+        "part": 16,
+        "title": "The owner's Overview",
+        "role": "dbgi",
+        "intro": "The owner's home page shows what is happening, without reading every deal.",
+        "steps": [
+            "This month so far: new deals, projects won, lost or cancelled, and the pipeline.",
+            "Bids in the next 14 days, and whether each price is decided.",
+            "Anything stuck, the recent wins and their certificates, and the top partners.",
+            "Every Monday morning, the same numbers come by email.",
+        ],
+        "pics": [("owner-overview", "The Overview: a few numbers and short lists")],
+        "tip": "Click **All deals** to see every deal. Each list shows at most 5 rows.",
     },
 ]

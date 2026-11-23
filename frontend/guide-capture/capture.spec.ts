@@ -85,6 +85,7 @@ async function openDeal(page: Page, title: string) {
 test("capture the guide screenshots", async ({ browser }) => {
   const partner = await login(browser, "demo-partner", "login");
   const dbgi = await login(browser, "demo-dbgi");
+  const owner = await login(browser, "demo-owner");
 
   // Part 1: getting started
   await partner.goto("/");
@@ -248,10 +249,23 @@ test("capture the guide screenshots", async ({ browser }) => {
   await decide.getByLabel(/Reason/).fill("Within the allowed discount.");
   await dialog(dbgi, "price-decide");
   await decide.getByRole("button", { name: "Save decision" }).click();
+  // Above the admin limit, the box says it went to the owner; close it.
   const close = decide.getByRole("button", { name: "Close" });
-  if (await close.isVisible().catch(() => false)) await close.click();
+  await close
+    .waitFor({ timeout: 10_000 })
+    .then(() => close.click())
+    .catch(() => undefined);
   await expect(decide).toBeHidden();
   await settle(dbgi);
+
+  // Part 16: a 10% discount is above the admin limit, so the owner approves it
+  await owner.goto("/owner-approvals/");
+  await shot(owner, "owner-approvals");
+  await owner.getByLabel(/Your note/).fill("Approved for this bid.");
+  await owner.getByRole("button", { name: "Approve" }).click();
+  await expect(
+    owner.getByText(/approved\. The company is told\./),
+  ).toBeVisible();
 
   // Part 8: see the result, renew, rank
   await partner.goto(dealUrl);
@@ -310,7 +324,7 @@ test("capture the guide screenshots", async ({ browser }) => {
 
   // Part 10: close a deal
   await openDeal(partner, "Printers for the Lucena City Library");
-  await partner.getByRole("button", { name: "Close deal" }).click();
+  await partner.getByRole("button", { name: "Cancel deal" }).click();
   await partner
     .getByRole("dialog")
     .getByLabel(/Reason/)
@@ -318,7 +332,7 @@ test("capture the guide screenshots", async ({ browser }) => {
   await dialog(partner, "withdraw");
   await partner
     .getByRole("dialog")
-    .getByRole("button", { name: "Close deal" })
+    .getByRole("button", { name: "Cancel deal" })
     .click();
   await settle(partner);
   await partner.screenshot({
@@ -426,4 +440,9 @@ test("capture the guide screenshots", async ({ browser }) => {
   await dbgi.setViewportSize({ width: 1440, height: 1400 });
   await shot(dbgi, "portal-settings");
   await dbgi.setViewportSize({ width: 1440, height: 900 });
+
+  // Part 16: the owner's home page
+  await owner.goto("/");
+  await owner.setViewportSize({ width: 1440, height: 1100 });
+  await shot(owner, "owner-overview");
 });

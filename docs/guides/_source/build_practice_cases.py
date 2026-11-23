@@ -17,7 +17,7 @@ OUT = os.path.normpath(
 TITLE = "Practice More Cases"
 CASE_DEAL = "Case practice: printers and scanners"
 # WordCraft does not keep a heading with the table after it, so these cases start a new page.
-NEW_PAGE = {"2", "5", "8", "11"}
+NEW_PAGE = {"2", "5", "8", "11", "14"}
 
 CASES = [
     (
@@ -130,13 +130,14 @@ CASES = [
                 "DBGI",
                 "Under **Requested products**, click **Add to catalog** on that row. Choose **New product**. Code: "
                 "**PRES-** and your pair number (for example PRES-1). Name: Wireless presenter. Category: Accessories. "
-                "List price 1500. Type a reason and click **Add to catalog**.",
+                "List price 1500, landed cost 1000. Type a reason and click **Add to catalog**.",
                 "41",
             ),
             (
                 "DBGI",
-                "A new price review appears under **Commercial approvals**. Click **Decide price** and approve 1200.",
-                "25, 26",
+                "A new price review appears under **Commercial approvals**. Click **Decide price** and approve 1200. "
+                "That is 20% off, so as the owner, approve it on **Owner approvals**.",
+                "25, 26, 52",
             ),
         ],
     ),
@@ -243,7 +244,7 @@ CASES = [
         ],
     ),
     (
-        "11. DBGI closes a deal after the win",
+        "11. DBGI cancels a deal after the win",
         [
             (
                 "Your company",
@@ -255,24 +256,24 @@ CASES = [
                 "DBGI",
                 "Open the deal and click **Confirm Won**. Click **Mark certificates issued**. Under **Other "
                 "companies' open deals**, the other company has two deals (its first deal and the presenter deal). "
-                "Click **Close** on each, type a note from the call (for example: called them, they will not "
-                "continue), and click **Close deal**.",
+                "Click **Cancel deal** on each, type a note from the call (for example: called them, they will "
+                "not continue), and click **Cancel deal** in the box.",
                 "34, 36",
             ),
             (
                 "Other company",
-                "Open your deal. It says **Closed**, and the project says **Awarded to another company**. Read "
+                "Open your deal. It says **Cancelled**, and the project says **Awarded to another company**. Read "
                 "DBGI's note under **Activity**.",
                 "34",
             ),
         ],
     ),
     (
-        "12. DBGI reopens a closed deal",
+        "12. DBGI reopens a cancelled deal",
         [
             (
                 "DBGI",
-                "Open the other company's first deal (now closed) and click **Reopen deal**. Type a reason (for "
+                "Open the other company's first deal (now cancelled) and click **Reopen deal**. Type a reason (for "
                 "example: the winner was disqualified) and click **Reopen deal**.",
                 "34",
             ),
@@ -299,9 +300,33 @@ CASES = [
             ),
             (
                 "Other company",
-                "Open your first deal and click **Close deal**. Choose **Another company won**, type a reason, and "
-                "click **Close deal**. Only DBGI can reopen it.",
+                "Open your first deal and click **Cancel deal**. Choose **Another company won**, type a reason, and "
+                "click **Cancel deal** in the box. Only DBGI can reopen it.",
                 "34",
+            ),
+        ],
+    ),
+    (
+        "14. A product we can't supply",
+        [
+            (
+                "Other company",
+                "Click **New registration**, your pair's end-user. For the product, choose **Not in catalog** and type "
+                "**Projector**. Try quantity 10, price 25000: the box says the order must be worth at least "
+                "1,000,000. Change the quantity to **1000**, then finish and click **Create registration**.",
+                "11, 41",
+            ),
+            (
+                "DBGI",
+                "Click **Start review**, choose **Link to an existing opportunity**, pick your pair's project, and "
+                "click **Link existing opportunity**. Under **Requested products**, click **Can't supply**, type why "
+                "(for example: our supplier does not carry projectors), and click **Mark not available**.",
+                "41",
+            ),
+            (
+                "Other company",
+                "Open the deal. The projector says **Not available**, with DBGI's reason.",
+                "41",
             ),
         ],
     ),
