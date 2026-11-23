@@ -24,8 +24,11 @@ stays in test mode (debug on, practice data) while employees test it; the rules 
   8081 stays as a direct way in. Traefik's own settings are not ours; do not change them.
 - Real email is on (SMTP through MXroute, sent as support@dbgi.ph), so practice sends real emails.
 - Daily backup at 21:30 UTC (05:30 Asia/Manila): `deploy/dbgi-portal-backup.sh` saves the database and uploaded files
-  to `backups/YYYY-MM-DD/` in the portal folder and keeps 14 days. The log is `logs/backup.log`. A copy off the server
-  is still to be set up.
+  to `backups/YYYY-MM-DD/` in the portal folder and keeps 14 days. The log is `logs/backup.log`. Each backup is also
+  uploaded, encrypted (rclone crypt remote `dbgi-backup`), to the DBGI backup Google Drive account, folder
+  `dbgi-portal-backups`, kept 30 days. The Drive permission covers only files rclone creates. The encryption key is in
+  `/root/dbgi-backup-key.txt` on the server and kept by DBGI elsewhere; without it the Drive copies cannot be opened.
+  To restore from Drive: `rclone copy dbgi-backup:YYYY-MM-DD backups/YYYY-MM-DD`, then follow the script's restore notes.
 - Before go-live: set `DJANGO_DEBUG=false`, remove `DJANGO_ALLOW_HTTP_COOKIES`, set `PORTAL_BASE_URL`, new secret key and
   strong passwords, clean data, and decide whether to keep a separate practice copy. Whoever has root on the server can
   read the portal's data, so real data there means trusting the other person with it.
